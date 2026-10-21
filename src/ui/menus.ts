@@ -6,7 +6,7 @@ import type { World } from '../sim/world';
 import type { SaveData } from '../storage';
 import { BUTTER, ELFIN, ESHUR, KOMI, NELL, villager } from '../view/draw/characters';
 import type { ChibiSpec, Expr } from '../view/draw/chibi';
-import { DISCLAIMER, breadCanvas, chibiCanvas, h, mochiChibi, starsText, yen } from './dom';
+import { DISCLAIMER, breadCanvas, h, mochiChibi, starsText, yen } from './dom';
 
 export interface MenuHost {
   save: SaveData;
@@ -122,7 +122,7 @@ export function modeSelect(host: MenuHost, on: { pick: (s: StageDef) => void; ba
             on.pick(s);
           },
         },
-        h('span', { class: 'mode-face' }, chibiCanvas(spec, expr, 26, { body: false })),
+        h('span', { class: 'mode-face' }, chara(host, spec, expr, 26, { body: false })),
         h(
           'span',
           { class: 'mode-body' },

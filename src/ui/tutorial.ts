@@ -1,7 +1,7 @@
 import type { BreadId } from '../config/breads';
 import type { World } from '../sim/world';
 import { ESHUR } from '../view/draw/characters';
-import { drawChibi, type Expr } from '../view/draw/chibi';
+import type { Expr } from '../view/draw/chibi';
 import { roundRect } from '../view/draw/ui';
 import type { Action, GameView } from '../view/gameView';
 import type { Rect } from '../view/layout';
@@ -237,6 +237,11 @@ export class Tutorial {
     return this.steps[this.index];
   }
 
+  /** 説明を読んでもらっている（タップで進む）手順の途中 */
+  get talking(): boolean {
+    return this.step?.kind === 'tap';
+  }
+
   get waitingTap(): boolean {
     return this.step?.kind === 'tap' && this.t > 0.35;
   }
@@ -341,7 +346,8 @@ export class Tutorial {
     c.strokeStyle = C.eshur;
     c.lineWidth = 5;
     c.stroke();
-    drawChibi(c, ESHUR, bx + 66, by + Math.min(bh / 2, 70) + 6, 40, { expr: s.expr ?? 'normal', t: this.t, body: false, squash: 1 + Math.sin(this.t * 3) * 0.015 });
+    // 話している間もほっぺを引っぱれる（顔をタップしても読み進められる）
+    this.view.drawFace(c, 'tutor', ESHUR, bx + 66, by + Math.min(bh / 2, 70) + 6, 40, { expr: s.expr ?? 'normal', t: this.t, body: false, squash: 1 + Math.sin(this.t * 3) * 0.015 });
     c.fillStyle = C.ink;
     c.textAlign = 'left';
     c.textBaseline = 'middle';

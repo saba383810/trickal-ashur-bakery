@@ -7,7 +7,7 @@ import type { Customer, World } from '../sim/world';
 import { drawBread } from './draw/breads';
 import { MochiBody } from '../mochi/body';
 import { BUTTER, ELFIN, KOMI, NELL, villager } from './draw/characters';
-import { FEET_R, drawChibi, type ChibiSpec, type Expr } from './draw/chibi';
+import { FEET_R, type ChibiPose, type ChibiSpec, type Expr } from './draw/chibi';
 import { bubbleSize, drawBubble, drawOven, drawSlot, drawTray } from './draw/props';
 import { SceneCache } from './draw/scene';
 import { clock, coin, keycap, outlined, roundRect, star } from './draw/ui';
@@ -37,6 +37,7 @@ interface CustView {
 }
 
 interface Banner {
+  id: number;
   text: string;
   sub?: string;
   color: string;
@@ -49,6 +50,10 @@ interface Banner {
 type Face = 'nell' | 'elfin' | 'komi' | 'butter';
 const FACES: Record<Face, ChibiSpec> = { nell: NELL, elfin: ELFIN, komi: KOMI, butter: BUTTER };
 
+function bannerFaceKey(b: Banner): string {
+  return `banner-${b.id}`;
+}
+
 interface Say {
   key: string;
   text: string;
@@ -56,6 +61,20 @@ interface Say {
   dur: number;
   at: () => Point | null;
   color: string;
+}
+
+/** HUD・お知らせ・チュートリアルの吹き出しの顔。どれもほっぺを引っぱれる（見た目だけで、ゲームには効かない） */
+interface DecoFace {
+  body: MochiBody;
+  /** 最後に描いた頭の中心と半径 */
+  x: number;
+  y: number;
+  r: number;
+  /** 最後に描いた render の番号。今の絵に出ていない顔はつまめない */
+  frame: number;
+  /** その render で描いた順。重なっていたら後から描いた（上の）顔をつまむ */
+  z: number;
+  grab: { id: number; start: Point; moved: boolean; onTap: (() => void) | null } | null;
 }
 
 const SEAT_KEYS = ['A', 'S', 'D', 'F'];
@@ -85,9 +104,18 @@ export class GameView {
     side: 1 as -1 | 1,
     pointerId: null as number | null,
     keyHold: -1,
+    /** 追い払えない時につまんだ（ほっぺが伸びるだけ） */
+    free: false,
   };
-  /** 客を押している指。動かしたらほっぺを引っぱる（pinching）、動かさずに離したら渡す */
-  private press: { id: number; customerId: number; start: Point; pinching: boolean } | null = null;
+  /**
+   * 客を押している指。動かしたらほっぺを引っぱる（pinching）、動かさずに離したら渡す。
+   * free は渡せない客（来店中・帰り際・説明中）を押したとき: 引っぱっても効果はなく、動かさずに離したら free を呼ぶ
+   */
+  private press: { id: number; customerId: number; start: Point; pinching: boolean; free: (() => void) | null } | null = null;
+  private faces = new Map<string, DecoFace>();
+  private frame = 0;
+  private faceZ = 0;
+  private bannerSeq = 0;
   /** バターのパチンコの石（t = 経過秒） */
   private shots: { from: Point; t: number }[] = [];
   private seen = new Set<string>();
@@ -194,7 +222,9 @@ export class GameView {
     }
 
     const e = this.elfin;
-    if (this.elfinHit(p) && e.pointerId === null && e.keyHold < 0 && this.act({ type: 'elfinGrab' })) {
+    if (this.elfinHit(p, true) && e.pointerId === null && e.keyHold < 0) {
+      // 追い払えない時（説明中・帰り際など）も、ほっぺだけは引っぱれる
+      e.free = !(this.elfinActive() && this.act({ type: 'elfinGrab' }));
       const g = e.body.grab(id, this.elfinLocal(p));
       e.pointerId = id;
       e.side = g && g.anchor.x < 0 ? -1 : 1;
@@ -219,9 +249,10 @@ export class GameView {
       // 吹き出しは押した瞬間に渡す。体は、動かさずに離したら渡し、動かしたらほっぺを引っぱる
       const b = this.custViews.get(cust.id)?.bubble;
       if ((b && inside(b, p, 6)) || this.press) this.act({ type: 'serve', customerId: cust.id });
-      else this.press = { id, customerId: cust.id, start: p, pinching: false };
+      else this.press = { id, customerId: cust.id, start: p, pinching: false, free: null };
       return;
     }
+    if (this.pressFace(id, p, () => {})) return;
     const ovenIdx = L.ovens.findIndex((r) => inside(r, p));
     if (ovenIdx >= 0) this.tapOven(ovenIdx);
   }
@@ -229,10 +260,15 @@ export class GameView {
   pointerMove(id: number, p: Point): void {
     this.hover = p;
     if (this.elfin.pointerId === id) this.elfin.body.pinch.move(id, this.elfinLocal(p));
+    for (const f of this.faces.values()) {
+      if (f.grab?.id !== id) continue;
+      if (Math.hypot(p.x - f.grab.start.x, p.y - f.grab.start.y) > DRAG_START) f.grab.moved = true;
+      f.body.pinch.move(id, MochiBody.toLocal(p, f.x, f.y, f.r));
+    }
     const pr = this.press;
     if (pr?.id !== id) return;
     const c = this.world.customers.find((x) => x.id === pr.customerId);
-    if (!c || c.state !== 'waiting') return;
+    if (!c || (c.state !== 'waiting' && !pr.free)) return;
     const body = this.custView(c).body;
     const h = this.custHead(c);
     if (!pr.pinching && Math.hypot(p.x - pr.start.x, p.y - pr.start.y) > DRAG_START) {
@@ -248,6 +284,7 @@ export class GameView {
     if (touch) this.hover = null;
     if (this.elfin.pointerId === id) this.releaseElfin(false);
     if (this.press?.id === id) this.releasePress(false);
+    this.releaseFace(id, false);
   }
 
   /** OS のジェスチャー等で指が奪われた。引っぱりは無効にする */
@@ -255,6 +292,52 @@ export class GameView {
     this.hover = null;
     if (this.elfin.pointerId === id) this.releaseElfin(true);
     if (this.press?.id === id) this.releasePress(true);
+    this.releaseFace(id, true);
+  }
+
+  /**
+   * HUD・お知らせ・吹き出しの顔をつまむ（つまめたら true）。
+   * 動かさずに離したら onTap を呼ぶ（チュートリアルの説明は、顔をタップしても読み進められる）
+   */
+  grabFace(id: number, p: Point, onTap: (() => void) | null = null): boolean {
+    let hit: DecoFace | null = null;
+    for (const f of this.faces.values()) {
+      if (f.frame !== this.frame || f.grab) continue;
+      if (Math.hypot(p.x - f.x, p.y - f.y) > Math.max(f.r * 1.2, 24)) continue;
+      if (!hit || f.z > hit.z) hit = f;
+    }
+    if (!hit || !hit.body.grab(id, MochiBody.toLocal(p, hit.x, hit.y, hit.r))) return false;
+    hit.grab = { id, start: p, moved: false, onTap };
+    this.sound.mochiGrab();
+    return true;
+  }
+
+  private releaseFace(id: number, cancel: boolean): void {
+    for (const f of this.faces.values()) {
+      const gr = f.grab;
+      if (gr?.id !== id) continue;
+      f.grab = null;
+      const g = f.body.pinch.release(id);
+      const stretch = g ? f.body.pinch.intensity(g) : 0;
+      if (stretch > 0.05) this.sound.mochiRelease(stretch, f.body.pinch.params.releaseFreq);
+      if (!cancel && !gr.moved) gr.onTap?.();
+    }
+  }
+
+  /**
+   * 渡せない客の顔を押した（来店中・帰り際、チュートリアルの説明中）。押せたら true。
+   * 動かしたらほっぺを引っぱるだけ、動かさずに離したら onTap
+   */
+  pressFace(id: number, p: Point, onTap: () => void): boolean {
+    if (this.press) return false;
+    const r = this.L.headR;
+    const c = this.world.customers.find((cu) => {
+      const h = this.custHead(cu);
+      return Math.hypot(p.x - h.x, p.y - h.y) < r * 1.3;
+    });
+    if (!c) return false;
+    this.press = { id, customerId: c.id, start: p, pinching: false, free: onTap };
+    return true;
   }
 
   /** 客を押していた指を離した。引っぱっていればほっぺを離し、引っぱっていなければ渡す */
@@ -263,7 +346,9 @@ export class GameView {
     this.press = null;
     const c = this.world.customers.find((x) => x.id === pr.customerId);
     if (!pr.pinching) {
-      if (!cancel && c) this.act({ type: 'serve', customerId: c.id });
+      if (cancel) return;
+      if (pr.free) pr.free();
+      else if (c) this.act({ type: 'serve', customerId: c.id });
       return;
     }
     const body = c ? this.custViews.get(c.id)?.body : undefined;
@@ -272,7 +357,7 @@ export class GameView {
     const stretch = g ? body.pinch.intensity(g) : 0;
     body.pinch.release(pr.id);
     if (stretch > 0.05) this.sound.mochiRelease(stretch, body.pinch.params.releaseFreq);
-    if (!cancel && c && stretch >= BALANCE.pinchStretch) this.act({ type: 'pinch', customerId: c.id });
+    if (!cancel && c && !pr.free && stretch >= BALANCE.pinchStretch) this.act({ type: 'pinch', customerId: c.id });
   }
 
   clearHover(): void {
@@ -349,6 +434,7 @@ export class GameView {
   cancelGrab(): void {
     if (this.elfin.pointerId !== null || this.elfin.keyHold >= 0) this.releaseElfin(true);
     if (this.press) this.releasePress(true);
+    for (const f of this.faces.values()) if (f.grab) this.releaseFace(f.grab.id, true);
   }
 
   private releaseElfin(cancel: boolean): void {
@@ -362,6 +448,10 @@ export class GameView {
     e.keyHold = -1;
     this.sound.stretch(null);
     if (stretch > 0.05) this.sound.mochiRelease(stretch, pinch.params.releaseFreq);
+    if (e.free) {
+      e.free = false;
+      return;
+    }
     const launched = this.world.elfinRelease(cancel ? 0 : stretch / BALANCE.elfin.launchStretch);
     if (launched && g) {
       const len = Math.hypot(g.pull.x, g.pull.y) || 1;
@@ -429,8 +519,9 @@ export class GameView {
     return { x: this.elfin.x, y: this.elfin.y };
   }
 
-  private elfinHit(p: Point): boolean {
-    if (!this.elfinActive()) return false;
+  /** leaving = 帰り際（追い払えない）も含める */
+  private elfinHit(p: Point, leaving = false): boolean {
+    if (!this.elfinActive() && !(leaving && this.world.elfin.state === 'leaving')) return false;
     const h = this.elfinHead();
     const r = this.elfinR();
     return Math.hypot(p.x - h.x, p.y - h.y) < r * 1.3 || (Math.abs(p.x - h.x) < r * 0.9 && p.y > h.y && p.y < h.y + r * (FEET_R - 0.05));
@@ -493,8 +584,16 @@ export class GameView {
     this.shownSales += (target - this.shownSales) * Math.min(1, dt * 8);
     if (Math.abs(target - this.shownSales) < 1) this.shownSales = target;
 
-    for (const b of this.banners) b.t += dt;
+    // 顔をつまんでいる間は、お知らせを消さずに待つ
+    for (const b of this.banners) if (!this.faces.get(bannerFaceKey(b))?.grab) b.t += dt;
     this.banners = this.banners.filter((b) => b.t < b.dur);
+    for (const [key, f] of this.faces) {
+      f.body.update(dt);
+      if (f.frame === this.frame) continue;
+      // 描かれなくなった（お知らせが消えた・ネルの表示が終わった等）
+      if (f.grab) f.body.pinch.release(f.grab.id);
+      this.faces.delete(key);
+    }
     for (const s of this.says) s.t += dt;
     this.says = this.says.filter((s) => s.t < s.dur);
 
@@ -506,7 +605,7 @@ export class GameView {
     }
     // 客が帰った・渡し終えた等で、押していた指の相手がいなくなった
     const pr = this.press;
-    if (pr && !this.world.customers.some((c) => c.id === pr.customerId && c.state === 'waiting')) {
+    if (pr && !this.world.customers.some((c) => c.id === pr.customerId && (pr.free || c.state === 'waiting'))) {
       if (pr.pinching) this.custViews.get(pr.customerId)?.body.pinch.release(pr.id);
       this.press = null;
     }
@@ -539,7 +638,9 @@ export class GameView {
     const target = this.elfinTargetPos();
     const door = { x: this.L.elfinDoor.x, y: target.y };
 
-    if (e.pointerId !== null || e.keyHold >= 0) {
+    if (e.free) {
+      if (state === 'absent' || state === 'launched') this.releaseElfin(true);
+    } else if (e.pointerId !== null || e.keyHold >= 0) {
       if (!w.elfin.grabbed) {
         // ネルが来て逃げた等でつかみが外れた
         e.body.pinch.release(e.pointerId ?? KEY_POINTER);
@@ -905,7 +1006,22 @@ export class GameView {
 
   banner(text: string, sub: string | undefined, color: string, dur: number, face?: Face, big = false): void {
     this.banners = this.banners.filter((b) => !!b.big !== big);
-    this.banners.push({ text, sub, color, t: 0, dur, face, big });
+    this.banners.push({ id: ++this.bannerSeq, text, sub, color, t: 0, dur, face, big });
+  }
+
+  /** HUD・お知らせ・吹き出しの顔を描く。key ごとにほっぺの揺れを持ち、描いた場所は grabFace でつまめる */
+  drawFace(c: CanvasRenderingContext2D, key: string, spec: ChibiSpec, x: number, y: number, r: number, pose: ChibiPose): void {
+    let f = this.faces.get(key);
+    if (!f) {
+      f = { body: new MochiBody(), x, y, r, frame: 0, z: 0, grab: null };
+      this.faces.set(key, f);
+    }
+    f.x = x;
+    f.y = y;
+    f.r = r;
+    f.frame = this.frame;
+    f.z = ++this.faceZ;
+    f.body.draw(c, spec, x, y, r, f.body.pinch.held ? { ...pose, expr: 'surprised' } : pose);
   }
 
   /** キャラのセリフ。同じ key（同じ話し手）の前のセリフは消す */
@@ -924,6 +1040,8 @@ export class GameView {
     const pr = scr.pixelRatio;
     this.scene.ensure(L, w.stage, pr);
 
+    this.frame++;
+    this.faceZ = 0;
     scr.clear('#5c3317');
     scr.begin();
     c.save();
@@ -978,8 +1096,8 @@ export class GameView {
     const blink = this.time > v.blinkAt;
     const ratio = cu.patience / cu.patienceMax;
     let expr: Expr = cu.kind === 'nell' ? 'smile' : 'normal';
-    if (cu.state === 'leaving') expr = cu.mood === 'happy' ? 'happy' : cu.kind === 'nell' ? 'stern' : 'angry';
-    else if (v.body.pinch.held) expr = 'surprised';
+    if (v.body.pinch.held) expr = 'surprised';
+    else if (cu.state === 'leaving') expr = cu.mood === 'happy' ? 'happy' : cu.kind === 'nell' ? 'stern' : 'angry';
     else if (cu.asleep) expr = 'sleep';
     else if (cu.reject > 0) expr = cu.kind === 'nell' ? 'stern' : 'sulk';
     else if (v.bump > 0) expr = 'happy';
@@ -1084,6 +1202,7 @@ export class GameView {
     if (grabbed) expr = ready ? 'surprised' : 'worried';
     if (state === 'leaving') expr = we.eaten > 0 ? 'happy' : 'worried';
     if (state === 'launched') expr = 'dizzy';
+    if (e.free) expr = 'surprised';
     const g = e.body.pinch.find(e.pointerId ?? KEY_POINTER);
     const r = this.elfinR();
 
@@ -1100,7 +1219,8 @@ export class GameView {
       c.ellipse(e.x, e.y + r * FEET_R, r * 0.8, r * 0.16, 0, 0, Math.PI * 2);
       c.fill();
     }
-    const flip = !grabbed && state !== 'eating' ? e.dir : 1;
+    // つまんでいる間は左右反転しない（elfinLocal と合わせる）
+    const flip = !grabbed && !e.free && state !== 'eating' ? e.dir : 1;
     c.translate(e.x, e.y);
     c.scale(flip, 1);
     e.body.draw(c, ELFIN, 0, 0, r, {
@@ -1212,7 +1332,7 @@ export class GameView {
       const tabText = `ツケ ${w.tab.toLocaleString('ja-JP')}`;
       const tabSize = portrait ? 21 : 24;
       hudPill(c, tp.x - 22, cy, 48 + measure(c, tabText, tabSize) + 14);
-      drawChibi(c, ELFIN, tp.x, tp.y - 2, 13, { expr: w.tab > 0 ? 'happy' : 'normal', t: this.time, body: false });
+      this.drawFace(c, 'hud-tab', ELFIN, tp.x, tp.y - 2, 13, { expr: w.tab > 0 ? 'happy' : 'normal', t: this.time, body: false });
       const tb = 1 + this.tabBump * 0.2;
       c.save();
       c.translate(tp.x + 26, cy);
@@ -1226,7 +1346,7 @@ export class GameView {
     const ny = portrait ? 96 : cy;
     if (w.buff > 0) {
       hudPill(c, nx - 136, ny, 246);
-      drawChibi(c, NELL, nx - 110, ny + 2, 15, { expr: 'smile', t: this.time, body: false });
+      this.drawFace(c, 'hud-nell', NELL, nx - 110, ny + 2, 15, { expr: 'smile', t: this.time, body: false });
       const bw = 120;
       c.fillStyle = '#e4e8f2';
       roundRect(c, nx - 86, ny - 6, bw, 12, 6);
@@ -1238,7 +1358,7 @@ export class GameView {
     } else if (w.nellPendingAt !== null) {
       const left = Math.max(0, Math.ceil(w.nellPendingAt - w.time));
       hudPill(c, nx - 120, ny, 240);
-      drawChibi(c, NELL, nx - 95, ny + 2, 15, { expr: 'smile', t: this.time, body: false });
+      this.drawFace(c, 'hud-nell', NELL, nx - 95, ny + 2, 15, { expr: 'smile', t: this.time, body: false });
       outlined(c, left > 0 ? `ネル来店まで ${left}` : 'ネル来店！', nx + 10, ny + 1, 20, '#3f5f86', '#ffffff');
     }
 
@@ -1388,10 +1508,14 @@ export class GameView {
       c.stroke();
       const tx = b.face ? x + 100 + (w - 100) / 2 - 20 : L.w / 2;
       if (b.face) {
+        const key = bannerFaceKey(b);
         c.save();
-        roundRect(c, x, y - h / 2, w, h, 24);
-        c.clip();
-        drawChibi(c, FACES[b.face], x + 56, y + 8, 26, { expr: b.face === 'nell' ? 'smile' : 'happy', t: this.time, body: false });
+        // 引っぱっている間は、伸びたほっぺを枠の外まで見せる
+        if (!this.faces.get(key)?.body.pinch.active) {
+          roundRect(c, x, y - h / 2, w, h, 24);
+          c.clip();
+        }
+        this.drawFace(c, key, FACES[b.face], x + 56, y + 8, 26, { expr: b.face === 'nell' ? 'smile' : 'happy', t: this.time, body: false });
         c.restore();
       }
       const ty = y - (b.sub ? 14 : 0);

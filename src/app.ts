@@ -266,7 +266,13 @@ export class App implements MenuHost {
         this.endTutorial(false);
         return;
       }
-      if (this.tutorial && !inside(view.L.pauseBtn, p, 8) && this.tutorial.tap()) return;
+      // 顔はどこでも（説明を読んでいる間も）ほっぺを引っぱれる。動かさずに離したら、説明のタップになる
+      const tap = () => void this.tutorial?.tap();
+      if (view.grabFace(e.pointerId, p, tap)) return;
+      if (this.tutorial?.talking && !inside(view.L.pauseBtn, p, 8)) {
+        if (!view.pressFace(e.pointerId, p, tap)) this.tutorial.tap();
+        return;
+      }
       view.pointerDown(e.pointerId, p);
     });
     canvas.addEventListener('pointermove', (e) => {

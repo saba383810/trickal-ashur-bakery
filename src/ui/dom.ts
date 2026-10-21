@@ -136,18 +136,36 @@ export function mochiChibi(
     opts.sound?.mochiRelease(mochi.pinch.intensity(g), mochi.pinch.params.releaseFreq);
     mochi.pinch.release(e.pointerId);
   };
+  // ボタンの中のキャラ（モード選択）は、引っぱったあとに離してもボタンを押したことにしない
+  let start: { x: number; y: number } | null = null;
+  let pulled = false;
   wrap.addEventListener('pointerdown', (e) => {
     if (!mochi.grab(e.pointerId, local(e))) return;
     e.preventDefault();
     wrap.setPointerCapture(e.pointerId);
+    start = { x: e.clientX, y: e.clientY };
+    pulled = false;
     opts.sound?.mochiGrab();
     draw();
     base.style.visibility = 'hidden';
     if (!raf) raf = requestAnimationFrame(tick);
   });
-  wrap.addEventListener('pointermove', (e) => mochi.pinch.move(e.pointerId, local(e)));
+  wrap.addEventListener('pointermove', (e) => {
+    if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8) pulled = true;
+    mochi.pinch.move(e.pointerId, local(e));
+  });
   wrap.addEventListener('pointerup', end);
   wrap.addEventListener('pointercancel', end);
+  wrap.addEventListener(
+    'click',
+    (e) => {
+      if (!pulled) return;
+      pulled = false;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    { capture: true },
+  );
   return wrap;
 }
 
