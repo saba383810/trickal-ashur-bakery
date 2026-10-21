@@ -1,10 +1,10 @@
 import { Bgm } from './audio/bgm';
 import { Sound } from './audio/sound';
-import { STAGES, type StageDef } from './config/stages';
+import { PLAY_STAGES, type StageDef } from './config/stages';
 import { World, starsFor } from './sim/world';
 import { loadSave, writeSave, type SaveData } from './storage';
 import { h } from './ui/dom';
-import { howToPanel, pausePanel, resultPanel, settingsPanel, stageIntro, titleScreen, type MenuHost } from './ui/menus';
+import { howToPanel, modeSelect, pausePanel, resultPanel, settingsPanel, stageIntro, titleScreen, tutorialDonePanel, type MenuHost } from './ui/menus';
 import { Tutorial } from './ui/tutorial';
 import { drawSlot } from './view/draw/props';
 import { SceneCache } from './view/draw/scene';
@@ -30,7 +30,7 @@ export class App implements MenuHost {
   private ui: HTMLElement;
   private mode: Mode = 'menu';
   private pausedFrom: Mode = 'playing';
-  private stage: StageDef = STAGES[0];
+  private stage: StageDef = PLAY_STAGES[0];
   private world: World | null = null;
   private view: GameView | null = null;
   private tutorial: Tutorial | null = null;
@@ -100,10 +100,20 @@ export class App implements MenuHost {
   goTitle(): void {
     this.toMenu();
     this.show(
-      titleScreen(this, STAGES[0], {
-        start: () => this.showIntro(STAGES[0]),
+      titleScreen(this, {
+        start: () => this.goSelect(),
         howTo: () => this.showHowTo(() => this.goTitle()),
         settings: () => this.showSettings(() => this.goTitle()),
+      }),
+    );
+  }
+
+  private goSelect(): void {
+    this.toMenu();
+    this.show(
+      modeSelect(this, {
+        pick: (s) => (s.tutorial ? this.startStage(s) : this.showIntro(s)),
+        back: () => this.goTitle(),
       }),
     );
   }
@@ -112,19 +122,11 @@ export class App implements MenuHost {
     this.toMenu();
     this.stage = s;
     this.drawnVersion = -1;
-    this.show(stageIntro(this, s, { start: () => this.startStage(s), back: () => this.goTitle() }));
+    this.show(stageIntro(this, s, { start: () => this.startStage(s), back: () => this.goSelect() }));
   }
 
   private showSettings(back: () => void): void {
-    this.show(
-      settingsPanel(this, {
-        close: back,
-        replayTutorial: () => {
-          this.save.tutorialDone = false;
-          this.persist();
-        },
-      }),
-    );
+    this.show(settingsPanel(this, { close: back }));
   }
 
   private showHowTo(back: () => void): void {
@@ -137,20 +139,28 @@ export class App implements MenuHost {
     this.newGame(s);
     this.bgm.mode = 'title';
     this.startBgm();
-    if (s.tutorial && !this.save.tutorialDone) {
+    if (s.tutorial) {
       this.mode = 'tutorial';
-      this.bgm.mode = 'title';
-      this.tutorial = new Tutorial(this.world!, this.view!, () => {
-        this.save.tutorialDone = true;
-        this.persist();
-        // チュートリアルの売上は持ち越さない
-        this.tutorial = null;
-        this.newGame(s);
-        this.beginCountdown();
-      });
+      this.tutorial = new Tutorial(this.world!, this.view!, () => this.endTutorial(true));
     } else {
       this.beginCountdown();
     }
+  }
+
+  /** チュートリアルを最後まで終えた / スキップした */
+  private endTutorial(completed: boolean): void {
+    this.tutorial?.dispose();
+    this.tutorial = null;
+    this.save.tutorialDone = true;
+    this.persist();
+    if (!completed) {
+      this.goSelect();
+      return;
+    }
+    this.mode = 'result';
+    this.view!.inputEnabled = false;
+    const first = PLAY_STAGES[0];
+    this.show(tutorialDonePanel(this, first, { play: () => this.showIntro(first), select: () => this.goSelect() }));
   }
 
   private newGame(s: StageDef): void {
@@ -184,8 +194,9 @@ export class App implements MenuHost {
       pausePanel(this, {
         resume: () => this.resume(),
         retry: () => this.startStage(this.stage),
-        quit: () => this.goTitle(),
+        quit: () => this.goSelect(),
         howTo: () => this.showHowTo(() => this.showPause()),
+        skip: this.tutorial ? () => this.endTutorial(false) : undefined,
       }),
     );
   }
@@ -203,18 +214,20 @@ export class App implements MenuHost {
     const stars = starsFor(s, w.sales);
     const prevBest = this.save.best[s.id] ?? 0;
     const prevStars = this.save.stars[s.id] ?? 0;
+    const prevTime = this.save.bestTime[s.id] ?? 0;
     this.save.best[s.id] = Math.max(prevBest, w.sales);
     this.save.stars[s.id] = Math.max(prevStars, stars);
+    if (s.endless) this.save.bestTime[s.id] = Math.max(prevTime, Math.floor(w.time));
     this.persist();
     this.mode = 'result';
     this.bgm.mode = 'title';
     this.show(
       resultPanel(
         this,
-        { stage: s, world: w, stars, prevBest, prevStars },
+        { stage: s, world: w, stars, prevBest, prevStars, prevTime },
         {
           retry: () => this.startStage(s),
-          title: () => this.goTitle(),
+          select: () => this.goSelect(),
         },
       ),
     );
@@ -248,6 +261,11 @@ export class App implements MenuHost {
       canvas.setPointerCapture(e.pointerId);
       if (e.pointerType !== 'mouse') view.keyMode = false;
       const p = this.screen.toLogical(e.clientX, e.clientY);
+      if (this.tutorial && inside(this.tutorial.skipRect(), p, 6)) {
+        this.sound.click();
+        this.endTutorial(false);
+        return;
+      }
       if (this.tutorial && !inside(view.L.pauseBtn, p, 8) && this.tutorial.tap()) return;
       view.pointerDown(e.pointerId, p);
     });

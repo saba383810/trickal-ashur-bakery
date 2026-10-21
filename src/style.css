@@ -436,6 +436,183 @@ canvas.bread {
   text-shadow: 0 1px 2px rgba(40, 20, 6, 0.8);
 }
 
+/* -------------------------------------------------------------- mode select */
+
+.panel.modes-panel {
+  width: min(620px, 100%);
+}
+
+.modes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.mode-card {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 8px 12px 8px 6px;
+  font: inherit;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  background: var(--paper);
+  border: 3px solid var(--line-ink);
+  border-radius: 18px;
+  box-shadow: 0 4px 0 var(--line-ink);
+  transition: transform 0.08s;
+}
+
+.mode-card:hover {
+  transform: translateY(-2px);
+}
+
+.mode-card:active {
+  box-shadow: 0 1px 0 var(--line-ink);
+  transform: translateY(3px);
+}
+
+.mode-card:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* チュートリアルは横いっぱい、その下に 2×2 */
+.mode-card.heat-0 {
+  grid-column: 1 / -1;
+}
+
+.mode-card.heat-0 {
+  background: #fff4f2;
+  border-style: dashed;
+}
+
+.mode-card.recommend {
+  background: #fff0c4;
+  border-style: solid;
+  border-color: var(--gold-deep);
+  box-shadow: 0 4px 0 var(--gold-deep);
+}
+
+.mode-card.heat-4 {
+  background: linear-gradient(100deg, #eef4ff, #fff7fb);
+}
+
+.mode-face canvas {
+  display: block;
+  width: auto !important;
+  height: 64px !important;
+  filter: drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff);
+}
+
+.mode-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mode-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.mode-name {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--line-ink);
+}
+
+.mode-meta {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.mode-rec {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--wood-dark);
+}
+
+.mode-rec.none {
+  font-weight: 700;
+  color: #b9a089;
+}
+
+.mode-card.recommend .mode-rec {
+  color: var(--eshur-deep);
+}
+
+.chilis {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+/* 唐辛子: 赤い実 + 緑のへた */
+.chili {
+  position: relative;
+  display: inline-block;
+  width: 9px;
+  height: 17px;
+  background: linear-gradient(90deg, #f0574a, #c92a2a);
+  border-radius: 45% 45% 60% 60% / 30% 30% 90% 90%;
+  transform: rotate(18deg);
+}
+
+.chili::before {
+  position: absolute;
+  top: -4px;
+  left: 2px;
+  width: 5px;
+  height: 5px;
+  content: '';
+  background: var(--leaf);
+  border-radius: 2px 2px 0 0;
+}
+
+.chili-inf {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  color: #6c79c9;
+}
+
+.endless-rules {
+  margin: 0 0 8px;
+  padding: 6px 12px 6px 28px;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.6;
+  background: #eef4ff;
+  border: 3px dashed #b9c9ea;
+  border-radius: 16px;
+}
+
+.mode-chip {
+  padding: 4px 10px;
+  font-weight: 800;
+  background: var(--paper);
+  border: 2px solid var(--line-ink);
+  border-radius: 999px;
+}
+
+.panel.tutorial-done .comment {
+  justify-content: center;
+}
+
+.stats .wide {
+  flex-basis: 100%;
+  font-weight: 800;
+  color: var(--ink);
+  text-align: center;
+}
+
 /* -------------------------------------------------------------- stage intro */
 
 .stage-label {
@@ -882,6 +1059,10 @@ kbd {
   .tips {
     grid-template-columns: 1fr;
   }
+
+  .modes {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* iframe に埋め込まれた低い画面（例: 800×450）でも 1 画面に収める */
@@ -939,6 +1120,14 @@ kbd {
 
   .tips .tip-face canvas {
     height: 56px !important;
+  }
+
+  .mode-face canvas {
+    height: 48px !important;
+  }
+
+  .mode-card {
+    padding: 4px 10px 4px 4px;
   }
 
   .title-cast .far canvas {

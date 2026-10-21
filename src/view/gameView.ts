@@ -91,6 +91,8 @@ export class GameView {
   /** バターのパチンコの石（t = 経過秒） */
   private shots: { from: Point; t: number }[] = [];
   private seen = new Set<string>();
+  /** エンドレスのレベルが上がった直後のはずみ */
+  private levelBump = 0;
   private picker: { oven: number; t: number; rect: Rect; items: { bread: BreadId; rect: Rect }[] } | null = null;
   private hover: Point | null = null;
   keyMode = false;
@@ -434,6 +436,14 @@ export class GameView {
     return Math.hypot(p.x - h.x, p.y - h.y) < r * 1.3 || (Math.abs(p.x - h.x) < r * 0.9 && p.y > h.y && p.y < h.y + r * (FEET_R - 0.05));
   }
 
+  /** エルフィン（頭〜足）の範囲。店にいなければ null */
+  elfinRect(): Rect | null {
+    if (!this.elfinActive()) return null;
+    const h = this.elfinHead();
+    const r = this.elfinR();
+    return { x: h.x - r * 1.3, y: h.y - r * 1.3, w: r * 2.6, h: r * (1.3 + FEET_R) };
+  }
+
   /** 客（頭〜カウンター + 注文の吹き出し）の範囲 */
   customerRect(id: number): Rect | null {
     const c = this.world.customers.find((x) => x.id === id);
@@ -476,6 +486,7 @@ export class GameView {
     this.trayPulse = Math.max(0, this.trayPulse - dt * 5);
     this.salesBump = Math.max(0, this.salesBump - dt * 4);
     this.tabBump = Math.max(0, this.tabBump - dt * 4);
+    this.levelBump = Math.max(0, this.levelBump - dt * 3);
     if (this.picker) this.picker.t += dt;
 
     const target = this.world.sales;
@@ -843,6 +854,18 @@ export class GameView {
         this.banner(`のこり${BALANCE.warningTime}秒！`, undefined, C.bad, 1.6);
         if (w.buff <= 0) this.bgm.mode = 'hurry';
         break;
+      case 'timeExtend': {
+        const cy = L.portrait ? 36 : 32;
+        // 時計の下のレベル札の右に出す
+        this.fx.float(`+${ev.seconds.toFixed(1)}秒`, 160, cy + 46, '#e9ffd0', 24, C.good);
+        if (w.buff <= 0 && this.bgm.mode === 'hurry' && w.remaining > BALANCE.warningTime) this.bgm.mode = 'normal';
+        break;
+      }
+      case 'levelUp':
+        this.levelBump = 1;
+        s.levelUp();
+        this.banner(`レベル${ev.level}！`, ev.level === 2 ? 'お客さんが増えてきた。どんどん忙しくなるわよ' : 'もっと忙しくなってきた！', C.eshur, 1.8);
+        break;
       case 'timeUp':
         s.timeUp();
         this.cancelGrab();
@@ -850,6 +873,11 @@ export class GameView {
         this.banner('閉店！', undefined, C.eshur, 2.2, undefined, true);
         break;
     }
+  }
+
+  /** チュートリアル中は説明が重なるので、初回の案内を出さない */
+  skipFirstTimeHints(): void {
+    for (const face of ['elfin', 'komi', 'butter']) this.seen.add(face);
   }
 
   /** そのキャラが初めて来たときだけ、何をすればいいかを出す */
@@ -1146,7 +1174,7 @@ export class GameView {
     const cy = portrait ? 36 : 32;
 
     // 残り時間
-    const ratio = w.remaining / w.stage.duration;
+    const ratio = Math.min(1, w.remaining / w.stage.duration);
     const hurry = w.remaining <= BALANCE.warningTime && w.phase === 'playing';
     const sec = Math.ceil(w.remaining);
     const label = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
@@ -1159,6 +1187,7 @@ export class GameView {
     c.scale(pulse, pulse);
     outlined(c, label, 0, 1, timeSize, hurry ? C.bad : HUD_INK, '#ffffff', 'left');
     c.restore();
+    if (w.stage.endless) this.drawLevel(c, cy);
 
     // 売上
     const sp = this.hudSalesPos();
@@ -1174,8 +1203,8 @@ export class GameView {
     c.restore();
     if (w.combo >= 2 && !portrait) outlined(c, `${w.combo}コンボ`, 450, cy, 18, '#ffe08a', '#7c4721');
 
-    // ★の目標バー
-    this.drawStarBar(c);
+    // ★の目標バー（チュートリアルは★がない）
+    if (!w.stage.tutorial) this.drawStarBar(c);
 
     // ツケ
     if (w.stage.elfin) {
@@ -1230,6 +1259,29 @@ export class GameView {
     c.fillStyle = '#ffffff';
     c.fillRect(pb.x + pb.w / 2 - 9, pb.y + pb.h / 2 - 11, 6, 22);
     c.fillRect(pb.x + pb.w / 2 + 3, pb.y + pb.h / 2 - 11, 6, 22);
+  }
+
+  /** エンドレス: 時計の下にレベルの札を下げる */
+  private drawLevel(c: CanvasRenderingContext2D, cy: number): void {
+    const bump = 1 + this.levelBump * 0.25;
+    const x = 18;
+    const y = cy + 30;
+    const wd = 84;
+    const ht = 28;
+    c.save();
+    c.fillStyle = 'rgba(40, 20, 10, 0.3)';
+    roundRect(c, x, y + 2, wd, ht, ht / 2);
+    c.fill();
+    c.fillStyle = C.eshur;
+    roundRect(c, x, y, wd, ht, ht / 2);
+    c.fill();
+    c.strokeStyle = HUD_INK;
+    c.lineWidth = 2.5;
+    c.stroke();
+    c.translate(x + wd / 2, y + ht / 2);
+    c.scale(bump, bump);
+    outlined(c, `Lv.${this.world.level}`, 0, 1, 18, '#ffffff', HUD_INK);
+    c.restore();
   }
 
   private drawStarBar(c: CanvasRenderingContext2D): void {

@@ -291,6 +291,11 @@ export class Sound {
     [392, 330, 262].forEach((f, i) => this.tone(f, 0.2, { type: 'triangle', vol: 0.15, at: i * 0.13 }));
   }
 
+  /** エンドレスのレベルアップ: 上がっていく 3 音 */
+  levelUp(): void {
+    [659, 880, 1175].forEach((f, i) => this.tone(f, 0.16, { type: 'square', vol: 0.08, at: i * 0.09 }));
+  }
+
   buffEnd(): void {
     this.tone(784, 0.15, { type: 'triangle', vol: 0.14 });
     this.tone(523, 0.25, { type: 'triangle', vol: 0.14, at: 0.14 });

@@ -79,6 +79,8 @@ export interface Stats {
   /** ほっぺを引っぱって機嫌を直した客 */
   mochi: number;
   butterShots: number;
+  /** エンドレスで延びた秒数の合計 */
+  timeAdded: number;
 }
 
 export type Phase = 'playing' | 'ended';
@@ -88,7 +90,10 @@ export class World {
   readonly rng: Rng;
   time = 0;
   phase: Phase = 'playing';
-  /** チュートリアル用。時計・客の待ち時間・エルフィンを止める（客の出入りは動く。オーブンは焼けるが焦げない） */
+  /**
+   * チュートリアル用。時計・客の待ち時間・自動の来店を止める
+   * （客の出入り・呼んだエルフィン・バターは動く。オーブンは焼けるが焦げない）
+   */
   frozen = false;
   /** チュートリアル用。false の間は自動で客が来ない */
   autoSpawn = true;
@@ -109,6 +114,10 @@ export class World {
     lastBread: null,
   };
 
+  /** この時刻で閉店。エンドレスは会計で延びる */
+  timeLimit: number;
+  /** エンドレスの忙しさ（ほかのモードは 1 のまま） */
+  level = 1;
   /** 未回収のツケ */
   tab = 0;
   combo = 0;
@@ -127,6 +136,7 @@ export class World {
     nellFail: 0,
     mochi: 0,
     butterShots: 0,
+    timeAdded: 0,
   };
   events: GameEvent[] = [];
 
@@ -145,6 +155,7 @@ export class World {
   constructor(stage: StageDef, seed: number) {
     this.stage = stage;
     this.rng = new Rng(seed);
+    this.timeLimit = stage.duration;
     this.stock = Object.fromEntries(
       (Object.keys(BREADS) as BreadId[]).map((id) => [id, stage.breads.includes(id) ? stage.initialStock : 0]),
     ) as Record<BreadId, number>;
@@ -153,8 +164,8 @@ export class World {
     this.nextElfinAt = stage.elfin?.firstAt ?? Infinity;
     this.nellQueue = [...stage.nellVisits].sort((a, b) => a - b);
     this.guests = [
-      ...(stage.komiAt !== null ? [{ kind: 'komi' as const, at: stage.komiAt }] : []),
-      ...(stage.butterAt !== null ? [{ kind: 'butter' as const, at: stage.butterAt }] : []),
+      ...stage.komi.map((at) => ({ kind: 'komi' as const, at })),
+      ...stage.butter.map((at) => ({ kind: 'butter' as const, at })),
     ].sort((a, b) => a.at - b.at);
   }
 
@@ -164,7 +175,28 @@ export class World {
   }
 
   get remaining(): number {
-    return Math.max(0, this.stage.duration - this.time);
+    return Math.max(0, this.timeLimit - this.time);
+  }
+
+  /** エンドレスで待ち時間に掛ける倍率 */
+  private get patienceScale(): number {
+    const e = this.stage.endless;
+    return e ? Math.max(e.patienceMin, Math.pow(e.patienceRate, this.level - 1)) : 1;
+  }
+
+  /** いまのエルフィンの設定（エンドレスはレベルで間隔が縮み、たくさん食べる） */
+  private get elfinCfg(): StageDef['elfin'] {
+    const cfg = this.stage.elfin;
+    const e = this.stage.endless;
+    if (!cfg || !e) return cfg;
+    const k = Math.pow(e.elfinRate, this.level - 1);
+    return {
+      ...cfg,
+      intervalMin: Math.max(3, cfg.intervalMin * k),
+      intervalMax: Math.max(5, cfg.intervalMax * k),
+      eatInterval: Math.max(1.1, cfg.eatInterval * Math.sqrt(k)),
+      maxEat: Math.min(7, cfg.maxEat + Math.floor((this.level - 1) / 3)),
+    };
   }
 
   /** ネルが予告〜退店のあいだ店に関わっているか（エルフィンが寄りつかない） */
@@ -237,6 +269,21 @@ export class World {
     return 'refill';
   }
 
+  /** チュートリアル用: エルフィンをすぐ呼ぶ */
+  summonElfin(): void {
+    if (this.elfin.state === 'absent') this.elfinArrive();
+  }
+
+  /** チュートリアル用: コミー・バター・ネルを直接呼ぶ */
+  spawnGuest(kind: 'komi' | 'butter' | 'nell', order: BreadId[], seat?: number): Customer | null {
+    const s = seat ?? this.pickFreeSeat(false);
+    if (s === null) return null;
+    const cfg = BALANCE[kind];
+    const c = this.addCustomer(kind, s, order, cfg.patienceBase + cfg.patiencePerItem * order.length);
+    if (kind === 'butter') this.butterCooldown = BALANCE.butter.firstShot;
+    return c;
+  }
+
   bake(ovenIndex: number, bread: BreadId): boolean {
     const oven = this.ovens[ovenIndex];
     if (this.phase !== 'playing' || !oven || oven.state !== 'idle' || !this.stage.breads.includes(bread)) return false;
@@ -300,10 +347,13 @@ export class World {
     this.updateOvens(dt);
     if (this.frozen) {
       this.updateCustomers(dt, false);
+      this.updateElfin(dt);
+      this.updateButter(dt);
       return;
     }
 
     this.time += dt;
+    this.updateLevel();
     this.updateNell();
     this.updateGuests();
     this.updateSpawner();
@@ -315,8 +365,11 @@ export class World {
     if (!this.warned && this.remaining <= BALANCE.warningTime) {
       this.warned = true;
       this.emit({ type: 'timeWarning' });
+    } else if (this.warned && this.remaining > BALANCE.warningTime + 3) {
+      // エンドレスで時間が延びたら、また警告できるようにする
+      this.warned = false;
     }
-    if (this.time >= this.stage.duration) {
+    if (this.time >= this.timeLimit) {
       this.phase = 'ended';
       this.elfin.grabbed = false;
       this.emit({ type: 'timeUp' });
@@ -357,6 +410,8 @@ export class World {
       this.stats.bestCombo = Math.max(this.stats.bestCombo, this.combo);
       this.leave(c, 'happy');
       this.emit({ type: 'serveComplete', customerId: c.id, payment, combo: this.combo });
+      const e = this.stage.endless;
+      if (e) this.extendTime(e.timeBase + e.timePerCombo * Math.min(this.combo, e.timeComboCap));
       return 'complete';
     }
     c.patience = Math.min(c.patienceMax, c.patience + BALANCE.customer.partialBonus);
@@ -389,7 +444,45 @@ export class World {
     this.stats.nellSuccess++;
     this.leave(c, 'happy');
     this.emit({ type: 'nellSuccess', customerId: c.id, tabPaid, payment });
+    if (this.stage.endless) this.extendTime(this.stage.endless.nellTime);
     return 'complete';
+  }
+
+  // ---------------------------------------------------------------- endless
+
+  private extendTime(seconds: number): void {
+    const e = this.stage.endless;
+    if (!e || this.frozen) return;
+    const limit = Math.min(this.timeLimit + seconds, this.time + e.maxRemaining);
+    const added = limit - this.timeLimit;
+    if (added <= 0) return;
+    this.timeLimit = limit;
+    this.stats.timeAdded += added;
+    this.emit({ type: 'timeExtend', seconds: added });
+  }
+
+  private updateLevel(): void {
+    const e = this.stage.endless;
+    if (!e) return;
+    const level = Math.min(e.maxLevel, 1 + Math.floor(this.time / e.levelTime));
+    if (level === this.level) return;
+    this.level = level;
+    this.emit({ type: 'levelUp', level });
+  }
+
+  /** エンドレス: 次の来店予定を入れる */
+  private scheduleNext(kind: 'komi' | 'butter' | 'nell'): void {
+    const e = this.stage.endless;
+    if (!e) return;
+    const [lo, hi] = kind === 'nell' ? e.nellEvery : kind === 'komi' ? e.komiEvery : e.butterEvery;
+    const at = this.time + this.rng.range(lo, hi);
+    if (kind === 'nell') {
+      this.nellQueue.push(at);
+      this.nellQueue.sort((a, b) => a - b);
+    } else {
+      this.guests.push({ kind, at });
+      this.guests.sort((a, b) => a.at - b.at);
+    }
   }
 
   private nellPeek(c: Customer): void {
@@ -427,7 +520,7 @@ export class World {
     if (s === null) return null;
     const items = order ?? this.makeOrder();
     const cfg = this.stage.customer;
-    const patience = cfg.patienceBase + cfg.patiencePerItem * items.length;
+    const patience = (cfg.patienceBase + cfg.patiencePerItem * items.length) * this.patienceScale;
     return this.addCustomer('normal', s, items, patience);
   }
 
@@ -456,8 +549,9 @@ export class World {
   }
 
   private makeOrder(): BreadId[] {
-    const cfg = this.stage.customer;
-    const count = Math.min(1 + this.rng.weighted(cfg.itemWeights), BALANCE.trayCapacity);
+    const e = this.stage.endless;
+    const weights = e ? e.itemWeights[Math.min(this.level, e.itemWeights.length) - 1] : this.stage.customer.itemWeights;
+    const count = Math.min(1 + this.rng.weighted(weights), BALANCE.trayCapacity);
     return this.randomBreads(count);
   }
 
@@ -486,21 +580,24 @@ export class World {
     this.guests.shift();
     const cfg = BALANCE[g.kind];
     const order = this.randomBreads(cfg.items);
-    this.addCustomer(g.kind, seat, order, cfg.patienceBase + cfg.patiencePerItem * order.length);
+    this.addCustomer(g.kind, seat, order, (cfg.patienceBase + cfg.patiencePerItem * order.length) * this.patienceScale);
     if (g.kind === 'butter') this.butterCooldown = BALANCE.butter.firstShot;
+    this.scheduleNext(g.kind);
   }
 
   private updateSpawner(): void {
     if (!this.autoSpawn || this.time < this.nextSpawnAt) return;
-    if (this.remaining <= BALANCE.closingTime) return;
+    const e = this.stage.endless;
+    if (!e && this.remaining <= BALANCE.closingTime) return;
     // 店が混んでいても時間どおりに来られるよう、少し前から席を取っておく
     const guestSoon = this.guests.length > 0 && this.time >= this.guests[0].at - 4;
     const seat = this.pickFreeSeat(this.nellPendingAt !== null || guestSoon);
     if (seat === null) return;
     this.spawnCustomer(undefined, seat);
     const cfg = this.stage.customer;
-    const progress = this.time / this.stage.duration;
-    const interval = cfg.intervalStart + (cfg.intervalEnd - cfg.intervalStart) * progress;
+    const interval = e
+      ? Math.max(e.intervalMin, cfg.intervalStart * Math.pow(e.intervalRate, this.level - 1))
+      : cfg.intervalStart + (cfg.intervalEnd - cfg.intervalStart) * (this.time / this.stage.duration);
     this.nextSpawnAt = this.time + interval * (1 + cfg.jitter * (this.rng.next() * 2 - 1));
   }
 
@@ -555,12 +652,14 @@ export class World {
       this.nellQueue.shift();
       this.nellPendingAt = next;
       this.emit({ type: 'nellAnnounce' });
+      this.scheduleNext('nell');
     }
     if (this.nellPendingAt !== null && this.time >= this.nellPendingAt) {
       const seat = this.pickFreeSeat(false);
       if (seat === null) return;
       this.nellPendingAt = null;
-      const n = this.stage.nellItems;
+      const e = this.stage.endless;
+      const n = Math.min(BALANCE.trayCapacity, this.stage.nellItems + (e && this.level >= e.nellHardLevel ? 1 : 0));
       this.addCustomer('nell', seat, this.randomBreads(n), BALANCE.nell.patienceBase + BALANCE.nell.patiencePerItem * n);
     }
   }
@@ -605,7 +704,7 @@ export class World {
   // ------------------------------------------------------------------ elfin
 
   private updateElfin(dt: number): void {
-    const cfg = this.stage.elfin;
+    const cfg = this.elfinCfg;
     if (!cfg) return;
     const e = this.elfin;
     const b = BALANCE.elfin;
@@ -615,14 +714,8 @@ export class World {
 
     switch (e.state) {
       case 'absent':
-        if (this.time >= this.nextElfinAt && !this.nellInShop && this.remaining > BALANCE.closingTime + 1) {
-          this.setElfin('entering');
-          e.enter = 0;
-          e.eaten = 0;
-          e.eatTimer = 0;
-          e.sulk = 0;
-          e.lastBread = null;
-          this.emit({ type: 'elfinEnter' });
+        if (this.time >= this.nextElfinAt && !this.nellInShop && (this.stage.endless || this.remaining > BALANCE.closingTime + 1)) {
+          this.elfinArrive();
         }
         break;
       case 'entering':
@@ -685,6 +778,17 @@ export class World {
       if (this.stock[id] > 0 && (!best || BREADS[id].price > BREADS[best].price)) best = id;
     }
     return best;
+  }
+
+  private elfinArrive(): void {
+    const e = this.elfin;
+    this.setElfin('entering');
+    e.enter = 0;
+    e.eaten = 0;
+    e.eatTimer = 0;
+    e.sulk = 0;
+    e.lastBread = null;
+    this.emit({ type: 'elfinEnter' });
   }
 
   private elfinLeave(full: boolean): void {

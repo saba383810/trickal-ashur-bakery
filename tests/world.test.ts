@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../src/config/balance';
 import { BREADS } from '../src/config/breads';
-import type { StageDef } from '../src/config/stages';
+import { PLAY_STAGES, STAGES, type EndlessDef, type StageDef } from '../src/config/stages';
 import { sameBreads, starsFor, World } from '../src/sim/world';
 
 const DT = 1 / 60;
 
 function stage(over: Partial<StageDef> = {}): StageDef {
   return {
-    id: 99,
+    id: 'test',
     title: 'test',
+    heat: 1,
     blurb: '',
     duration: 120,
     breads: ['roll', 'croissant', 'melon'],
@@ -20,8 +21,8 @@ function stage(over: Partial<StageDef> = {}): StageDef {
     elfin: null,
     nellVisits: [],
     nellItems: 3,
-    komiAt: null,
-    butterAt: null,
+    komi: [],
+    butter: [],
     stars: [100, 200, 300],
     ...over,
   };
@@ -286,7 +287,7 @@ describe('コミー', () => {
   }
 
   it('席に着くと居眠りし、寝ている間は受け取らず待ち時間も減らない', () => {
-    const w = quiet({ komiAt: 1 });
+    const w = quiet({ komi: [1] });
     const komi = komiSeated(w);
     expect(komi.asleep).toBe(true);
     expect(komi.order).toHaveLength(BALANCE.komi.items);
@@ -299,7 +300,7 @@ describe('コミー', () => {
   });
 
   it('ほっぺを引っぱると起きて注文し、待ちくたびれると怒らずにまた眠る', () => {
-    const w = quiet({ komiAt: 1 });
+    const w = quiet({ komi: [1] });
     const komi = komiSeated(w);
     expect(w.pinchCustomer(komi.id)).toBe('wake');
     expect(komi.asleep).toBe(false);
@@ -316,7 +317,7 @@ describe('コミー', () => {
 
 describe('バター', () => {
   it('座っている間はエルフィンをパチンコで撃ち、つまみ食いさせない', () => {
-    const w = quiet({ elfin: { ...ELFIN, firstAt: 1, maxEat: 99 }, butterAt: 0.5, initialStock: 9 });
+    const w = quiet({ elfin: { ...ELFIN, firstAt: 1, maxEat: 99 }, butter: [0.5], initialStock: 9 });
     run(w, 12);
     const butter = w.customers.find((c) => c.kind === 'butter')!;
     expect(butter.state).toBe('waiting');
@@ -326,13 +327,127 @@ describe('バター', () => {
   });
 
   it('バターが帰るとエルフィンはまた食べはじめる', () => {
-    const w = quiet({ elfin: { ...ELFIN, firstAt: 1, maxEat: 99 }, butterAt: 0.5, initialStock: 9 });
+    const w = quiet({ elfin: { ...ELFIN, firstAt: 1, maxEat: 99 }, butter: [0.5], initialStock: 9 });
     run(w, 3);
     const butter = w.customers.find((c) => c.kind === 'butter')!;
     for (const b of butter.order) w.pickBread(b);
     expect(w.serve(butter.id)).toBe('complete');
     run(w, 5);
     expect(w.tab).toBeGreaterThan(0);
+  });
+});
+
+describe('エンドレス', () => {
+  const ENDLESS = STAGES.find((x) => x.endless)!.endless!;
+  const endless = (over: Partial<EndlessDef> = {}) => quiet({ duration: 30, endless: { ...ENDLESS, ...over } });
+
+  it('会計するたびに時間が延び、コンボが続くほど長く延びる', () => {
+    const w = endless({ maxRemaining: 999 });
+    const before = w.timeLimit;
+    const a = w.spawnCustomer(['roll'], 0)!;
+    run(w, 1);
+    w.pickBread('roll');
+    expect(w.serve(a.id)).toBe('complete');
+    const first = w.timeLimit - before;
+    expect(first).toBeCloseTo(ENDLESS.timeBase + ENDLESS.timePerCombo * 1);
+    const b = w.spawnCustomer(['roll'], 1)!;
+    run(w, 1);
+    w.pickBread('roll');
+    w.serve(b.id);
+    expect(w.timeLimit - before - first).toBeCloseTo(ENDLESS.timeBase + ENDLESS.timePerCombo * 2);
+    expect(w.stats.timeAdded).toBeCloseTo(w.timeLimit - before);
+  });
+
+  it('残り時間は上限までしか延びず、延びなければ時間切れで終わる', () => {
+    const w = endless({ maxRemaining: 29.5 });
+    const c = w.spawnCustomer(['roll'], 0)!;
+    run(w, 1);
+    w.pickBread('roll');
+    w.serve(c.id);
+    expect(w.remaining).toBeCloseTo(29.5, 5);
+    run(w, 31);
+    expect(w.phase).toBe('ended');
+  });
+
+  it('時間がたつとレベルが上がり、来店が早く・待ち時間が短くなる', () => {
+    const w = endless();
+    w.timeLimit = 1e9;
+    const first = w.spawnCustomer(['roll'], 0)!;
+    run(w, ENDLESS.levelTime * 3 + 0.1);
+    expect(w.level).toBe(4);
+    expect(w.drainEvents().filter((e) => e.type === 'levelUp')).toHaveLength(3);
+    const later = w.spawnCustomer(['roll'], 1)!;
+    expect(later.patienceMax).toBeLessThan(first.patienceMax);
+  });
+
+  it('ネル・コミー・バターは何度もやってくる', () => {
+    const w = quiet({ duration: 30, endless: ENDLESS, nellVisits: [5], komi: [3], butter: [4], seats: 4 });
+    w.timeLimit = 1e9;
+    let nell = 0;
+    let komi = 0;
+    for (let t = 0; t < 400; t += 0.5) {
+      run(w, 0.5);
+      for (const e of w.drainEvents()) {
+        if (e.type === 'nellAnnounce') nell++;
+        if (e.type === 'komiArrive') komi++;
+      }
+      // 席が空くように、来た客はすぐ帰す
+      for (const c of w.customers) {
+        if (c.state !== 'waiting' || c.kind === 'nell') continue;
+        c.kind = 'normal';
+        c.asleep = false;
+        c.patience = 0;
+      }
+    }
+    expect(nell).toBeGreaterThan(2);
+    expect(komi).toBeGreaterThan(2);
+  });
+
+  it('ふつうのモードでは時間が延びない', () => {
+    const w = quiet();
+    const c = w.spawnCustomer(['roll'], 0)!;
+    run(w, 1);
+    w.pickBread('roll');
+    w.serve(c.id);
+    expect(w.timeLimit).toBe(w.stage.duration);
+  });
+});
+
+describe('チュートリアル用の操作', () => {
+  it('時計を止めたまま、呼んだエルフィンは入ってきて食べ、バターは撃つ', () => {
+    const w = quiet({ elfin: { ...ELFIN, firstAt: Infinity, maxEat: 9 }, initialStock: 5 });
+    w.frozen = true;
+    w.summonElfin();
+    run(w, BALANCE.elfin.enterTime + ELFIN.eatInterval + 0.2);
+    expect(w.time).toBe(0);
+    expect(w.elfin.state).toBe('eating');
+    expect(w.tab).toBeGreaterThan(0);
+    const butter = w.spawnGuest('butter', ['roll', 'melon'], 0)!;
+    run(w, 3);
+    expect(butter.order).toEqual(['roll', 'melon']);
+    expect(w.stats.butterShots).toBeGreaterThan(0);
+  });
+});
+
+describe('モード定義', () => {
+  it('どのモードにもエルフィン・ネル・コミー・バターが来て、制限時間内に収まる', () => {
+    for (const s of PLAY_STAGES) {
+      expect(s.elfin, s.id).not.toBeNull();
+      expect(s.nellVisits.length, s.id).toBeGreaterThan(0);
+      expect(s.komi.length, s.id).toBeGreaterThan(0);
+      expect(s.butter.length, s.id).toBeGreaterThan(0);
+      for (const t of [...s.nellVisits, ...s.komi, ...s.butter]) expect(t, s.id).toBeLessThan(s.duration - BALANCE.closingTime);
+      expect(s.stars[0]).toBeLessThan(s.stars[1]);
+      expect(s.stars[1]).toBeLessThan(s.stars[2]);
+    }
+  });
+
+  it('微辛 → 中辛 → 激辛 の順に長く・忙しくなる', () => {
+    const [mild, medium, hot] = PLAY_STAGES.filter((s) => !s.endless);
+    expect(mild.duration).toBeLessThan(medium.duration);
+    expect(medium.duration).toBeLessThan(hot.duration);
+    expect(mild.breads.length).toBeLessThan(hot.breads.length);
+    expect(mild.customer.intervalEnd).toBeGreaterThan(hot.customer.intervalEnd);
   });
 });
 

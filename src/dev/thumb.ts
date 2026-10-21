@@ -1,5 +1,5 @@
 // 開発用: サイト掲載用サムネイル（800×515）を描く（本番ビルドには含めない）
-import { STAGES } from '../config/stages';
+import { PLAY_STAGES } from '../config/stages';
 import { drawBread } from '../view/draw/breads';
 import { MochiBody } from '../mochi/body';
 import { BUTTER, ELFIN, ESHUR, KOMI, NELL } from '../view/draw/characters';
@@ -21,7 +21,7 @@ const c = canvas.getContext('2d')!;
 async function draw(): Promise<void> {
   await document.fonts.load("800 40px 'M PLUS Rounded 1c'", 'エシュールのパン屋さんベーカリー');
   c.scale(dpr, dpr);
-  const stage = STAGES[0];
+  const stage = PLAY_STAGES[1];
   const L = makeLayout(1280, 720, false, stage);
   const scene = new SceneCache();
   scene.ensure(L, stage, 2);

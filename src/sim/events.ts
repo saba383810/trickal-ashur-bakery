@@ -46,4 +46,8 @@ export type GameEvent =
   | { type: 'nellFail'; customerId: number }
   | { type: 'buffEnd' }
   | { type: 'timeWarning' }
+  /** エンドレス: 会計で残り時間が延びた */
+  | { type: 'timeExtend'; seconds: number }
+  /** エンドレス: 忙しさが上がった */
+  | { type: 'levelUp'; level: number }
   | { type: 'timeUp' };

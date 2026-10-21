@@ -7,7 +7,8 @@ import type { Action, GameView } from '../view/gameView';
 import type { Rect } from '../view/layout';
 import { C, font } from '../view/palette';
 
-// ステージ 1 冒頭の手順説明。時計を止めた World の上で、指示した操作だけを通す。
+// チュートリアルモードの手順説明。時計を止めた World の上で、指示した操作だけを通す。
+// エルフィン・コミー・バター・ネルも順に呼んで、全員の相手のしかたを一度ずつやってもらう。いつでもスキップできる。
 interface Step {
   text: string;
   expr?: Expr;
@@ -19,6 +20,8 @@ interface Step {
   advance?: (a: Action) => boolean;
   /** 毎フレーム調べて true なら次へ */
   done?: () => boolean;
+  /** 毎フレーム呼ぶ（帰ってしまったエルフィンを呼び直すなど） */
+  tick?: () => void;
   /** 明るく残す範囲。先頭が指さしの対象 */
   target?: () => (Rect | null)[];
 }
@@ -38,19 +41,29 @@ export class Tutorial {
     const w = world;
     w.frozen = true;
     w.autoSpawn = false;
+    view.skipFirstTimeHints();
     const slot = (b: BreadId) => view.L.slots[w.stage.breads.indexOf(b)];
     const cust = () => view.customerRect(this.servedId);
+    const target = () => w.customers.find((x) => x.id === this.servedId);
     const servedLeft = () => {
-      const c = w.customers.find((x) => x.id === this.servedId);
+      const c = target();
       return !c || c.state === 'leaving';
     };
     const isServe = (a: Action) => a.type === 'serve' && a.customerId === this.servedId;
+    const isPinch = (a: Action) => a.type === 'pinch' && a.customerId === this.servedId;
+    /** パンの出し入れとオーブン（在庫が切れても焼いて続けられるように、接客の手順ではいつでも通す） */
+    const shop = (a: Action) => a.type === 'pick' || a.type === 'return' || a.type === 'ovenOpen' || a.type === 'bake' || a.type === 'ovenTap';
+    const elfinGone = () => w.elfin.state !== 'entering' && w.elfin.state !== 'eating';
+    const shopArea = () => union(view.L.showcase, view.L.tray, cust());
+    const guest = (kind: 'komi' | 'butter' | 'nell', order: BreadId[], seat: number) => {
+      this.servedId = w.spawnGuest(kind, order, seat)?.id ?? -1;
+    };
 
     this.steps = [
       {
         kind: 'tap',
         expr: 'happy',
-        text: '最強の妖精、大魔法使いエシュールの店へようこそ！ 今日は教主に手伝ってもらうわよ。',
+        text: '最強の妖精、大魔法使いエシュールの店へようこそ！ 今日は教主に手伝ってもらうわよ。（右上の「スキップ」で、いつでも飛ばせます）',
       },
       {
         kind: 'act',
@@ -82,7 +95,7 @@ export class Tutorial {
         },
         allow: (a) => (a.type === 'pick' && (a.bread === 'roll' || a.bread === 'melon')) || a.type === 'return' || isServe(a),
         done: servedLeft,
-        target: () => [union(view.L.showcase, view.L.tray, cust())],
+        target: () => [shopArea()],
       },
       {
         kind: 'act',
@@ -91,9 +104,17 @@ export class Tutorial {
         enter: () => {
           this.servedId = w.spawnCustomer(['curry'], 2)?.id ?? -1;
         },
-        allow: (a) => a.type === 'pinch' && a.customerId === this.servedId,
+        allow: isPinch,
         advance: (a) => a.type === 'pinch',
         target: () => [cust()],
+      },
+      {
+        kind: 'wait',
+        expr: 'happy',
+        text: 'ごきげんになったわね。カレーパンも渡してあげて。',
+        allow: (a) => shop(a) || isServe(a),
+        done: servedLeft,
+        target: () => [shopArea()],
       },
       {
         kind: 'act',
@@ -121,10 +142,82 @@ export class Tutorial {
         advance: (a) => a.type === 'ovenTap',
         target: () => [view.L.ovens[this.ovenIndex]],
       },
+      // ---- エルフィン
+      {
+        kind: 'wait',
+        expr: 'surprised',
+        text: 'あっ、女王様（エルフィン）！ ショーケースのパンを勝手に食べて、ツケにしちゃうの。ツケは売上に入らないのよ……！',
+        enter: () => w.summonElfin(),
+        allow: () => false,
+        done: () => w.elfin.eaten >= 1 && this.t > 1.5,
+        target: () => [view.elfinRect(), view.L.showcase],
+      },
+      {
+        kind: 'act',
+        expr: 'sulk',
+        text: 'ほっぺをつまんで、強く引っぱって離すと追い払えるわ！ 引っぱりが弱いと、ひるむだけよ。',
+        allow: (a) => a.type === 'elfinGrab',
+        done: () => w.stats.repelled >= 1,
+        tick: () => {
+          if (w.elfin.state === 'absent') w.summonElfin();
+        },
+        target: () => [view.elfinRect()],
+      },
+      // ---- コミー
+      {
+        kind: 'act',
+        text: 'コミーが来たわ。席で居眠りしてて、注文してくれないの。ほっぺを引っぱって起こしてあげて！',
+        enter: () => guest('komi', ['roll', 'croissant'], 0),
+        allow: isPinch,
+        done: () => target()?.asleep === false,
+        target: () => [cust()],
+      },
+      {
+        kind: 'wait',
+        expr: 'smile',
+        text: '起きたわね！ 注文のパンを渡してあげて。待たせすぎると、また寝ちゃうから気をつけて。',
+        allow: (a) => shop(a) || isServe(a),
+        done: servedLeft,
+        target: () => [shopArea()],
+      },
+      // ---- バター
+      {
+        kind: 'wait',
+        expr: 'happy',
+        text: 'バターよ。座っているあいだは、つまみ食いに来たエルフィンをパチンコで追い払ってくれるの！',
+        enter: () => {
+          guest('butter', ['melon', 'roll'], 2);
+          w.summonElfin();
+        },
+        allow: () => false,
+        done: () => w.stats.butterShots >= 1 && this.t > 2,
+        target: () => [cust(), view.elfinRect()],
+      },
+      {
+        kind: 'wait',
+        text: 'バターにもパンを渡して。渡すと帰っちゃうから、そのあとはエルフィンを自分で追い払ってね。',
+        allow: (a) => shop(a) || isServe(a) || a.type === 'elfinGrab',
+        done: () => servedLeft() && elfinGone(),
+        target: () => [union(view.L.showcase, view.L.tray, cust(), view.elfinRect())],
+      },
+      // ---- ネル
+      {
+        kind: 'tap',
+        expr: 'smile',
+        text: 'さいごはネル。注文は最初の3秒しか見えないから、よーく覚えてね！ ぴったり渡せば、女王様のツケを全部払ってくれるわ。',
+      },
+      {
+        kind: 'wait',
+        text: '覚えたパンをトレーにそろえて、1回で渡すのよ。忘れたら、ほっぺを引っぱるともう一度見せてくれるわ。',
+        enter: () => guest('nell', ['croissant', 'melon'], 1),
+        allow: (a) => shop(a) || isServe(a) || isPinch(a),
+        done: servedLeft,
+        target: () => [shopArea()],
+      },
       {
         kind: 'tap',
         expr: 'happy',
-        text: `準備はばっちりね。制限時間は${w.stage.duration}秒、たくさん稼ぐわよ！`,
+        text: 'これで全員の相手はばっちりね！ まずは微辛から。慣れたら中辛・激辛、エンドレスにも挑戦してみて！',
       },
     ];
 
@@ -159,10 +252,21 @@ export class Tutorial {
   }
 
   private finish(): void {
+    this.dispose();
+    this.onFinish();
+  }
+
+  /** view から外す（スキップしたときも呼ぶ） */
+  dispose(): void {
     this.view.guard = null;
     this.view.onAction = null;
     this.view.overlay = null;
-    this.onFinish();
+  }
+
+  /** 右上の「スキップ」ボタン（ポーズボタンの下） */
+  skipRect(): Rect {
+    const L = this.view.L;
+    return { x: L.w - 166, y: L.hud.h + 10, w: 154, h: 44 };
   }
 
   /** 画面タップ。説明を読み進めたら true（ゲームには渡さない） */
@@ -175,6 +279,7 @@ export class Tutorial {
   update(dt: number): void {
     this.t += dt;
     const s = this.step;
+    s?.tick?.();
     if (s?.done?.() && this.t > 0.3) this.next();
   }
 
@@ -203,6 +308,7 @@ export class Tutorial {
       if (s.kind === 'act') this.drawPointer(c, main);
     }
     c.restore();
+    this.drawSkip(c);
 
     // エシュールの吹き出し: 指さしの対象と重ならない場所に置く
     const size = L.portrait ? 23 : 22;
@@ -247,6 +353,26 @@ export class Tutorial {
       c.textAlign = 'right';
       c.fillText('タップでつぎへ ▶', bx + bw - 24 + bob, by + bh - 20);
     }
+    c.restore();
+  }
+
+  private drawSkip(c: CanvasRenderingContext2D): void {
+    const r = this.skipRect();
+    c.save();
+    c.fillStyle = 'rgba(40, 20, 6, 0.35)';
+    roundRect(c, r.x, r.y + 3, r.w, r.h, r.h / 2);
+    c.fill();
+    c.fillStyle = C.cream;
+    roundRect(c, r.x, r.y, r.w, r.h, r.h / 2);
+    c.fill();
+    c.strokeStyle = C.woodDeep;
+    c.lineWidth = 3;
+    c.stroke();
+    c.font = font(19, 800);
+    c.fillStyle = C.ink;
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText('スキップ ▶▶', r.x + r.w / 2, r.y + r.h / 2 + 1);
     c.restore();
   }
 
