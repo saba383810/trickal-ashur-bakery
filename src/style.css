@@ -36,6 +36,8 @@ body {
   margin: 0;
   height: 100%;
   overflow: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   background: #5c3317;
   color: var(--ink);
   font-family: var(--font);
@@ -1060,9 +1062,6 @@ kbd {
     grid-template-columns: 1fr;
   }
 
-  .modes {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* iframe に埋め込まれた低い画面（例: 800×450）でも 1 画面に収める */
@@ -1122,14 +1121,6 @@ kbd {
     height: 56px !important;
   }
 
-  .mode-face canvas {
-    height: 48px !important;
-  }
-
-  .mode-card {
-    padding: 4px 10px 4px 4px;
-  }
-
   .title-cast .far canvas {
     height: 56px !important;
   }
@@ -1140,5 +1131,87 @@ kbd {
 
   .row {
     margin-top: 10px;
+  }
+}
+
+/* スマホ縦・低い画面: モードのカードを 2 行（名前と記録 / 説明）に詰めて 1 画面に収める */
+@media (max-width: 520px), (max-height: 560px) {
+  .panel.modes-panel {
+    padding: 16px 12px 14px;
+  }
+
+  .panel.modes-panel h2 {
+    margin-bottom: 8px;
+    font-size: 22px;
+  }
+
+  .modes {
+    gap: 7px;
+  }
+
+  .mode-card {
+    gap: 6px;
+    padding: 4px 10px 4px 4px;
+    border-radius: 14px;
+  }
+
+  .mode-face canvas {
+    height: 46px !important;
+  }
+
+  /* 名前と記録を 1 行目に並べ、入りきらなければ記録だけ次の行（右寄せ）へ。説明は最後の行 */
+  .mode-body {
+    flex: 1;
+    flex-flow: row wrap;
+    gap: 0 8px;
+    align-items: center;
+  }
+
+  .mode-name,
+  .mode-rec {
+    white-space: nowrap;
+  }
+
+  .mode-rec {
+    margin-left: auto;
+    font-size: 12px;
+  }
+
+  .mode-meta {
+    flex-basis: 100%;
+    order: 3;
+  }
+
+  .mode-name {
+    font-size: 17px;
+  }
+
+  .chili {
+    width: 7px;
+    height: 14px;
+  }
+
+  .panel.modes-panel .row {
+    margin-top: 10px;
+  }
+}
+
+@media (max-width: 520px) {
+  .modes {
+    grid-template-columns: 1fr;
+  }
+
+  /* 紹介パネルのキャラ説明も小さくして、スクロールを短くする */
+  .tips .tip {
+    padding: 4px 10px 4px 2px;
+  }
+
+  .tips .tip-face canvas {
+    height: 56px !important;
+  }
+
+  .tips .tip p {
+    font-size: 12px;
+    line-height: 1.45;
   }
 }
