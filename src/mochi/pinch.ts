@@ -37,6 +37,8 @@ export const MOCHI = {
    */
   eye: { x: 25, y: 11, rx: 15, ry: 15, fade: 0.5 },
   neck: [42, 54],
+  /** ほっぺは外側へだけ伸びる: 指のずれを、つまんだ側の真横から上下この角度（ラジアン）までに寄せる */
+  outwardAngle: Math.PI / 3,
 } as const;
 
 /**
@@ -74,6 +76,19 @@ export function ring(t: number): number {
 function smoothstep(a: number, b: number, x: number): number {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
+}
+
+/**
+ * 指のずれ (dx, dy) を外側へだけにする。side = つまんだほっぺの側（左 -1 / 右 1）。
+ * 範囲の外は近いほうの端へ射影するので、内側へ引くほど伸びが小さくなり、真内側では伸びない
+ */
+export function outward(dx: number, dy: number, side: -1 | 1): Vec {
+  const max = MOCHI.outwardAngle;
+  const ang = Math.atan2(Math.abs(dy), dx * side);
+  if (ang <= max) return { x: dx, y: dy };
+  const len = Math.hypot(dx, dy) * Math.cos(ang - max);
+  if (len <= 0) return { x: 0, y: 0 };
+  return { x: side * len * Math.cos(max), y: Math.sign(dy) * len * Math.sin(max) };
 }
 
 /** 変形の重み。シェーダと同じ式 */
@@ -218,8 +233,7 @@ export class Pinch {
       let tx = 0;
       let ty = 0;
       if (!g.released) {
-        const dx = g.pointer.x - g.anchor.x;
-        const dy = g.pointer.y - g.anchor.y;
+        const { x: dx, y: dy } = outward(g.pointer.x - g.anchor.x, g.pointer.y - g.anchor.y, g.anchor.x < 0 ? -1 : 1);
         const mag = Math.hypot(dx, dy);
         if (mag > 1e-9) {
           const eff = L * Math.tanh(mag / L);

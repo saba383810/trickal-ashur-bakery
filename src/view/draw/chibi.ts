@@ -1546,22 +1546,23 @@ function mouth(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): vo
   ctx.strokeStyle = LINE;
   ctx.lineWidth = 2.2;
   const open = (w: number, top: number, bottom: number, fang: boolean) => {
-    ctx.beginPath();
-    ctx.moveTo(-w, top - 1);
-    ctx.quadraticCurveTo(0, top + 1.5, w, top - 1);
-    ctx.quadraticCurveTo(w * 0.85, bottom, 0, bottom);
-    ctx.quadraticCurveTo(-w * 0.85, bottom, -w, top - 1);
-    ctx.closePath();
+    // 輪郭は Path2D で持つ（舌を描いたあとの現在パスは舌の楕円なので、そのまま stroke すると口の下に丸が出る）
+    const lip = new Path2D();
+    lip.moveTo(-w, top - 1);
+    lip.quadraticCurveTo(0, top + 1.5, w, top - 1);
+    lip.quadraticCurveTo(w * 0.85, bottom, 0, bottom);
+    lip.quadraticCurveTo(-w * 0.85, bottom, -w, top - 1);
+    lip.closePath();
     ctx.fillStyle = MOUTH;
-    ctx.fill();
+    ctx.fill(lip);
     ctx.save();
-    ctx.clip();
+    ctx.clip(lip);
     ctx.fillStyle = TONGUE;
     ctx.beginPath();
     ctx.ellipse(0.5, bottom, w * 0.6, (bottom - top) * 0.42, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
-    ctx.stroke();
+    ctx.stroke(lip);
     if (fang) {
       ctx.beginPath();
       ctx.moveTo(-w * 0.8, top - 0.3);
