@@ -44,29 +44,21 @@ npm run build    # 型チェック + 本番ビルド（dist/）
 
 ## sabanogames への組み込み
 
-[sabanogames](https://github.com/saba383810/sabanogames) の「あそび場」に、もちほっぺメーカーと同じ submodule 方式で載せる想定です。
+[sabanogames](https://github.com/saba383810/sabanogames) の「あそび場」に、もちほっぺメーカーと同じ submodule 方式で載せています。
 
-1. このディレクトリを GitHub リポジトリ（例: `saba383810/eshur_bakery`）として公開する
-2. sabanogames 側で submodule を追加する
+- submodule: `entertainments/trickal-ashur-bakery`（このリポジトリ）
+- 公開 URL: `https://sabanogames.com/entertainments/trickal-ashur-bakery/`（CI が作るフレームページ。本体は `app/` 配下）
+- CI は `npm ci && npm run build -- --base=/entertainments/trickal-ashur-bakery/app/` でビルドする
+- 一覧のエントリは sabanogames の `site/src/data/entertainments.ts`、サムネイルは `docs/thumbnail.png` のコピー
+  （`site/public/images/entertainments/trickal-ashur-bakery.png`）
 
-   ```sh
-   git submodule add https://github.com/saba383810/eshur_bakery.git entertainments/eshur_bakery
-   ```
+このリポジトリを更新したら、sabanogames 側でポインタを進めてコミットする:
 
-   CI が `npm ci && npm run build -- --base=/entertainments/eshur_bakery/app/` を実行し、`/entertainments/eshur_bakery/app/` に公開されます。
-3. `site/src/data/entertainments.ts` にエントリを追加する
+```sh
+git submodule update --remote entertainments/trickal-ashur-bakery
+```
 
-   ```ts
-   {
-     slug: 'eshur_bakery',
-     title: 'エシュールのパン屋さん',
-     description: 'トリッカルの非公式ファンゲーム。パンを渡して、エルフィンのほっぺを引っぱって、ネルの注文を覚えよう。',
-     repo: 'https://github.com/saba383810/eshur_bakery',
-     image: '/images/entertainments/eshur_bakery.png',
-   },
-   ```
-
-4. `docs/thumbnail.png` を `site/public/images/entertainments/eshur_bakery.png` としてコピーする
+サムネイルを差し替えたときは、sabanogames 側の画像もコピーし直して `image` の URL に `?v=N` を付ける（画像は 1 週間キャッシュされるため）。
 
 ## 権利・素材について
 
