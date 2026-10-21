@@ -1,0 +1,49 @@
+import type { BreadId } from '../config/breads';
+
+export interface Payment {
+  total: number;
+  base: number;
+  tip: number;
+  combo: number;
+  nell: number;
+  tipRate: number;
+}
+
+// sim → view/audio への通知。step / コマンドの中で積まれ、view が毎フレーム回収する。
+export type GameEvent =
+  | { type: 'pick'; bread: BreadId }
+  | { type: 'pickFail'; bread: BreadId; reason: 'empty' | 'full' }
+  | { type: 'return'; bread: BreadId }
+  | { type: 'customerArrive'; customerId: number }
+  | { type: 'servePartial'; customerId: number; breads: BreadId[] }
+  | { type: 'serveWrong'; customerId: number }
+  | { type: 'serveComplete'; customerId: number; payment: Payment; combo: number }
+  | { type: 'customerAngry'; customerId: number }
+  | { type: 'customerMochi'; customerId: number }
+  | { type: 'komiArrive'; customerId: number }
+  /** again = 待ちくたびれてまた寝た / false = 寝ているのに渡そうとした */
+  | { type: 'komiSleep'; customerId: number; again: boolean }
+  | { type: 'komiWake'; customerId: number }
+  | { type: 'butterArrive'; customerId: number }
+  | { type: 'butterShot'; customerId: number }
+  | { type: 'bakeStart'; oven: number; bread: BreadId }
+  | { type: 'ovenReady'; oven: number }
+  | { type: 'ovenTakeOut'; oven: number; bread: BreadId; count: number }
+  | { type: 'ovenBurnt'; oven: number }
+  | { type: 'ovenClear'; oven: number }
+  | { type: 'elfinEnter' }
+  | { type: 'elfinEat'; bread: BreadId; price: number }
+  | { type: 'elfinGrab' }
+  | { type: 'elfinStun' }
+  | { type: 'elfinLaunched' }
+  | { type: 'elfinLeave'; full: boolean }
+  | { type: 'elfinFlee' }
+  | { type: 'nellAnnounce' }
+  | { type: 'nellArrive'; customerId: number }
+  | { type: 'nellPeek'; customerId: number }
+  | { type: 'nellWrong'; customerId: number }
+  | { type: 'nellSuccess'; customerId: number; tabPaid: number; payment: Payment }
+  | { type: 'nellFail'; customerId: number }
+  | { type: 'buffEnd' }
+  | { type: 'timeWarning' }
+  | { type: 'timeUp' };

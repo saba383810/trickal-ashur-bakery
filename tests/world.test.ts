@@ -1,0 +1,356 @@
+import { describe, expect, it } from 'vitest';
+import { BALANCE } from '../src/config/balance';
+import { BREADS } from '../src/config/breads';
+import type { StageDef } from '../src/config/stages';
+import { sameBreads, starsFor, World } from '../src/sim/world';
+
+const DT = 1 / 60;
+
+function stage(over: Partial<StageDef> = {}): StageDef {
+  return {
+    id: 99,
+    title: 'test',
+    blurb: '',
+    duration: 120,
+    breads: ['roll', 'croissant', 'melon'],
+    ovens: 2,
+    seats: 3,
+    initialStock: 3,
+    customer: { intervalStart: 5, intervalEnd: 5, jitter: 0, itemWeights: [1], patienceBase: 10, patiencePerItem: 5 },
+    elfin: null,
+    nellVisits: [],
+    nellItems: 3,
+    komiAt: null,
+    butterAt: null,
+    stars: [100, 200, 300],
+    ...over,
+  };
+}
+
+/** 自動来店なしのワールド */
+function quiet(over: Partial<StageDef> = {}): World {
+  const w = new World(stage(over), 1);
+  w.autoSpawn = false;
+  return w;
+}
+
+function run(w: World, seconds: number): void {
+  for (let t = 0; t < seconds; t += DT) w.step(DT);
+}
+
+function seated(w: World, order: Parameters<World['spawnCustomer']>[0]) {
+  const c = w.spawnCustomer(order)!;
+  run(w, BALANCE.customer.enterTime + 0.05);
+  return c;
+}
+
+describe('ショーケースとトレー', () => {
+  it('パンをのせると在庫が減り、戻すと増える', () => {
+    const w = quiet();
+    expect(w.pickBread('roll')).toBe(true);
+    expect(w.stock.roll).toBe(2);
+    expect(w.tray).toEqual(['roll']);
+    w.returnTray(0);
+    expect(w.stock.roll).toBe(3);
+    expect(w.tray).toEqual([]);
+  });
+
+  it('在庫切れとトレー満杯ではのせられない', () => {
+    const w = quiet({ initialStock: 5 });
+    for (let i = 0; i < BALANCE.trayCapacity; i++) w.pickBread('roll');
+    expect(w.pickBread('roll')).toBe(false);
+    expect(w.drainEvents().at(-1)).toMatchObject({ type: 'pickFail', reason: 'full' });
+    w.tray = [];
+    w.stock.melon = 0;
+    expect(w.pickBread('melon')).toBe(false);
+  });
+});
+
+describe('通常客', () => {
+  it('注文に含まれるパンだけを受け取り、残りはトレーに残る', () => {
+    const w = quiet();
+    const c = seated(w, ['roll', 'melon']);
+    w.pickBread('roll');
+    w.pickBread('croissant');
+    expect(w.serve(c.id)).toBe('partial');
+    expect(w.tray).toEqual(['croissant']);
+    expect(c.received).toEqual([true, false]);
+  });
+
+  it('合うパンが無いと待ち時間が減る。トレーが空なら何も起きない', () => {
+    const w = quiet();
+    const c = seated(w, ['roll']);
+    expect(w.serve(c.id)).toBe('none');
+    w.pickBread('melon');
+    const before = c.patience;
+    expect(w.serve(c.id)).toBe('wrong');
+    expect(c.patience).toBeCloseTo(before - BALANCE.customer.wrongPenalty);
+  });
+
+  it('すぐ渡すと早さチップ、連続で渡すとコンボが乗る', () => {
+    const w = quiet();
+    const a = seated(w, ['roll']);
+    w.pickBread('roll');
+    w.serve(a.id);
+    const b = seated(w, ['roll']);
+    w.pickBread('roll');
+    w.serve(b.id);
+    const done = w.drainEvents().filter((e) => e.type === 'serveComplete');
+    expect(done[0]).toMatchObject({ payment: { base: 100, tip: 20, combo: 0, total: 120 }, combo: 1 });
+    expect(done[1]).toMatchObject({ payment: { base: 100, tip: 20, combo: 6, total: 126 }, combo: 2 });
+    expect(w.sales).toBe(246);
+  });
+
+  it('待ち時間切れで怒って帰り、コンボが途切れる', () => {
+    const w = quiet();
+    w.combo = 3;
+    seated(w, ['roll']);
+    run(w, 16);
+    expect(w.combo).toBe(0);
+    expect(w.stats.angry).toBe(1);
+    expect(w.customers).toHaveLength(0);
+  });
+});
+
+describe('オーブン', () => {
+  it('焼いて取り出すと在庫が増える', () => {
+    const w = quiet();
+    w.bake(0, 'croissant');
+    run(w, BREADS.croissant.bakeTime + 0.1);
+    expect(w.ovens[0].state).toBe('ready');
+    w.tapOven(0);
+    expect(w.stock.croissant).toBe(3 + BREADS.croissant.batch);
+    expect(w.ovens[0].state).toBe('idle');
+  });
+
+  it('放置すると焦げて全損し、片付けると空く', () => {
+    const w = quiet();
+    w.bake(1, 'roll');
+    run(w, BREADS.roll.bakeTime + BALANCE.oven.readyWindow + 0.1);
+    expect(w.ovens[1].state).toBe('burnt');
+    expect(w.stats.burnt).toBe(1);
+    w.tapOven(1);
+    expect(w.ovens[1].state).toBe('idle');
+    expect(w.stock.roll).toBe(3);
+  });
+
+  it('凍結中（チュートリアル）は焼けるが焦げない', () => {
+    const w = quiet();
+    w.frozen = true;
+    w.bake(0, 'roll');
+    run(w, 30);
+    expect(w.ovens[0].state).toBe('ready');
+    expect(w.time).toBe(0);
+  });
+
+  it('凍結中も客は席に着くが、待ち時間は減らない', () => {
+    const w = quiet();
+    w.frozen = true;
+    const c = w.spawnCustomer(['roll'], 0)!;
+    run(w, 30);
+    expect(c.state).toBe('waiting');
+    expect(c.patience).toBe(c.patienceMax);
+  });
+});
+
+const ELFIN = { firstAt: 1, intervalMin: 10, intervalMax: 10, eatInterval: 2, maxEat: 2 };
+
+describe('エルフィン', () => {
+  it('高いパンから食べてツケが貯まり、満腹で帰る', () => {
+    const w = quiet({ elfin: ELFIN });
+    run(w, 1 + BALANCE.elfin.enterTime + 2.1);
+    expect(w.elfin.state).toBe('eating');
+    expect(w.stock.melon).toBe(2);
+    expect(w.tab).toBe(BREADS.melon.price);
+    run(w, 2);
+    expect(w.tab).toBe(BREADS.melon.price * 2);
+    expect(w.elfin.state).toBe('leaving');
+    expect(w.sales).toBe(0);
+  });
+
+  it('引っぱって離すと追い払える。足りないとひるむだけ', () => {
+    const w = quiet({ elfin: ELFIN });
+    run(w, 2);
+    expect(w.elfinGrab()).toBe(true);
+    expect(w.elfinRelease(0.5)).toBe(false);
+    expect(w.elfin.stun).toBeGreaterThan(0);
+    w.elfinGrab();
+    expect(w.elfinRelease(1.2)).toBe(true);
+    expect(w.elfin.state).toBe('launched');
+    expect(w.stats.repelled).toBe(1);
+  });
+
+  it('つかんでいる間は食べない', () => {
+    const w = quiet({ elfin: ELFIN });
+    run(w, 1 + BALANCE.elfin.enterTime + 0.1);
+    w.elfinGrab();
+    run(w, 10);
+    expect(w.tab).toBe(0);
+  });
+});
+
+describe('ネル', () => {
+  const nellStage = { nellVisits: [20], seats: 2 } satisfies Partial<StageDef>;
+
+  function nellSeated(w: World) {
+    run(w, 20 + BALANCE.customer.enterTime + 0.05);
+    return w.customers.find((c) => c.kind === 'nell')!;
+  }
+
+  it('予告が来るとエルフィンが逃げ、予告中は新しい客が 1 席空けて座る', () => {
+    const hungry = { ...ELFIN, firstAt: 5, maxEat: 99 };
+    const w = new World(stage({ ...nellStage, elfin: hungry, initialStock: 9 }), 3);
+    run(w, 20 - BALANCE.nell.announceLead - 0.1);
+    expect(w.elfin.state).toBe('eating');
+    run(w, 0.2);
+    expect(w.nellPendingAt).toBe(20);
+    expect(w.elfin.state).toBe('leaving');
+    run(w, BALANCE.nell.announceLead - 0.5);
+    expect(w.customers.filter((c) => c.state !== 'leaving').length).toBeLessThanOrEqual(1);
+  });
+
+  it('注文は最初の数秒だけ見え、空トレーでタップするともう一度見せてくれる', () => {
+    const w = quiet(nellStage);
+    const nell = nellSeated(w);
+    expect(nell.order).toHaveLength(3);
+    expect(nell.reveal).toBeGreaterThan(0);
+    run(w, BALANCE.nell.revealTime);
+    expect(nell.reveal).toBe(0);
+    const before = nell.patience;
+    expect(w.serve(nell.id)).toBe('peek');
+    expect(nell.reveal).toBe(BALANCE.nell.peekTime);
+    expect(nell.patience).toBeCloseTo(before - BALANCE.nell.peekCost);
+  });
+
+  it('過不足があると受け取らず、ぴったりならツケを回収して祝福がつく', () => {
+    const w = quiet(nellStage);
+    w.tab = 500;
+    const nell = nellSeated(w);
+    w.stock.roll = w.stock.croissant = w.stock.melon = 9;
+    for (const b of nell.order) w.pickBread(b);
+    w.pickBread('roll');
+    expect(w.serve(nell.id)).toBe('wrong');
+    w.returnTray(w.tray.length - 1);
+    w.tray.reverse();
+    expect(w.serve(nell.id)).toBe('complete');
+    expect(w.tab).toBe(0);
+    expect(w.ledger.tabCollected).toBe(500);
+    expect(w.buff).toBe(BALANCE.nell.buffDuration);
+
+    const c = seated(w, ['roll']);
+    w.pickBread('roll');
+    w.serve(c.id);
+    const done = w.drainEvents().find((e) => e.type === 'serveComplete');
+    expect(done).toMatchObject({ payment: { base: 100, tip: 20, nell: 24, total: 144 } });
+  });
+
+  it('失敗するとツケは残り、祝福もつかない', () => {
+    const w = quiet(nellStage);
+    w.tab = 300;
+    nellSeated(w);
+    run(w, BALANCE.nell.patienceBase + BALANCE.nell.patiencePerItem * 3 + 1);
+    expect(w.stats.nellFail).toBe(1);
+    expect(w.tab).toBe(300);
+    expect(w.buff).toBe(0);
+  });
+});
+
+describe('ほっぺ', () => {
+  it('客のほっぺを引っぱると 1 人 1 回だけ待ち時間が全回復する', () => {
+    const w = quiet();
+    const c = seated(w, ['roll']);
+    run(w, 5);
+    expect(c.patience).toBeLessThan(c.patienceMax);
+    expect(w.pinchCustomer(c.id)).toBe('refill');
+    expect(c.patience).toBe(c.patienceMax);
+    run(w, 1);
+    expect(w.pinchCustomer(c.id)).toBe('none');
+    expect(c.patience).toBeLessThan(c.patienceMax);
+    expect(w.stats.mochi).toBe(1);
+  });
+
+  it('ネルのほっぺを引っぱると、注文をもう一度見せてくれる', () => {
+    const w = quiet({ nellVisits: [1] });
+    run(w, 1 + BALANCE.customer.enterTime + BALANCE.nell.revealTime + 0.1);
+    const nell = w.customers.find((c) => c.kind === 'nell')!;
+    expect(nell.reveal).toBe(0);
+    expect(w.pinchCustomer(nell.id)).toBe('peek');
+    expect(nell.reveal).toBe(BALANCE.nell.peekTime);
+  });
+});
+
+describe('コミー', () => {
+  function komiSeated(w: World) {
+    run(w, 1 + BALANCE.customer.enterTime + 0.05);
+    return w.customers.find((c) => c.kind === 'komi')!;
+  }
+
+  it('席に着くと居眠りし、寝ている間は受け取らず待ち時間も減らない', () => {
+    const w = quiet({ komiAt: 1 });
+    const komi = komiSeated(w);
+    expect(komi.asleep).toBe(true);
+    expect(komi.order).toHaveLength(BALANCE.komi.items);
+    run(w, 20);
+    expect(komi.state).toBe('waiting');
+    expect(komi.patience).toBe(komi.patienceMax);
+    w.pickBread(komi.order[0]);
+    expect(w.serve(komi.id)).toBe('asleep');
+    expect(w.tray).toHaveLength(1);
+  });
+
+  it('ほっぺを引っぱると起きて注文し、待ちくたびれると怒らずにまた眠る', () => {
+    const w = quiet({ komiAt: 1 });
+    const komi = komiSeated(w);
+    expect(w.pinchCustomer(komi.id)).toBe('wake');
+    expect(komi.asleep).toBe(false);
+    run(w, komi.patienceMax + 0.1);
+    expect(komi.asleep).toBe(true);
+    expect(komi.state).toBe('waiting');
+    expect(w.stats.angry).toBe(0);
+    w.pinchCustomer(komi.id);
+    w.stock.roll = w.stock.croissant = w.stock.melon = 9;
+    for (const b of komi.order) w.pickBread(b);
+    expect(w.serve(komi.id)).toBe('complete');
+  });
+});
+
+describe('バター', () => {
+  it('座っている間はエルフィンをパチンコで撃ち、つまみ食いさせない', () => {
+    const w = quiet({ elfin: { ...ELFIN, firstAt: 1, maxEat: 99 }, butterAt: 0.5, initialStock: 9 });
+    run(w, 12);
+    const butter = w.customers.find((c) => c.kind === 'butter')!;
+    expect(butter.state).toBe('waiting');
+    expect(butter.order).toHaveLength(BALANCE.butter.items);
+    expect(w.stats.butterShots).toBeGreaterThan(0);
+    expect(w.tab).toBe(0);
+  });
+
+  it('バターが帰るとエルフィンはまた食べはじめる', () => {
+    const w = quiet({ elfin: { ...ELFIN, firstAt: 1, maxEat: 99 }, butterAt: 0.5, initialStock: 9 });
+    run(w, 3);
+    const butter = w.customers.find((c) => c.kind === 'butter')!;
+    for (const b of butter.order) w.pickBread(b);
+    expect(w.serve(butter.id)).toBe('complete');
+    run(w, 5);
+    expect(w.tab).toBeGreaterThan(0);
+  });
+});
+
+describe('終了と評価', () => {
+  it('時間切れで終了し、以降の操作は受け付けない', () => {
+    const w = quiet({ duration: 3 });
+    run(w, 3.1);
+    expect(w.phase).toBe('ended');
+    expect(w.pickBread('roll')).toBe(false);
+  });
+
+  it('★は目標売上で決まる', () => {
+    const s = stage();
+    expect([0, 150, 250, 999].map((v) => starsFor(s, v))).toEqual([0, 1, 2, 3]);
+  });
+
+  it('sameBreads は順番を問わない', () => {
+    expect(sameBreads(['roll', 'melon'], ['melon', 'roll'])).toBe(true);
+    expect(sameBreads(['roll', 'roll'], ['roll', 'melon'])).toBe(false);
+  });
+});

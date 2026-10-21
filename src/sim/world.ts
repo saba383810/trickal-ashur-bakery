@@ -1,0 +1,727 @@
+import { BALANCE } from '../config/balance';
+import { BREADS, type BreadId } from '../config/breads';
+import type { StageDef } from '../config/stages';
+import type { GameEvent, Payment } from './events';
+import { Rng } from './rng';
+
+export type CustomerState = 'entering' | 'waiting' | 'leaving';
+
+/** nell = 記憶接客 / komi = 席で居眠りする / butter = 座っている間エルフィンを追い払う */
+export type CustomerKind = 'normal' | 'nell' | 'komi' | 'butter';
+
+export interface Customer {
+  id: number;
+  seat: number;
+  kind: CustomerKind;
+  order: BreadId[];
+  received: boolean[];
+  patience: number;
+  patienceMax: number;
+  state: CustomerState;
+  stateTime: number;
+  /** 退店時の機嫌 */
+  mood: 'happy' | 'angry' | null;
+  /** 見た目のシード（view が髪色などを決める） */
+  look: number;
+  /** 「ちがう」反応の残り秒数 */
+  reject: number;
+  /** ネル: 注文が見えている残り秒数 */
+  reveal: number;
+  /** コミー: 居眠り中（注文が見えず、待ち時間も減らない） */
+  asleep: boolean;
+  /** ほっぺを引っぱって待ち時間を回復済み（1 人 1 回） */
+  mochi: boolean;
+}
+
+export type OvenState = 'idle' | 'baking' | 'ready' | 'burnt';
+
+export interface Oven {
+  state: OvenState;
+  bread: BreadId | null;
+  /** 現在の状態に入ってからの秒数 */
+  t: number;
+}
+
+export type ElfinState = 'absent' | 'entering' | 'eating' | 'leaving' | 'launched';
+
+export interface Elfin {
+  state: ElfinState;
+  t: number;
+  /** 入口 → ショーケースの進み具合 0..1 */
+  enter: number;
+  eaten: number;
+  eatTimer: number;
+  grabbed: boolean;
+  stun: number;
+  sulk: number;
+  /** 直前に食べたパン（view の口元表示用） */
+  lastBread: BreadId | null;
+}
+
+export interface Ledger {
+  base: number;
+  tip: number;
+  combo: number;
+  nell: number;
+  tabCollected: number;
+}
+
+export interface Stats {
+  served: number;
+  angry: number;
+  repelled: number;
+  baked: number;
+  burnt: number;
+  elfinAte: number;
+  bestCombo: number;
+  nellSuccess: number;
+  nellFail: number;
+  /** ほっぺを引っぱって機嫌を直した客 */
+  mochi: number;
+  butterShots: number;
+}
+
+export type Phase = 'playing' | 'ended';
+
+export class World {
+  readonly stage: StageDef;
+  readonly rng: Rng;
+  time = 0;
+  phase: Phase = 'playing';
+  /** チュートリアル用。時計・客の待ち時間・エルフィンを止める（客の出入りは動く。オーブンは焼けるが焦げない） */
+  frozen = false;
+  /** チュートリアル用。false の間は自動で客が来ない */
+  autoSpawn = true;
+
+  stock: Record<BreadId, number>;
+  tray: BreadId[] = [];
+  customers: Customer[] = [];
+  ovens: Oven[];
+  elfin: Elfin = {
+    state: 'absent',
+    t: 0,
+    enter: 0,
+    eaten: 0,
+    eatTimer: 0,
+    grabbed: false,
+    stun: 0,
+    sulk: 0,
+    lastBread: null,
+  };
+
+  /** 未回収のツケ */
+  tab = 0;
+  combo = 0;
+  /** ネルの祝福の残り秒数 */
+  buff = 0;
+  ledger: Ledger = { base: 0, tip: 0, combo: 0, nell: 0, tabCollected: 0 };
+  stats: Stats = {
+    served: 0,
+    angry: 0,
+    repelled: 0,
+    baked: 0,
+    burnt: 0,
+    elfinAte: 0,
+    bestCombo: 0,
+    nellSuccess: 0,
+    nellFail: 0,
+    mochi: 0,
+    butterShots: 0,
+  };
+  events: GameEvent[] = [];
+
+  /** 予告済みでまだ座っていないネルの来店時刻 */
+  nellPendingAt: number | null = null;
+  private nellQueue: number[];
+  /** コミーとバターの来店予定 */
+  private guests: { kind: 'komi' | 'butter'; at: number }[];
+  private butterCooldown = 0;
+  private nextId = 1;
+  private nextSpawnAt = 1;
+  private nextElfinAt: number;
+  private seatFreeAt: number[];
+  private warned = false;
+
+  constructor(stage: StageDef, seed: number) {
+    this.stage = stage;
+    this.rng = new Rng(seed);
+    this.stock = Object.fromEntries(
+      (Object.keys(BREADS) as BreadId[]).map((id) => [id, stage.breads.includes(id) ? stage.initialStock : 0]),
+    ) as Record<BreadId, number>;
+    this.ovens = Array.from({ length: stage.ovens }, () => ({ state: 'idle', bread: null, t: 0 }));
+    this.seatFreeAt = Array.from({ length: stage.seats }, () => 0);
+    this.nextElfinAt = stage.elfin?.firstAt ?? Infinity;
+    this.nellQueue = [...stage.nellVisits].sort((a, b) => a - b);
+    this.guests = [
+      ...(stage.komiAt !== null ? [{ kind: 'komi' as const, at: stage.komiAt }] : []),
+      ...(stage.butterAt !== null ? [{ kind: 'butter' as const, at: stage.butterAt }] : []),
+    ].sort((a, b) => a.at - b.at);
+  }
+
+  get sales(): number {
+    const l = this.ledger;
+    return l.base + l.tip + l.combo + l.nell + l.tabCollected;
+  }
+
+  get remaining(): number {
+    return Math.max(0, this.stage.duration - this.time);
+  }
+
+  /** ネルが予告〜退店のあいだ店に関わっているか（エルフィンが寄りつかない） */
+  get nellInShop(): boolean {
+    return this.nellPendingAt !== null || this.customers.some((c) => c.kind === 'nell' && c.state !== 'leaving');
+  }
+
+  // ---------------------------------------------------------------- commands
+
+  pickBread(bread: BreadId): boolean {
+    if (this.phase !== 'playing') return false;
+    if (this.stock[bread] <= 0) {
+      this.emit({ type: 'pickFail', bread, reason: 'empty' });
+      return false;
+    }
+    if (this.tray.length >= BALANCE.trayCapacity) {
+      this.emit({ type: 'pickFail', bread, reason: 'full' });
+      return false;
+    }
+    this.stock[bread]--;
+    this.tray.push(bread);
+    this.emit({ type: 'pick', bread });
+    return true;
+  }
+
+  returnTray(index: number): boolean {
+    if (this.phase !== 'playing') return false;
+    const bread = this.tray[index];
+    if (!bread) return false;
+    this.tray.splice(index, 1);
+    this.stock[bread]++;
+    this.emit({ type: 'return', bread });
+    return true;
+  }
+
+  serve(customerId: number): 'complete' | 'partial' | 'wrong' | 'peek' | 'asleep' | 'none' {
+    if (this.phase !== 'playing') return 'none';
+    const c = this.customers.find((x) => x.id === customerId);
+    if (!c || c.state !== 'waiting') return 'none';
+    if (c.asleep) {
+      this.emit({ type: 'komiSleep', customerId: c.id, again: false });
+      return 'asleep';
+    }
+    return c.kind === 'nell' ? this.serveNell(c) : this.serveNormal(c);
+  }
+
+  /**
+   * ほっぺを引っぱって離した。コミーは目を覚まし、ネルは注文をもう一度見せてくれる。
+   * ほかの客は 1 人 1 回だけ、機嫌が直って待ち時間が全回復する
+   */
+  pinchCustomer(customerId: number): 'wake' | 'peek' | 'refill' | 'none' {
+    if (this.phase !== 'playing') return 'none';
+    const c = this.customers.find((x) => x.id === customerId);
+    if (!c || c.state !== 'waiting') return 'none';
+    if (c.asleep) {
+      c.asleep = false;
+      c.patience = c.patienceMax;
+      this.emit({ type: 'komiWake', customerId: c.id });
+      return 'wake';
+    }
+    if (c.kind === 'nell') {
+      this.nellPeek(c);
+      return 'peek';
+    }
+    if (c.mochi) return 'none';
+    c.mochi = true;
+    c.patience = c.patienceMax;
+    this.stats.mochi++;
+    this.emit({ type: 'customerMochi', customerId: c.id });
+    return 'refill';
+  }
+
+  bake(ovenIndex: number, bread: BreadId): boolean {
+    const oven = this.ovens[ovenIndex];
+    if (this.phase !== 'playing' || !oven || oven.state !== 'idle' || !this.stage.breads.includes(bread)) return false;
+    oven.state = 'baking';
+    oven.bread = bread;
+    oven.t = 0;
+    this.emit({ type: 'bakeStart', oven: ovenIndex, bread });
+    return true;
+  }
+
+  /** 焼き上がりの取り出し / 焦げの片付け */
+  tapOven(ovenIndex: number): boolean {
+    const oven = this.ovens[ovenIndex];
+    if (this.phase !== 'playing' || !oven) return false;
+    if (oven.state === 'ready' && oven.bread) {
+      const count = BREADS[oven.bread].batch;
+      this.stock[oven.bread] += count;
+      this.stats.baked += count;
+      this.emit({ type: 'ovenTakeOut', oven: ovenIndex, bread: oven.bread, count });
+      this.resetOven(oven);
+      return true;
+    }
+    if (oven.state === 'burnt') {
+      this.emit({ type: 'ovenClear', oven: ovenIndex });
+      this.resetOven(oven);
+      return true;
+    }
+    return false;
+  }
+
+  elfinGrab(): boolean {
+    const e = this.elfin;
+    if (this.phase !== 'playing' || (e.state !== 'entering' && e.state !== 'eating')) return false;
+    e.grabbed = true;
+    this.emit({ type: 'elfinGrab' });
+    return true;
+  }
+
+  /** power: 引っぱった距離 / 必要な距離。1 以上で追い払える */
+  elfinRelease(power: number): boolean {
+    const e = this.elfin;
+    if (!e.grabbed) return false;
+    e.grabbed = false;
+    if (e.state !== 'entering' && e.state !== 'eating') return false;
+    if (power >= 1) {
+      this.setElfin('launched');
+      this.stats.repelled++;
+      this.emit({ type: 'elfinLaunched' });
+      return true;
+    }
+    e.stun = BALANCE.elfin.stunTime;
+    this.emit({ type: 'elfinStun' });
+    return false;
+  }
+
+  // ------------------------------------------------------------------- step
+
+  step(dt: number): void {
+    if (this.phase !== 'playing') return;
+
+    this.updateOvens(dt);
+    if (this.frozen) {
+      this.updateCustomers(dt, false);
+      return;
+    }
+
+    this.time += dt;
+    this.updateNell();
+    this.updateGuests();
+    this.updateSpawner();
+    this.updateCustomers(dt);
+    this.updateElfin(dt);
+    this.updateButter(dt);
+    this.updateBuff(dt);
+
+    if (!this.warned && this.remaining <= BALANCE.warningTime) {
+      this.warned = true;
+      this.emit({ type: 'timeWarning' });
+    }
+    if (this.time >= this.stage.duration) {
+      this.phase = 'ended';
+      this.elfin.grabbed = false;
+      this.emit({ type: 'timeUp' });
+    }
+  }
+
+  drainEvents(): GameEvent[] {
+    const out = this.events;
+    this.events = [];
+    return out;
+  }
+
+  // ---------------------------------------------------------------- serving
+
+  private serveNormal(c: Customer): 'complete' | 'partial' | 'wrong' | 'none' {
+    if (this.tray.length === 0) return 'none';
+    const taken: BreadId[] = [];
+    c.order.forEach((bread, i) => {
+      if (c.received[i]) return;
+      const at = this.tray.indexOf(bread);
+      if (at < 0) return;
+      this.tray.splice(at, 1);
+      c.received[i] = true;
+      taken.push(bread);
+    });
+
+    if (taken.length === 0) {
+      c.patience = Math.max(0.1, c.patience - BALANCE.customer.wrongPenalty);
+      c.reject = 0.6;
+      this.emit({ type: 'serveWrong', customerId: c.id });
+      return 'wrong';
+    }
+    if (c.received.every(Boolean)) {
+      const payment = this.paymentFor(c);
+      this.book(payment);
+      this.stats.served++;
+      this.combo++;
+      this.stats.bestCombo = Math.max(this.stats.bestCombo, this.combo);
+      this.leave(c, 'happy');
+      this.emit({ type: 'serveComplete', customerId: c.id, payment, combo: this.combo });
+      return 'complete';
+    }
+    c.patience = Math.min(c.patienceMax, c.patience + BALANCE.customer.partialBonus);
+    this.emit({ type: 'servePartial', customerId: c.id, breads: taken });
+    return 'partial';
+  }
+
+  private serveNell(c: Customer): 'complete' | 'wrong' | 'peek' {
+    const cfg = BALANCE.nell;
+    if (this.tray.length === 0) {
+      this.nellPeek(c);
+      return 'peek';
+    }
+    if (!sameBreads(this.tray, c.order)) {
+      c.patience = Math.max(0.1, c.patience - cfg.wrongPenalty);
+      c.reject = 0.6;
+      this.emit({ type: 'nellWrong', customerId: c.id });
+      return 'wrong';
+    }
+
+    this.tray = [];
+    c.received = c.order.map(() => true);
+    const base = c.order.reduce((sum, b) => sum + BREADS[b].price, 0);
+    const payment: Payment = { total: base, base, tip: 0, combo: 0, nell: 0, tipRate: 0 };
+    this.book(payment);
+    const tabPaid = this.tab;
+    this.ledger.tabCollected += tabPaid;
+    this.tab = 0;
+    this.buff = cfg.buffDuration;
+    this.stats.nellSuccess++;
+    this.leave(c, 'happy');
+    this.emit({ type: 'nellSuccess', customerId: c.id, tabPaid, payment });
+    return 'complete';
+  }
+
+  private nellPeek(c: Customer): void {
+    const cfg = BALANCE.nell;
+    c.reveal = cfg.peekTime;
+    c.patience = Math.max(0.1, c.patience - cfg.peekCost);
+    this.emit({ type: 'nellPeek', customerId: c.id });
+  }
+
+  private paymentFor(c: Customer): Payment {
+    const base = c.order.reduce((sum, b) => sum + BREADS[b].price, 0);
+    const ratio = c.patience / c.patienceMax;
+    const t = BALANCE.tip;
+    const tipRate = ratio > t.highRatio ? t.high : ratio > t.midRatio ? t.mid : 0;
+    const comboRate = Math.min(this.combo, BALANCE.combo.maxSteps) * BALANCE.combo.step;
+    const nellRate = this.buff > 0 ? BALANCE.nell.buffRate - 1 : 0;
+    const tip = Math.round(base * tipRate);
+    const combo = Math.round((base + tip) * comboRate);
+    const nell = Math.round((base + tip + combo) * nellRate);
+    return { total: base + tip + combo + nell, base, tip, combo, nell, tipRate };
+  }
+
+  private book(p: Payment): void {
+    this.ledger.base += p.base;
+    this.ledger.tip += p.tip;
+    this.ledger.combo += p.combo;
+    this.ledger.nell += p.nell;
+  }
+
+  // -------------------------------------------------------------- customers
+
+  /** チュートリアルや演出から客を直接呼ぶ */
+  spawnCustomer(order?: BreadId[], seat?: number): Customer | null {
+    const s = seat ?? this.pickFreeSeat(false);
+    if (s === null) return null;
+    const items = order ?? this.makeOrder();
+    const cfg = this.stage.customer;
+    const patience = cfg.patienceBase + cfg.patiencePerItem * items.length;
+    return this.addCustomer('normal', s, items, patience);
+  }
+
+  private addCustomer(kind: Customer['kind'], seat: number, order: BreadId[], patience: number): Customer {
+    const c: Customer = {
+      id: this.nextId++,
+      seat,
+      kind,
+      order,
+      received: order.map(() => false),
+      patience,
+      patienceMax: patience,
+      state: 'entering',
+      stateTime: 0,
+      mood: null,
+      look: this.rng.int(1 << 30),
+      reject: 0,
+      reveal: 0,
+      asleep: kind === 'komi',
+      mochi: false,
+    };
+    this.customers.push(c);
+    const type = ({ normal: 'customerArrive', nell: 'nellArrive', komi: 'komiArrive', butter: 'butterArrive' } as const)[kind];
+    this.emit({ type, customerId: c.id });
+    return c;
+  }
+
+  private makeOrder(): BreadId[] {
+    const cfg = this.stage.customer;
+    const count = Math.min(1 + this.rng.weighted(cfg.itemWeights), BALANCE.trayCapacity);
+    return this.randomBreads(count);
+  }
+
+  private randomBreads(count: number): BreadId[] {
+    const menu = this.stage.breads;
+    const weights = menu.map((b) => BREADS[b].popularity);
+    const items = Array.from({ length: count }, () => menu[this.rng.weighted(weights)]);
+    return items.sort((a, b) => menu.indexOf(a) - menu.indexOf(b));
+  }
+
+  /** keepOne: ネルの予告中やコミー・バターが来る直前は 1 席空けておく */
+  private pickFreeSeat(keepOne: boolean): number | null {
+    const free: number[] = [];
+    for (let s = 0; s < this.stage.seats; s++) {
+      if (this.time >= this.seatFreeAt[s] && !this.customers.some((c) => c.seat === s)) free.push(s);
+    }
+    if (free.length === 0 || (keepOne && free.length <= 1)) return null;
+    return this.rng.pick(free);
+  }
+
+  private updateGuests(): void {
+    const g = this.guests[0];
+    if (!g || this.time < g.at) return;
+    const seat = this.pickFreeSeat(false);
+    if (seat === null) return;
+    this.guests.shift();
+    const cfg = BALANCE[g.kind];
+    const order = this.randomBreads(cfg.items);
+    this.addCustomer(g.kind, seat, order, cfg.patienceBase + cfg.patiencePerItem * order.length);
+    if (g.kind === 'butter') this.butterCooldown = BALANCE.butter.firstShot;
+  }
+
+  private updateSpawner(): void {
+    if (!this.autoSpawn || this.time < this.nextSpawnAt) return;
+    if (this.remaining <= BALANCE.closingTime) return;
+    // 店が混んでいても時間どおりに来られるよう、少し前から席を取っておく
+    const guestSoon = this.guests.length > 0 && this.time >= this.guests[0].at - 4;
+    const seat = this.pickFreeSeat(this.nellPendingAt !== null || guestSoon);
+    if (seat === null) return;
+    this.spawnCustomer(undefined, seat);
+    const cfg = this.stage.customer;
+    const progress = this.time / this.stage.duration;
+    const interval = cfg.intervalStart + (cfg.intervalEnd - cfg.intervalStart) * progress;
+    this.nextSpawnAt = this.time + interval * (1 + cfg.jitter * (this.rng.next() * 2 - 1));
+  }
+
+  private updateCustomers(dt: number, drain = true): void {
+    const cfg = BALANCE.customer;
+    for (const c of this.customers) {
+      c.stateTime += dt;
+      c.reject = Math.max(0, c.reject - dt);
+      if (c.state === 'entering' && c.stateTime >= cfg.enterTime) {
+        c.state = 'waiting';
+        c.stateTime = 0;
+        if (c.kind === 'nell') c.reveal = BALANCE.nell.revealTime;
+      } else if (c.state === 'waiting') {
+        c.reveal = Math.max(0, c.reveal - dt);
+        if (drain && !c.asleep) c.patience -= dt;
+        if (c.patience <= 0 && c.kind === 'komi') {
+          // コミーは怒って帰らず、また眠ってしまう（席はふさがったまま）
+          c.asleep = true;
+          c.patience = c.patienceMax;
+          this.emit({ type: 'komiSleep', customerId: c.id, again: true });
+        } else if (c.patience <= 0) {
+          c.patience = 0;
+          this.combo = 0;
+          this.leave(c, 'angry');
+          if (c.kind === 'nell') {
+            this.stats.nellFail++;
+            this.emit({ type: 'nellFail', customerId: c.id });
+          } else {
+            this.stats.angry++;
+            this.emit({ type: 'customerAngry', customerId: c.id });
+          }
+        }
+      }
+    }
+    const gone = this.customers.filter((c) => c.state === 'leaving' && c.stateTime >= cfg.leaveTime);
+    for (const c of gone) this.seatFreeAt[c.seat] = this.time + cfg.minGapAfterLeave;
+    if (gone.length) this.customers = this.customers.filter((c) => !gone.includes(c));
+  }
+
+  private leave(c: Customer, mood: 'happy' | 'angry'): void {
+    c.state = 'leaving';
+    c.stateTime = 0;
+    c.mood = mood;
+    if (c.kind === 'nell') this.nextElfinAt = Math.max(this.nextElfinAt, this.time + BALANCE.elfin.afterNell);
+  }
+
+  // ------------------------------------------------------------------- nell
+
+  private updateNell(): void {
+    const next = this.nellQueue[0];
+    if (next !== undefined && this.nellPendingAt === null && this.time >= next - BALANCE.nell.announceLead) {
+      this.nellQueue.shift();
+      this.nellPendingAt = next;
+      this.emit({ type: 'nellAnnounce' });
+    }
+    if (this.nellPendingAt !== null && this.time >= this.nellPendingAt) {
+      const seat = this.pickFreeSeat(false);
+      if (seat === null) return;
+      this.nellPendingAt = null;
+      const n = this.stage.nellItems;
+      this.addCustomer('nell', seat, this.randomBreads(n), BALANCE.nell.patienceBase + BALANCE.nell.patiencePerItem * n);
+    }
+  }
+
+  private updateBuff(dt: number): void {
+    if (this.buff <= 0) return;
+    this.buff = Math.max(0, this.buff - dt);
+    if (this.buff === 0) this.emit({ type: 'buffEnd' });
+  }
+
+  // ------------------------------------------------------------------ ovens
+
+  private updateOvens(dt: number): void {
+    this.ovens.forEach((oven, i) => {
+      if (oven.state === 'baking' && oven.bread) {
+        oven.t += dt;
+        if (oven.t >= BREADS[oven.bread].bakeTime) {
+          oven.state = 'ready';
+          oven.t = 0;
+          this.emit({ type: 'ovenReady', oven: i });
+        }
+      } else if (oven.state === 'ready' && !this.frozen) {
+        oven.t += dt;
+        if (oven.t >= BALANCE.oven.readyWindow) {
+          oven.state = 'burnt';
+          oven.t = 0;
+          this.stats.burnt++;
+          this.emit({ type: 'ovenBurnt', oven: i });
+        }
+      } else if (oven.state === 'burnt') {
+        oven.t += dt;
+      }
+    });
+  }
+
+  private resetOven(oven: Oven): void {
+    oven.state = 'idle';
+    oven.bread = null;
+    oven.t = 0;
+  }
+
+  // ------------------------------------------------------------------ elfin
+
+  private updateElfin(dt: number): void {
+    const cfg = this.stage.elfin;
+    if (!cfg) return;
+    const e = this.elfin;
+    const b = BALANCE.elfin;
+    e.t += dt;
+    e.stun = Math.max(0, e.stun - dt);
+    const held = e.grabbed || e.stun > 0;
+
+    switch (e.state) {
+      case 'absent':
+        if (this.time >= this.nextElfinAt && !this.nellInShop && this.remaining > BALANCE.closingTime + 1) {
+          this.setElfin('entering');
+          e.enter = 0;
+          e.eaten = 0;
+          e.eatTimer = 0;
+          e.sulk = 0;
+          e.lastBread = null;
+          this.emit({ type: 'elfinEnter' });
+        }
+        break;
+      case 'entering':
+        if (this.nellInShop) return this.elfinFlee();
+        if (!held) e.enter = Math.min(1, e.enter + dt / b.enterTime);
+        if (e.enter >= 1) this.setElfin('eating');
+        break;
+      case 'eating':
+        if (this.nellInShop) return this.elfinFlee();
+        if (held) break;
+        e.eatTimer += dt;
+        if (e.eatTimer < cfg.eatInterval) break;
+        {
+          const bread = this.elfinTarget();
+          if (!bread) {
+            e.sulk += dt;
+            if (e.sulk >= b.sulkTime) this.elfinLeave(false);
+            break;
+          }
+          e.eatTimer = 0;
+          e.sulk = 0;
+          const price = BREADS[bread].price;
+          this.stock[bread]--;
+          this.tab += price;
+          e.eaten++;
+          e.lastBread = bread;
+          this.stats.elfinAte++;
+          this.emit({ type: 'elfinEat', bread, price });
+          if (e.eaten >= cfg.maxEat) this.elfinLeave(true);
+        }
+        break;
+      case 'leaving':
+        if (e.t >= b.leaveTime) this.elfinGone(this.rng.range(cfg.intervalMin, cfg.intervalMax));
+        break;
+      case 'launched':
+        if (e.t >= b.launchTime) this.elfinGone(this.rng.range(cfg.intervalMin, cfg.intervalMax));
+        break;
+    }
+  }
+
+  /** バターが座って待っている間、ショーケースのエルフィンをパチンコで撃って追い払う */
+  private updateButter(dt: number): void {
+    const butter = this.customers.find((c) => c.kind === 'butter' && c.state === 'waiting');
+    if (!butter) return;
+    this.butterCooldown = Math.max(0, this.butterCooldown - dt);
+    const e = this.elfin;
+    if (this.butterCooldown > 0 || e.grabbed || (e.state !== 'entering' && e.state !== 'eating')) return;
+    const cfg = BALANCE.butter;
+    this.butterCooldown = cfg.shotInterval;
+    e.stun = cfg.shotStun;
+    e.eatTimer = 0;
+    this.stats.butterShots++;
+    this.emit({ type: 'butterShot', customerId: butter.id });
+  }
+
+  /** エルフィンが次に食べるパン（在庫のあるパンのうち一番高いもの） */
+  elfinTarget(): BreadId | null {
+    let best: BreadId | null = null;
+    for (const id of this.stage.breads) {
+      if (this.stock[id] > 0 && (!best || BREADS[id].price > BREADS[best].price)) best = id;
+    }
+    return best;
+  }
+
+  private elfinLeave(full: boolean): void {
+    this.setElfin('leaving');
+    this.emit({ type: 'elfinLeave', full });
+  }
+
+  private elfinFlee(): void {
+    this.setElfin('leaving');
+    this.emit({ type: 'elfinFlee' });
+  }
+
+  private elfinGone(cooldown: number): void {
+    this.setElfin('absent');
+    this.nextElfinAt = this.time + cooldown;
+  }
+
+  private setElfin(state: ElfinState): void {
+    this.elfin.state = state;
+    this.elfin.t = 0;
+    this.elfin.grabbed = false;
+    this.elfin.stun = 0;
+  }
+
+  private emit(e: GameEvent): void {
+    this.events.push(e);
+  }
+}
+
+/** 種類と個数が一致するか（順番は問わない） */
+export function sameBreads(a: readonly BreadId[], b: readonly BreadId[]): boolean {
+  if (a.length !== b.length) return false;
+  const x = [...a].sort();
+  const y = [...b].sort();
+  return x.every((v, i) => v === y[i]);
+}
+
+export function starsFor(stage: StageDef, sales: number): number {
+  return stage.stars.filter((s) => sales >= s).length;
+}

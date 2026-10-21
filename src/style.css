@@ -1,0 +1,955 @@
+:root {
+  --ink: #5a3a22;
+  --ink-soft: #8a6446;
+  --cream: #fff6e8;
+  --paper: #ffffff;
+  --line: #e2c49c;
+  --line-soft: #f0dcc0;
+  --wood: #c98446;
+  --wood-light: #e7b072;
+  --wood-dark: #8a5228;
+  --wood-deep: #6b3d1e;
+  --eshur: #e5848b;
+  --eshur-deep: #b8545c;
+  --gold: #f2c14e;
+  --gold-deep: #d39a26;
+  --nell-ink: #4d6a86;
+  --bad: #d9434f;
+  /* トリッカル風: 赤茶の線・ノートの方眼・蛍光マーカー・黄緑のボタン */
+  --line-ink: #5a2d32;
+  --frame: #8b5c3e;
+  --grid: #e3ecd3;
+  --marker: #fff399;
+  --leaf: #5ca735;
+  --leaf-deep: #3f7f22;
+  --lime: #ccf338;
+  --lime-deep: #559919;
+  --font: 'M PLUS Rounded 1c', 'Hiragino Maru Gothic ProN', 'Hiragino Sans', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #5c3317;
+  color: var(--ink);
+  font-family: var(--font);
+  font-weight: 700;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  overscroll-behavior: none;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+  display: block;
+  touch-action: none;
+}
+
+#ui {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left));
+  overflow: auto;
+  pointer-events: auto;
+  background: rgba(40, 20, 6, 0.38);
+}
+
+.layer:has(> .screen) {
+  background: transparent;
+}
+
+.panel,
+.screen {
+  margin: auto;
+  animation: pop 0.18s ease-out;
+}
+
+.panel {
+  position: relative;
+  width: min(560px, 100%);
+  padding: 24px 22px 20px;
+  background-color: #fffef8;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-position: -1px -1px;
+  background-size: 22px 22px;
+  border: 7px solid var(--frame);
+  border-radius: 24px;
+  box-shadow:
+    inset 0 0 0 2px #f3dfbd,
+    0 0 0 3px var(--line-ink),
+    0 8px 0 3px #4a2a1c,
+    0 18px 40px rgba(0, 0, 0, 0.25);
+}
+
+/* 上辺のリング綴じ */
+.panel::before {
+  position: absolute;
+  top: -17px;
+  right: 34px;
+  left: 34px;
+  height: 26px;
+  pointer-events: none;
+  content: '';
+  background: radial-gradient(circle at 50% 50%, #fffef8 0 4px, var(--line-ink) 4.5px 7px, transparent 7.5px) repeat-x center / 30px 26px;
+}
+
+h2 {
+  display: table;
+  margin: 0 auto 12px;
+  padding: 0 10px;
+  font-size: 26px;
+  font-weight: 800;
+  text-align: center;
+  background: linear-gradient(transparent 55%, var(--marker) 55%, var(--marker) 92%, transparent 92%);
+}
+
+/* 絵はステッカーのように白フチをつける */
+.title-cast canvas,
+.tip-face canvas,
+.art canvas.chibi,
+.comment-face canvas {
+  filter: drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff)
+    drop-shadow(0 3px 2px rgba(60, 20, 20, 0.25));
+}
+
+/* ほっぺを引っぱれるキャラ（ui/dom.ts mochiChibi） */
+.mochi {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.mochi:active {
+  cursor: grabbing;
+}
+
+.mochi-over {
+  position: absolute;
+  pointer-events: none;
+}
+
+h3 {
+  margin: 0;
+  font-weight: 800;
+}
+
+canvas.chibi,
+canvas.bread {
+  display: block;
+}
+
+/* ------------------------------------------------------------------ buttons */
+
+.btn {
+  min-height: 48px;
+  padding: 10px 24px;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--line-ink);
+  cursor: pointer;
+  background: var(--paper);
+  border: 3px solid var(--line-ink);
+  border-radius: 999px;
+  box-shadow: 0 4px 0 var(--line-ink);
+  transition:
+    transform 0.1s ease-out,
+    box-shadow 0.1s ease-out,
+    background-color 0.12s ease-out;
+}
+
+.btn:hover:not(:disabled) {
+  background: #fff3df;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 var(--line-ink);
+}
+
+.btn.primary {
+  color: #2f5212;
+  background: linear-gradient(#e2fb7c, var(--lime) 55%, #b4e02a);
+  border-color: var(--lime-deep);
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.75),
+    0 4px 0 #3f7a12;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: linear-gradient(#ecfd9c, #d6f75a 55%, #bfe63c);
+}
+
+.btn.primary:active:not(:disabled) {
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.75),
+    0 1px 0 #3f7a12;
+}
+
+.btn.big {
+  min-width: 240px;
+  padding: 12px 48px;
+  font-size: 26px;
+}
+
+.btn.small {
+  min-height: 40px;
+  padding: 6px 16px;
+  font-size: 15px;
+}
+
+.btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.btn:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 3px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.muted {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.disclaimer {
+  max-width: 520px;
+  margin: 12px auto 0;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.stars .star {
+  color: var(--line);
+}
+
+.stars .star.on {
+  color: var(--gold);
+  text-shadow: 0 2px 0 var(--gold-deep);
+}
+
+/* -------------------------------------------------------------------- title */
+
+.screen.title {
+  display: flex;
+  flex-direction: column;
+  gap: min(1.6vmin, 14px);
+  align-items: center;
+  text-align: center;
+}
+
+.logo-sub {
+  margin: 0;
+  padding: 4px 14px;
+  font-size: clamp(11px, 1.8vmin, 14px);
+  color: #fff;
+  background: rgba(90, 58, 34, 0.7);
+  border-radius: 999px;
+}
+
+.logo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 0;
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: 0.02em;
+  filter: drop-shadow(0 5px 0 rgba(40, 20, 6, 0.35));
+}
+
+.logo span {
+  position: relative;
+  display: block;
+  font-size: clamp(26px, 6vmin, 52px);
+  color: #6b4b3a;
+  paint-order: stroke fill;
+  -webkit-text-stroke: 0.32em #6b4b3a;
+}
+
+.logo span::before,
+.logo span::after {
+  position: absolute;
+  inset: 0;
+  content: attr(data-t);
+  paint-order: stroke fill;
+}
+
+.logo span::before {
+  color: #fff;
+  -webkit-text-stroke: 0.18em #fff;
+}
+
+.logo span::after {
+  color: transparent;
+  background: linear-gradient(90deg, #fe6a7e, #ff9a5c 38%, #ffd04a 55%, #7cc8e8 78%, #17aade);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-stroke: 0;
+}
+
+.logo .big {
+  font-size: clamp(40px, 10vmin, 92px);
+}
+
+.logo .big::after {
+  background: linear-gradient(90deg, #fe6a7e, #ffb04d 30%, #ffd84a 52%, #8fd0ec 74%, #17aade);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* ロゴのまわりの星 */
+.logo::before,
+.logo::after {
+  position: absolute;
+  font-size: clamp(18px, 4vmin, 34px);
+  color: #feb44d;
+  content: '★';
+  paint-order: stroke fill;
+  -webkit-text-stroke: 0.22em #6b4b3a;
+}
+
+.logo::before {
+  top: 4%;
+  left: -14%;
+  transform: rotate(-14deg);
+}
+
+.logo::after {
+  right: -12%;
+  bottom: 8%;
+  transform: rotate(12deg);
+}
+
+.title-cast {
+  display: flex;
+  gap: 4px;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.title-cast .cast {
+  position: relative;
+}
+
+.title-cast .main canvas {
+  width: auto !important;
+  height: clamp(110px, 25vmin, 210px) !important;
+}
+
+.title-cast .side canvas {
+  width: auto !important;
+  height: clamp(74px, 17vmin, 145px) !important;
+}
+
+.title-cast .far canvas {
+  height: clamp(64px, 15vmin, 128px) !important;
+}
+
+.say {
+  position: absolute;
+  bottom: calc(100% - 6px);
+  left: 50%;
+  padding: 6px 12px;
+  font-size: clamp(11px, 1.9vmin, 15px);
+  white-space: nowrap;
+  background: var(--paper);
+  border: 3px solid var(--line-ink);
+  border-radius: 16px;
+  transform: translateX(-50%);
+}
+
+.say::after {
+  position: absolute;
+  bottom: -9px;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  content: '';
+  background: var(--paper);
+  border-right: 3px solid var(--line-ink);
+  border-bottom: 3px solid var(--line-ink);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.title-cast .main {
+  margin-top: 34px;
+}
+
+.total-stars {
+  margin: 0;
+  font-weight: 800;
+  color: #ffe08a;
+  text-shadow: 0 2px 0 var(--wood-deep);
+}
+
+.screen.title .disclaimer {
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 2px rgba(40, 20, 6, 0.8);
+}
+
+/* -------------------------------------------------------------- stage intro */
+
+.stage-label {
+  margin: 0;
+  font-weight: 800;
+  color: var(--eshur);
+  text-align: center;
+}
+
+.intro-breads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.intro-bread {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 74px;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.intro-bread .price {
+  color: var(--wood-dark);
+}
+
+.tip {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  background: var(--paper);
+  border: 3px dashed var(--line);
+  border-radius: 18px;
+}
+
+.tip-face canvas {
+  width: auto !important;
+  height: 104px !important;
+}
+
+.tips {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.tips .tip {
+  gap: 6px;
+  padding: 6px 10px 6px 4px;
+}
+
+.tips .tip-face canvas {
+  height: 78px !important;
+}
+
+.tips .tip h3 {
+  font-size: 15px;
+}
+
+.tips .tip p {
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.panel.intro .blurb {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.muted.small {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.screen.title .hint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--wood-dark);
+}
+
+.tip h3 {
+  margin-bottom: 4px;
+  font-size: 16px;
+}
+
+.tip p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.65;
+}
+
+.goals-title {
+  margin-top: 14px;
+  font-size: 15px;
+  text-align: center;
+}
+
+.goals {
+  display: flex;
+  gap: 18px;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.goal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-weight: 800;
+}
+
+/* ----------------------------------------------------------------- settings */
+
+.setting {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 4px;
+  border-bottom: 2px dashed var(--line-soft);
+}
+
+.setting input[type='range'] {
+  width: 55%;
+  accent-color: var(--leaf);
+}
+
+.setting input[type='checkbox'] {
+  width: 24px;
+  height: 24px;
+  accent-color: var(--leaf);
+}
+
+.panel.settings > .btn.small {
+  display: block;
+  margin: 14px auto 0;
+}
+
+/* ------------------------------------------------------------------- how to */
+
+.howto-body {
+  min-height: 300px;
+}
+
+.howto-body h3 {
+  font-size: 19px;
+  color: var(--eshur-deep);
+  text-align: center;
+}
+
+.art {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  min-height: 116px;
+}
+
+.art canvas.chibi {
+  width: auto !important;
+  height: 108px !important;
+}
+
+.arrow {
+  font-size: 28px;
+  color: var(--wood);
+}
+
+.tray-icon {
+  padding: 10px 14px;
+  color: #fff;
+  background: var(--wood-light);
+  border-radius: 12px;
+}
+
+.oven-icon {
+  padding: 14px 16px;
+  color: #fff;
+  background: var(--wood-dark);
+  border-radius: 18px 18px 6px 6px;
+}
+
+.oven-icon.ready {
+  color: var(--ink);
+  background: var(--gold);
+}
+
+.big-num {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--gold-deep);
+}
+
+.art.keys {
+  flex-wrap: wrap;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 34px;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-weight: 800;
+  text-align: center;
+  background: var(--paper);
+  border: 2px solid var(--ink-soft);
+  border-radius: 8px;
+  box-shadow: 0 3px 0 var(--ink-soft);
+}
+
+.howto-body ul {
+  padding-left: 1.2em;
+  margin: 6px 0 0;
+}
+
+.howto-body li {
+  margin: 6px 0;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.pager {
+  justify-content: space-between;
+}
+
+.dots {
+  display: flex;
+  gap: 6px;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  background: var(--line);
+  border-radius: 50%;
+}
+
+.dot.on {
+  background: var(--leaf);
+}
+
+/* -------------------------------------------------------------------- pause */
+
+.panel.pause {
+  width: min(380px, 100%);
+}
+
+.panel.pause .btn {
+  width: 100%;
+}
+
+.panel.pause .setting {
+  margin-top: 8px;
+  border-bottom: 0;
+}
+
+/* ------------------------------------------------------------------- result */
+
+.panel.result {
+  width: min(520px, 100%);
+}
+
+.result-side .row .btn {
+  padding: 8px 18px;
+  font-size: 16px;
+}
+
+@media (min-width: 760px) {
+  .panel.result {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 22px;
+    align-items: center;
+    width: min(880px, 100%);
+  }
+
+  .result-side .stats {
+    margin-top: 0;
+  }
+}
+
+.panel.result h2 {
+  margin-bottom: 0;
+  font-size: 18px;
+  color: var(--ink-soft);
+}
+
+.result-total {
+  font-size: 48px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--wood-deep);
+  text-align: center;
+}
+
+.badge {
+  width: fit-content;
+  padding: 2px 14px;
+  margin: 0 auto;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--eshur);
+  border-radius: 999px;
+  animation: pop 0.25s ease-out;
+}
+
+.badge.hidden {
+  visibility: hidden;
+  animation: none;
+}
+
+.result-stars {
+  margin: 2px 0 10px;
+  font-size: 46px;
+  line-height: 1;
+  text-align: center;
+  letter-spacing: 6px;
+}
+
+.result-stars .star {
+  display: inline-block;
+  color: var(--line);
+}
+
+.result-stars .star.on {
+  color: var(--gold);
+  text-shadow: 0 3px 0 var(--gold-deep);
+  animation: star-pop 0.35s ease-out;
+}
+
+.breakdown {
+  padding: 6px 14px;
+  background: var(--paper);
+  border-radius: 16px;
+}
+
+.line {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px dashed var(--line-soft);
+}
+
+.line:last-child {
+  border-bottom: 0;
+}
+
+.line.nell {
+  color: var(--nell-ink);
+}
+
+.line.bad {
+  color: var(--bad);
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  justify-content: center;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.comment {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.comment-face canvas {
+  width: auto !important;
+  height: 76px !important;
+}
+
+.comment p {
+  flex: 1;
+  padding: 8px 12px;
+  margin: 0;
+  line-height: 1.55;
+  background: var(--paper);
+  border: 3px solid var(--line-ink);
+  border-radius: 16px;
+}
+
+/* --------------------------------------------------------------- animation */
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes star-pop {
+  0% {
+    transform: scale(0.4);
+  }
+
+  70% {
+    transform: scale(1.2);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .panel {
+    padding: 16px 14px;
+    border-radius: 22px;
+  }
+
+  .tips {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* iframe に埋め込まれた低い画面（例: 800×450）でも 1 画面に収める */
+@media (max-height: 560px) {
+  .panel {
+    padding: 14px 18px;
+  }
+
+  h2 {
+    margin-bottom: 8px;
+    font-size: 22px;
+  }
+
+  .screen.title {
+    gap: 6px;
+  }
+
+  .screen.title .row {
+    margin-top: 0;
+  }
+
+  .title-cast .main {
+    margin-top: 28px;
+  }
+
+  .title-cast .main canvas {
+    height: 92px !important;
+  }
+
+  .title-cast .side canvas {
+    height: 64px !important;
+  }
+
+  .btn.big {
+    min-height: 44px;
+    padding: 6px 40px;
+    font-size: 22px;
+  }
+
+  .howto-body {
+    min-height: 0;
+  }
+
+  .art {
+    min-height: 84px;
+  }
+
+  .art canvas.chibi {
+    height: 80px !important;
+  }
+
+  .tip-face canvas {
+    height: 80px !important;
+  }
+
+  .tips .tip-face canvas {
+    height: 56px !important;
+  }
+
+  .title-cast .far canvas {
+    height: 56px !important;
+  }
+
+  .screen.title .hint {
+    display: none;
+  }
+
+  .row {
+    margin-top: 10px;
+  }
+}
