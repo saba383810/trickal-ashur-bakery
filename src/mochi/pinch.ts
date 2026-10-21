@@ -41,11 +41,11 @@ export const MOCHI = {
 
 /**
  * もちほっぺメーカーの既定値（やわらかさ 0.5）を、ゲームの小さなキャラでも伸びが見えるよう頭の単位に置き直したもの。
- * 半径と伸びの比・揺れの周波数・減衰・ぷっくり量の関係は元のまま。
+ * 揺れの周波数・減衰・ぷっくり量の関係は元のまま。伸びの上限だけは、伸びすぎないよう半分にしている。
  */
 export const DEFAULT_PARAMS: MochiParams = {
   radius: 28,
-  stretch: 2.4,
+  stretch: 1.2,
   releaseFreq: 9,
   releaseZeta: 0.19,
   bulge: 0.1,
