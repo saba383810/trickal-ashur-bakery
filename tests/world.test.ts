@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../src/config/balance';
-import { BREADS } from '../src/config/breads';
+import { BREADS, type BreadId } from '../src/config/breads';
 import { PLAY_STAGES, STAGES, type EndlessDef, type StageDef } from '../src/config/stages';
-import { sameBreads, starsFor, World } from '../src/sim/world';
+import { sameBreads, starsFor, World, type Customer } from '../src/sim/world';
 
 const DT = 1 / 60;
 
@@ -448,6 +448,83 @@ describe('モード定義', () => {
     expect(medium.duration).toBeLessThan(hot.duration);
     expect(mild.breads.length).toBeLessThan(hot.breads.length);
     expect(mild.customer.intervalEnd).toBeGreaterThan(hot.customer.intervalEnd);
+  });
+});
+
+describe('注文の偏り', () => {
+  /** 1 個ずつの注文を n 件。毎回すぐ帰すので、ほかの待っている注文は変わらない */
+  function orders(w: World, n: number): BreadId[] {
+    const out: BreadId[] = [];
+    for (let i = 0; i < n; i++) {
+      const c = w.spawnCustomer(undefined, 0)!;
+      out.push(c.order[0]);
+      w.customers.splice(w.customers.indexOf(c), 1);
+    }
+    return out;
+  }
+
+  function longestRun(items: BreadId[]): number {
+    let best = 0;
+    let n = 0;
+    items.forEach((b, i) => {
+      n = b === items[i - 1] ? n + 1 : 1;
+      best = Math.max(best, n);
+    });
+    return best;
+  }
+
+  const share = (items: BreadId[], b: BreadId) => items.filter((x) => x === b).length / items.length;
+
+  it('同じパンが続くのは maxRun 件まで。続けて同じパンになることも少ない', () => {
+    let repeats = 0;
+    for (let seed = 1; seed <= 5; seed++) {
+      const items = orders(new World(stage(), seed), 300);
+      expect(longestRun(items)).toBeLessThanOrEqual(BALANCE.orderBias.maxRun);
+      repeats += items.filter((b, i) => b === items[i - 1]).length;
+    }
+    // 偏りを抑えないと、人気 5/4/4 の 3 種では約 34% が直前と同じになる
+    expect(repeats / 1500).toBeLessThan(0.28);
+  });
+
+  it('パンが 1 種だけでも注文は作れる', () => {
+    const items = orders(new World(stage({ breads: ['roll'] }), 1), 10);
+    expect(items.every((b) => b === 'roll')).toBe(true);
+  });
+
+  it('手持ちが足りないパンは頼まれにくく、焼いている分は手持ちに数える', () => {
+    const w = quiet();
+    expect(share(orders(w, 600), 'roll')).toBeGreaterThan(0.3);
+    w.stock.roll = 0;
+    expect(share(orders(w, 600), 'roll')).toBeLessThan(0.25);
+    w.bake(0, 'roll');
+    expect(share(orders(w, 600), 'roll')).toBeGreaterThan(0.3);
+  });
+
+  it('待っている注文に取られた分は手持ちから引く', () => {
+    const w = quiet();
+    w.spawnCustomer(['roll', 'roll', 'roll'], 1);
+    w.spawnCustomer(['roll', 'roll'], 2);
+    expect(w.spareBreads().roll).toBe(-2);
+    expect(share(orders(w, 600), 'roll')).toBeLessThan(0.1);
+  });
+});
+
+describe('微辛', () => {
+  it('パンは 2 種、注文は通常客とコミーが 1 個、ネルとバターが 2 個', () => {
+    const mild = PLAY_STAGES.find((s) => s.id === 'mild')!;
+    expect(mild.breads).toHaveLength(2);
+    const w = new World(mild, 7);
+    const seen = new Map<number, Customer>();
+    while (w.phase === 'playing') {
+      w.step(DT);
+      for (const c of w.customers) seen.set(c.id, c);
+    }
+    const sizes = (kind: Customer['kind']) => [...new Set([...seen.values()].filter((c) => c.kind === kind).map((c) => c.order.length))];
+    expect(sizes('normal')).toEqual([1]);
+    expect(sizes('komi')).toEqual([1]);
+    expect(sizes('nell')).toEqual([2]);
+    expect(sizes('butter')).toEqual([2]);
+    for (const c of seen.values()) expect(c.order.every((b) => mild.breads.includes(b))).toBe(true);
   });
 });
 

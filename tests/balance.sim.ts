@@ -2,10 +2,12 @@ import { it } from 'vitest';
 import { PLAY_STAGES } from '../src/config/stages';
 import { Rng } from '../src/sim/rng';
 import { starsFor, World } from '../src/sim/world';
+import type { BreadId } from '../src/config/breads';
 import { Bot, SKILLS } from './bot';
 
 // `npm run sim` で各モードをボットに遊ばせ、★の目標売上が妥当かを見る。
 // エンドレスは営業できた時間とレベルも出す（MAX_TIME で打ち切り）。
+// 不足 = 注文が入った時点で手持ち（在庫・トレー・オーブン）では足りなかったパンの割合、連続 = 同じパンが続けて注文に入った最長件数の平均。
 const RUNS = 200;
 const DT = 1 / 30;
 const MAX_TIME = 900;
@@ -20,7 +22,7 @@ it('balance report', () => {
     lines.push(`\n■ ${stage.title}（${stage.id}）  ★ ${stage.stars.join(' / ')}`);
     for (const skill of SKILLS) {
       const sales: number[] = [];
-      const extra = { angry: 0, burnt: 0, tabLeft: 0, ate: 0, nellOk: 0, nellNg: 0 };
+      const extra = { angry: 0, burnt: 0, tabLeft: 0, ate: 0, nellOk: 0, nellNg: 0, items: 0, short: 0, streak: 0 };
       const starCount = [0, 0, 0, 0];
       const times: number[] = [];
       let level = 0;
@@ -29,10 +31,26 @@ it('balance report', () => {
         w.autoSpawn = true;
         const rng = new Rng(9000 + r);
         const bot = new Bot(w, skill, () => rng.next());
+        let seen = 0;
+        let longest = 0;
+        const run = new Map<BreadId, number>();
         while (w.phase === 'playing' && w.time < MAX_TIME) {
           bot.tick();
           w.step(DT);
+          for (const c of w.customers) {
+            if (c.id <= seen) continue;
+            seen = c.id;
+            const spare = w.spareBreads();
+            for (const b of stage.breads) {
+              const n = c.order.filter((x) => x === b).length;
+              extra.short += Math.min(n, Math.max(0, -spare[b]));
+              run.set(b, n > 0 ? (run.get(b) ?? 0) + 1 : 0);
+            }
+            extra.items += c.order.length;
+            longest = Math.max(longest, ...run.values());
+          }
         }
+        extra.streak += longest;
         sales.push(w.sales);
         times.push(Math.round(w.time));
         level += w.level;
@@ -52,6 +70,7 @@ it('balance report', () => {
           `  | ★0-3 ${starCount.join('/')}` +
           `  | 怒 ${avg(extra.angry)} 焦 ${avg(extra.burnt)} 食 ${avg(extra.ate)} 残ツケ ${avg(extra.tabLeft)}` +
           `  ネル ${extra.nellOk}/${extra.nellOk + extra.nellNg}` +
+          `  | 不足 ${((extra.short / extra.items) * 100).toFixed(1)}% 連続 ${avg(extra.streak)}` +
           (stage.endless ? `  | 営業 p25 ${pct(times, 0.25)}s 中央 ${pct(times, 0.5)}s p75 ${pct(times, 0.75)}s 平均Lv ${avg(level)}` : ''),
       );
     }

@@ -72,6 +72,8 @@ export interface StageDef {
   /** コミー（居眠り）とバター（見張り番）の来店時刻（秒） */
   komi: number[];
   butter: number[];
+  /** コミー・バターの注文個数（省略時は BALANCE の値） */
+  guestItems?: { komi: number; butter: number };
   /**
    * ★1/★2/★3 の目標売上。`npm run sim` のボット中央値から
    * ★1 ≒ 初心者×0.6 / ★2 ≒ ふつう×0.7 / ★3 ≒ 上手い×0.8 を目安に置く（人間はボットより遅い前提）
@@ -110,19 +112,22 @@ export const STAGES: StageDef[] = [
     id: 'mild',
     title: '微辛',
     heat: 1,
-    blurb: 'のんびり営業。パンは4種類、お客さんも少なめ。',
+    blurb: 'のんびり営業。パンは2種類、注文もひとつずつ。',
     duration: 60,
-    breads: ['roll', 'croissant', 'melon', 'anpan'],
+    // はじめの一歩: 見分けやすい 2 種だけ。注文は通常客 1 個・コミー 1 個・ネルとバター 2 個
+    breads: ['roll', 'melon'],
     ovens: 2,
     seats: 3,
     initialStock: 3,
-    customer: { intervalStart: 5, intervalEnd: 3.8, jitter: 0.25, itemWeights: [6, 4], patienceBase: 16, patiencePerItem: 5 },
+    customer: { intervalStart: 5, intervalEnd: 3.8, jitter: 0.25, itemWeights: [1], patienceBase: 16, patiencePerItem: 5 },
     elfin: { firstAt: 10, intervalMin: 10, intervalMax: 14, eatInterval: 1.9, maxEat: 3 },
     nellVisits: [32],
-    nellItems: 3,
+    nellItems: 2,
     komi: [14],
     butter: [44],
-    stars: [2600, 4000, 5000],
+    guestItems: { komi: 1, butter: 2 },
+    // 来店ペースで売上が頭打ち（ボットは腕前によらず約 4,100）になるので、★はその約 45% / 65% / 83% に置く
+    stars: [1800, 2700, 3400],
   },
   {
     id: 'medium',

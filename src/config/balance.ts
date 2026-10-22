@@ -25,6 +25,19 @@ export const BALANCE = {
     minGapAfterLeave: 0.8,
   },
 
+  /**
+   * 注文の偏りを抑える。同じパンばかり続けて頼まれて品切れにならないよう、パンを選ぶ重み（人気）に掛ける:
+   * 直近 recentOrders 件の注文と、いま選んでいる注文に入っている数ぶん recentRate、
+   * 待っている注文に対して手持ち（在庫・トレー・オーブン）が足りなくなる数ぶん shortRate
+   */
+  orderBias: {
+    recentOrders: 2,
+    recentRate: 0.5,
+    shortRate: 0.35,
+    /** 同じパンが続けて注文に入るのは最大この件数まで（直近この件数すべてに入っていたパンは次の注文に入れない） */
+    maxRun: 3,
+  },
+
   oven: {
     /** 焼き上がりから焦げるまでの猶予 */
     readyWindow: 7,

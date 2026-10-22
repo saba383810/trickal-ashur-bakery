@@ -151,6 +151,8 @@ export class World {
   private nextElfinAt: number;
   private seatFreeAt: number[];
   private warned = false;
+  /** 直近の注文（BALANCE.orderBias の recentOrders と maxRun の多いほうの件数） */
+  private recentOrders: BreadId[][] = [];
 
   constructor(stage: StageDef, seed: number) {
     this.stage = stage;
@@ -555,11 +557,45 @@ export class World {
     return this.randomBreads(count);
   }
 
+  /** 注文のパンを選ぶ。同じパンが続いたり、足りないパンに注文が重なったりしにくくする（BALANCE.orderBias） */
   private randomBreads(count: number): BreadId[] {
     const menu = this.stage.breads;
-    const weights = menu.map((b) => BREADS[b].popularity);
-    const items = Array.from({ length: count }, () => menu[this.rng.weighted(weights)]);
-    return items.sort((a, b) => menu.indexOf(a) - menu.indexOf(b));
+    const bias = BALANCE.orderBias;
+    const spare = this.spareBreads();
+    const run = this.recentOrders.slice(-bias.maxRun);
+    const near = this.recentOrders.slice(-bias.recentOrders);
+    // 全部のパンが続いているとき（パンが少なく注文が多いとき）は締め出さない
+    const streak = menu.filter((b) => run.length >= bias.maxRun && run.every((o) => o.includes(b)));
+    const blocked = streak.length < menu.length ? streak : [];
+    const items: BreadId[] = [];
+    for (let i = 0; i < count; i++) {
+      const weights = menu.map((b) => {
+        if (blocked.includes(b)) return 0;
+        const recent = [...near, items].reduce((n, o) => n + countOf(o, b), 0);
+        const short = Math.max(0, countOf(items, b) + 1 - spare[b]);
+        return BREADS[b].popularity * bias.recentRate ** recent * bias.shortRate ** short;
+      });
+      items.push(menu[this.rng.weighted(weights)]);
+    }
+    this.recentOrders.push(items);
+    if (this.recentOrders.length > Math.max(bias.recentOrders, bias.maxRun)) this.recentOrders.shift();
+    return [...items].sort((a, b) => menu.indexOf(a) - menu.indexOf(b));
+  }
+
+  /** パンごとの手持ち（在庫・トレー・オーブンの中）から、待っている注文でまだ渡していない分を引いた数 */
+  spareBreads(): Record<BreadId, number> {
+    const spare = { ...this.stock };
+    for (const b of this.tray) spare[b]++;
+    for (const o of this.ovens) {
+      if (o.bread && (o.state === 'baking' || o.state === 'ready')) spare[o.bread] += BREADS[o.bread].batch;
+    }
+    for (const c of this.customers) {
+      if (c.state === 'leaving') continue;
+      c.order.forEach((b, i) => {
+        if (!c.received[i]) spare[b]--;
+      });
+    }
+    return spare;
   }
 
   /** keepOne: ネルの予告中やコミー・バターが来る直前は 1 席空けておく */
@@ -579,7 +615,7 @@ export class World {
     if (seat === null) return;
     this.guests.shift();
     const cfg = BALANCE[g.kind];
-    const order = this.randomBreads(cfg.items);
+    const order = this.randomBreads(this.stage.guestItems?.[g.kind] ?? cfg.items);
     this.addCustomer(g.kind, seat, order, (cfg.patienceBase + cfg.patiencePerItem * order.length) * this.patienceScale);
     if (g.kind === 'butter') this.butterCooldown = BALANCE.butter.firstShot;
     this.scheduleNext(g.kind);
@@ -824,6 +860,10 @@ export function sameBreads(a: readonly BreadId[], b: readonly BreadId[]): boolea
   const x = [...a].sort();
   const y = [...b].sort();
   return x.every((v, i) => v === y[i]);
+}
+
+function countOf(items: readonly BreadId[], bread: BreadId): number {
+  return items.filter((b) => b === bread).length;
 }
 
 export function starsFor(stage: StageDef, sales: number): number {
