@@ -31,6 +31,8 @@ export interface EndlessDef {
   butterEvery: [number, number];
   /** このレベルからネルの注文が 1 個増える */
   nellHardLevel: number;
+  /** このレベルから焼けたパンが焦げる（それまでは焦げない） */
+  burnLevel: number;
 }
 
 export interface StageDef {
@@ -38,7 +40,7 @@ export interface StageDef {
   title: string;
   /** 辛さ（モード選択の唐辛子の数）。0 = チュートリアル */
   heat: number;
-  /** 紹介画面に出す一言 */
+  /** 紹介画面でエシュールがかける一言（このモードの特徴と気をつけること） */
   blurb: string;
   /** 制限時間（秒）。エンドレスは開始時の残り時間 */
   duration: number;
@@ -47,6 +49,8 @@ export interface StageDef {
   seats: number;
   /** 最初にショーケースに並んでいる個数（各パン） */
   initialStock: number;
+  /** 焼き上がりから焦げるまでの秒数。null = 焦げない（取り出すまで待ってくれる） */
+  burnTime: number | null;
   customer: {
     /** 来店間隔（秒）。開始時 → 終了時へ線形に変化（エンドレスは intervalStart からレベルで縮む） */
     intervalStart: number;
@@ -92,12 +96,13 @@ export const STAGES: StageDef[] = [
     id: 'tutorial',
     title: 'チュートリアル',
     heat: 0,
-    blurb: 'エシュールが、接客から全員の相手のしかたまで教えてくれます。',
+    blurb: '接客から、女王様たちの相手のしかたまで、私がひととおり教えるわね！',
     duration: 60,
     breads: ['roll', 'croissant', 'melon', 'curry'],
     ovens: 2,
     seats: 4,
     initialStock: 5,
+    burnTime: null,
     customer: { intervalStart: 6, intervalEnd: 6, jitter: 0, itemWeights: [1], patienceBase: 16, patiencePerItem: 5 },
     // 手順の中で呼ぶ。追い払う前に帰ってしまわないよう、たくさん食べる
     elfin: { firstAt: Infinity, intervalMin: 2, intervalMax: 2, eatInterval: 2.4, maxEat: 9 },
@@ -112,15 +117,17 @@ export const STAGES: StageDef[] = [
     id: 'mild',
     title: '微辛',
     heat: 1,
-    blurb: 'のんびり営業。パンは2種類、注文もひとつずつ。',
+    blurb: 'のんびり営業よ。パンは2種類、注文もひとつずつ。焼けたパンは焦げないから、あわてなくて大丈夫！',
     duration: 60,
-    // はじめの一歩: 見分けやすい 2 種だけ。注文は通常客 1 個・コミー 1 個・ネルとバター 2 個
+    // はじめの一歩: 見分けやすい 2 種だけ。注文は通常客 1 個・コミー 1 個・ネルとバター 2 個。焦げない。
+    // 4 人とも来るが、エルフィンは遅れて来て、ゆっくり少しだけ食べる（追い払う前に食べ尽くされない）
     breads: ['roll', 'melon'],
     ovens: 2,
     seats: 3,
     initialStock: 3,
+    burnTime: null,
     customer: { intervalStart: 5, intervalEnd: 3.8, jitter: 0.25, itemWeights: [1], patienceBase: 16, patiencePerItem: 5 },
-    elfin: { firstAt: 10, intervalMin: 10, intervalMax: 14, eatInterval: 1.9, maxEat: 3 },
+    elfin: { firstAt: 12, intervalMin: 12, intervalMax: 16, eatInterval: 2.6, maxEat: 2 },
     nellVisits: [32],
     nellItems: 2,
     komi: [14],
@@ -133,48 +140,53 @@ export const STAGES: StageDef[] = [
     id: 'medium',
     title: '中辛',
     heat: 2,
-    blurb: 'お昼どき。客席が4つ、オーブンも3台フル回転。',
-    duration: 120,
-    breads: ['roll', 'croissant', 'melon', 'anpan', 'curry', 'cornet'],
+    blurb: 'お昼どきよ。パンは4種類。ここからは焼けたパンを放っておくと焦げちゃうから、「やけた！」が出たらすぐ取り出してね。',
+    duration: 90,
+    // 微辛の次の一歩: パン 4 種・注文はほぼ 1〜2 個。ここで「焦げる」が入る（猶予は長め）
+    breads: ['roll', 'croissant', 'melon', 'anpan'],
     ovens: 3,
     seats: 4,
     initialStock: 3,
-    customer: { intervalStart: 4.6, intervalEnd: 3.2, jitter: 0.25, itemWeights: [4, 4, 3], patienceBase: 15, patiencePerItem: 5 },
-    elfin: { firstAt: 10, intervalMin: 9, intervalMax: 14, eatInterval: 1.7, maxEat: 4 },
-    nellVisits: [45, 95],
+    burnTime: 10,
+    customer: { intervalStart: 4.8, intervalEnd: 3.6, jitter: 0.25, itemWeights: [5, 4, 1], patienceBase: 16, patiencePerItem: 5 },
+    elfin: { firstAt: 10, intervalMin: 11, intervalMax: 15, eatInterval: 2.1, maxEat: 3 },
+    nellVisits: [35, 70],
     nellItems: 3,
-    komi: [25, 80],
-    butter: [60],
-    stars: [6000, 10000, 15500],
+    komi: [18, 58],
+    butter: [46],
+    stars: [4500, 7500, 10000],
   },
   {
     id: 'hot',
     title: '激辛',
     heat: 3,
-    blurb: '全部のパン、全部の客、全部のつまみ食い。',
-    duration: 150,
+    blurb: '全部のパンに全部のお客さん。焦げるのも早いし、女王様もおなかぺこぺこよ。教主、覚悟はいい？',
+    duration: 120,
     breads: ALL_BREADS,
     ovens: 3,
     seats: 4,
     initialStock: 3,
-    customer: { intervalStart: 4, intervalEnd: 2.7, jitter: 0.25, itemWeights: [3, 4, 3, 2], patienceBase: 14, patiencePerItem: 5 },
-    elfin: { firstAt: 8, intervalMin: 7, intervalMax: 12, eatInterval: 1.5, maxEat: 5 },
-    nellVisits: [42, 105],
+    burnTime: 8,
+    customer: { intervalStart: 4.2, intervalEnd: 3, jitter: 0.25, itemWeights: [4, 4, 3, 1], patienceBase: 15, patiencePerItem: 5 },
+    elfin: { firstAt: 8, intervalMin: 8, intervalMax: 12, eatInterval: 1.6, maxEat: 4 },
+    nellVisits: [38, 85],
     nellItems: 4,
-    komi: [20, 75, 125],
-    butter: [55, 110],
-    stars: [6500, 11500, 20000],
+    komi: [18, 60, 100],
+    butter: [48, 92],
+    stars: [6000, 10500, 17500],
   },
   {
     id: 'endless',
     title: 'エンドレス',
     heat: 4,
-    blurb: 'コンボを続けて時間を延ばそう。どんどん忙しくなる店で、どこまで続けられる？',
+    blurb: 'コンボを続けると時間が延びるの。どんどん忙しくなるお店で、どこまで続けられるかしら？',
     duration: 45,
     breads: ['roll', 'croissant', 'melon', 'anpan', 'curry', 'cornet'],
     ovens: 3,
     seats: 4,
     initialStock: 3,
+    // 焦げるのは endless.burnLevel から
+    burnTime: 8,
     customer: { intervalStart: 4.6, intervalEnd: 4.6, jitter: 0.25, itemWeights: [5, 4, 1], patienceBase: 15, patiencePerItem: 5 },
     elfin: { firstAt: 10, intervalMin: 11, intervalMax: 16, eatInterval: 1.8, maxEat: 4 },
     nellVisits: [40],
@@ -207,6 +219,7 @@ export const STAGES: StageDef[] = [
       komiEvery: [35, 50],
       butterEvery: [45, 65],
       nellHardLevel: 5,
+      burnLevel: 3,
     },
   },
 ];

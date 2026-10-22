@@ -1,4 +1,3 @@
-import { BALANCE } from '../../config/balance';
 import { BREADS, type BreadId } from '../../config/breads';
 import type { Oven } from '../../sim/world';
 import type { Rect } from '../layout';
@@ -107,6 +106,8 @@ export function drawTray(c: CanvasRenderingContext2D, tray: Rect, slots: Rect[],
 export interface OvenLook {
   hover: boolean;
   t: number;
+  /** 焦げるまでの秒数（null = 焦げないので残りゲージを出さない） */
+  burnTime: number | null;
 }
 
 /** オーブンの扉まわり（状態で変わる部分） */
@@ -164,8 +165,10 @@ export function drawOven(c: CanvasRenderingContext2D, r: Rect, oven: Oven, pr: n
     const left = Math.ceil(BREADS[oven.bread].bakeTime - oven.t);
     outlined(c, `${left}`, cx, top + 14, 18, '#ffffff', '#7d3a26');
   } else if (oven.state === 'ready') {
-    const rest = 1 - oven.t / BALANCE.oven.readyWindow;
-    gauge(c, cx, top + 14, r.w * 0.36, rest, rest < 0.35 ? C.bad : C.good);
+    if (look.burnTime !== null) {
+      const rest = 1 - oven.t / look.burnTime;
+      gauge(c, cx, top + 14, r.w * 0.36, rest, rest < 0.35 ? C.bad : C.good);
+    }
     const bob = Math.sin(look.t * 10) * 4;
     outlined(c, 'やけた！', cx, door.y - 2 + bob, 22, '#fff4a8', '#a0461e');
   } else if (oven.state === 'burnt') {

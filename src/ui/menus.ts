@@ -165,7 +165,7 @@ export function stageIntro(host: MenuHost, s: StageDef, on: { start: () => void;
   return panel(
     'intro',
     h('h2', {}, s.title),
-    h('p', { class: 'blurb' }, s.blurb),
+    h('div', { class: 'comment' }, h('div', { class: 'comment-face' }, chara(host, ESHUR, 'happy', 28, { body: false })), h('p', {}, s.blurb)),
     h('p', { class: 'muted' }, e ? `はじめの残り時間 ${s.duration}秒 ・ オーブン${s.ovens}台 ・ 客席${s.seats}つ` : `制限時間 ${s.duration}秒 ・ オーブン${s.ovens}台 ・ 客席${s.seats}つ`),
     breads,
     e
@@ -174,6 +174,7 @@ export function stageIntro(host: MenuHost, s: StageDef, on: { start: () => void;
           { class: 'endless-rules' },
           h('li', {}, `会計で時間が延びる：${e.timeBase}秒＋コンボ×${e.timePerCombo}秒（残りは最大${e.maxRemaining}秒）。ネル成功で＋${e.nellTime}秒。`),
           h('li', {}, `${e.levelTime}秒ごとにレベルアップ。お客さんが増え、注文が多く、気が短くなっていく。`),
+          s.burnTime !== null ? h('li', {}, `レベル${e.burnLevel}から、焼けたパンが${s.burnTime}秒で焦げるように。`) : null,
         )
       : null,
     tips,
@@ -248,6 +249,16 @@ export function settingsPanel(host: MenuHost, on: { close: () => void }): HTMLEl
 
 // =============================================================== あそびかた
 
+/** 例: 「微辛では焦げません。中辛は10秒、激辛・エンドレス（レベル3から）は8秒で焦げてしまいます。」 */
+function burnText(): string {
+  const label = (s: StageDef) => (s.endless ? `${s.title}（レベル${s.endless.burnLevel}から）` : s.title);
+  const names = (pick: (s: StageDef) => boolean) => PLAY_STAGES.filter(pick).map(label).join('・');
+  const safe = names((s) => s.burnTime === null);
+  const times = [...new Set(PLAY_STAGES.map((s) => s.burnTime).filter((t): t is number => t !== null))].sort((a, b) => b - a);
+  const burn = times.map((t) => `${names((s) => s.burnTime === t)}は${t}秒`).join('、');
+  return `${safe ? `${safe}では焦げません。` : ''}${burn}で焦げてしまいます。`;
+}
+
 export function howToPanel(host: MenuHost, on: { close: () => void }): HTMLElement {
   const n = BALANCE.nell;
   const pages: { title: string; art: () => HTMLElement; text: string[] }[] = [
@@ -285,7 +296,7 @@ export function howToPanel(host: MenuHost, on: { close: () => void }): HTMLEleme
       text: [
         '空いているオーブンをタップして、焼くパンを選びます。',
         '焼けたらタップで取り出し。ショーケースに並びます。',
-        `放っておくと${BALANCE.oven.readyWindow}秒で焦げてしまいます。`,
+        burnText(),
       ],
     },
     {

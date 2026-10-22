@@ -17,6 +17,7 @@ function stage(over: Partial<StageDef> = {}): StageDef {
     ovens: 2,
     seats: 3,
     initialStock: 3,
+    burnTime: 7,
     customer: { intervalStart: 5, intervalEnd: 5, jitter: 0, itemWeights: [1], patienceBase: 10, patiencePerItem: 5 },
     elfin: null,
     nellVisits: [],
@@ -127,12 +128,21 @@ describe('オーブン', () => {
   it('放置すると焦げて全損し、片付けると空く', () => {
     const w = quiet();
     w.bake(1, 'roll');
-    run(w, BREADS.roll.bakeTime + BALANCE.oven.readyWindow + 0.1);
+    run(w, BREADS.roll.bakeTime + 7 + 0.1);
     expect(w.ovens[1].state).toBe('burnt');
     expect(w.stats.burnt).toBe(1);
     w.tapOven(1);
     expect(w.ovens[1].state).toBe('idle');
     expect(w.stock.roll).toBe(3);
+  });
+
+  it('焦げないモードでは、焼けたパンが取り出すまで待ってくれる', () => {
+    const w = quiet({ burnTime: null });
+    w.bake(0, 'roll');
+    run(w, 60);
+    expect(w.ovens[0].state).toBe('ready');
+    expect(w.tapOven(0)).toBe(true);
+    expect(w.stock.roll).toBe(3 + BREADS.roll.batch);
   });
 
   it('凍結中（チュートリアル）は焼けるが焦げない', () => {
@@ -380,6 +390,21 @@ describe('エンドレス', () => {
     expect(later.patienceMax).toBeLessThan(first.patienceMax);
   });
 
+  it('焼けたパンは burnLevel になるまで焦げず、そこから焦げるまでの時間を数えはじめる', () => {
+    const w = endless({ levelTime: 20, burnLevel: 2 });
+    w.timeLimit = 1e9;
+    w.bake(0, 'roll');
+    run(w, 19);
+    expect(w.burnTime).toBeNull();
+    expect(w.ovens[0].state).toBe('ready');
+    run(w, 1.1);
+    expect(w.level).toBe(2);
+    expect(w.burnTime).toBe(7);
+    expect(w.ovens[0].state).toBe('ready');
+    run(w, 7);
+    expect(w.ovens[0].state).toBe('burnt');
+  });
+
   it('ネル・コミー・バターは何度もやってくる', () => {
     const w = quiet({ duration: 30, endless: ENDLESS, nellVisits: [5], komi: [3], butter: [4], seats: 4 });
     w.timeLimit = 1e9;
@@ -510,9 +535,10 @@ describe('注文の偏り', () => {
 });
 
 describe('微辛', () => {
-  it('パンは 2 種、注文は通常客とコミーが 1 個、ネルとバターが 2 個', () => {
+  it('パンは 2 種で焦げない。注文は通常客とコミーが 1 個、ネルとバターが 2 個', () => {
     const mild = PLAY_STAGES.find((s) => s.id === 'mild')!;
     expect(mild.breads).toHaveLength(2);
+    expect(mild.burnTime).toBeNull();
     const w = new World(mild, 7);
     const seen = new Map<number, Customer>();
     while (w.phase === 'playing') {

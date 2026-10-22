@@ -684,11 +684,19 @@ canvas.bread {
   line-height: 1.5;
 }
 
-.panel.intro .blurb {
-  margin: 0 0 4px;
-  font-size: 14px;
-  font-weight: 700;
-  text-align: center;
+/* 紹介画面のエシュールの一言（ボタンが 720px の高さに収まるよう小さめ） */
+.panel.intro .comment {
+  margin: 0 0 6px;
+}
+
+.panel.intro .comment-face canvas {
+  height: 56px !important;
+}
+
+.panel.intro .comment p {
+  padding: 6px 12px;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .muted.small {
@@ -1062,6 +1070,27 @@ kbd {
     grid-template-columns: 1fr;
   }
 
+}
+
+/* ノート PC くらいの高さ（720px）でも、紹介画面の「開店する」がスクロールなしで見えるように詰める */
+@media (min-width: 521px) and (max-height: 820px) {
+  .intro-breads {
+    gap: 2px;
+    margin-bottom: 8px;
+  }
+
+  .intro-bread {
+    width: 70px;
+    font-size: 11px;
+  }
+
+  .tips .tip-face canvas {
+    height: 58px !important;
+  }
+
+  .panel.intro .muted.small {
+    margin-top: 4px;
+  }
 }
 
 /* iframe に埋め込まれた低い画面（例: 800×450）でも 1 画面に収める */

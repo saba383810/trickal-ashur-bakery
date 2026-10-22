@@ -965,7 +965,7 @@ export class GameView {
       case 'levelUp':
         this.levelBump = 1;
         s.levelUp();
-        this.banner(`レベル${ev.level}！`, ev.level === 2 ? 'お客さんが増えてきた。どんどん忙しくなるわよ' : 'もっと忙しくなってきた！', C.eshur, 1.8);
+        this.banner(`レベル${ev.level}！`, this.levelLine(ev.level), C.eshur, 1.8);
         break;
       case 'timeUp':
         s.timeUp();
@@ -1002,6 +1002,13 @@ export class GameView {
     if (!c) return null;
     const h = this.custHead(c);
     return { x: h.x, y: h.y + this.L.headR * 1.25 };
+  }
+
+  /** エンドレスのレベルアップでエシュールがかける一言 */
+  private levelLine(level: number): string {
+    const e = this.world.stage.endless;
+    if (e && level === e.burnLevel) return `ここからパンが焦げるわよ！ 焼けたら${this.world.burnTime}秒以内に取り出して`;
+    return level === 2 ? 'お客さんが増えてきた。どんどん忙しくなるわよ' : 'もっと忙しくなってきた！';
   }
 
   banner(text: string, sub: string | undefined, color: string, dur: number, face?: Face, big = false): void {
@@ -1070,7 +1077,7 @@ export class GameView {
 
     w.ovens.forEach((oven, i) => {
       const r = L.ovens[i];
-      drawOven(c, r, oven, pr, { hover: !!this.hover && inside(r, this.hover), t: this.time });
+      drawOven(c, r, oven, pr, { hover: !!this.hover && inside(r, this.hover), t: this.time, burnTime: this.world.burnTime });
     });
 
     this.drawElfin(c);

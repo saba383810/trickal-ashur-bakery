@@ -38,11 +38,6 @@ export const BALANCE = {
     maxRun: 3,
   },
 
-  oven: {
-    /** 焼き上がりから焦げるまでの猶予 */
-    readyWindow: 7,
-  },
-
   elfin: {
     enterTime: 2.5,
     leaveTime: 1.4,

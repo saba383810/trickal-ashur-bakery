@@ -137,7 +137,7 @@ export class Tutorial {
       {
         kind: 'act',
         expr: 'surprised',
-        text: '焼けたわ！ タップして取り出して。放っておくと焦げちゃうから気をつけるのよ！',
+        text: '焼けたわ！ タップして取り出して。微辛では焦げないけど、中辛からは放っておくと焦げちゃうから気をつけるのよ！',
         allow: (a) => a.type === 'ovenTap' && a.oven === this.ovenIndex,
         advance: (a) => a.type === 'ovenTap',
         target: () => [view.L.ovens[this.ovenIndex]],

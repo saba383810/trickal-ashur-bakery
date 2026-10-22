@@ -201,6 +201,12 @@ export class World {
     };
   }
 
+  /** いま焼けたパンが焦げるまでの秒数。null = 焦げない（エンドレスは burnLevel から焦げる） */
+  get burnTime(): number | null {
+    const e = this.stage.endless;
+    return e && this.level < e.burnLevel ? null : this.stage.burnTime;
+  }
+
   /** ネルが予告〜退店のあいだ店に関わっているか（エルフィンが寄りつかない） */
   get nellInShop(): boolean {
     return this.nellPendingAt !== null || this.customers.some((c) => c.kind === 'nell' && c.state !== 'leaving');
@@ -468,6 +474,10 @@ export class World {
     if (!e) return;
     const level = Math.min(e.maxLevel, 1 + Math.floor(this.time / e.levelTime));
     if (level === this.level) return;
+    // 焦げはじめるレベルでは、焼き上がって待っていたパンもここから数えはじめる
+    if (this.level < e.burnLevel && level >= e.burnLevel) {
+      for (const o of this.ovens) if (o.state === 'ready') o.t = 0;
+    }
     this.level = level;
     this.emit({ type: 'levelUp', level });
   }
@@ -719,7 +729,7 @@ export class World {
         }
       } else if (oven.state === 'ready' && !this.frozen) {
         oven.t += dt;
-        if (oven.t >= BALANCE.oven.readyWindow) {
+        if (this.burnTime !== null && oven.t >= this.burnTime) {
           oven.state = 'burnt';
           oven.t = 0;
           this.stats.burnt++;
