@@ -1775,22 +1775,15 @@ function mouth(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): vo
     return;
   }
   const e = pose.expr;
-  const calm = e === 'normal' || e === 'smile' || e === 'happy';
-  // スピキはいつも涙目のまま、口を大きく開けて笑う（困ると泣きじゃくる）
-  const kind =
-    s.extra === 'speaki' && calm ? 'wide'
-    : s.extra === 'speaki' && e === 'worried' ? 'wail'
-    : e === 'normal' || e === 'smile' ? s.mouth
-    : e === 'happy' ? (s.mouth === 'fang' ? 'fangBig' : 'big')
-    : e;
+  if (s.extra === 'speaki' && speakiMouth(ctx, e)) return;
+  const kind = e === 'normal' || e === 'smile' ? s.mouth : e === 'happy' ? (s.mouth === 'fang' ? 'fangBig' : 'big') : e;
   ctx.strokeStyle = LINE;
   ctx.lineWidth = 2.2;
-  /** arch = 上唇の中央を持ち上げる量（泣き顔の「へ」の字） */
-  const open = (w: number, top: number, bottom: number, fang: boolean, arch = 0) => {
+  const open = (w: number, top: number, bottom: number, fang: boolean) => {
     // 輪郭は Path2D で持つ（舌を描いたあとの現在パスは舌の楕円なので、そのまま stroke すると口の下に丸が出る）
     const lip = new Path2D();
     lip.moveTo(-w, top - 1);
-    lip.quadraticCurveTo(0, top + 1.5 - arch, w, top - 1);
+    lip.quadraticCurveTo(0, top + 1.5, w, top - 1);
     lip.quadraticCurveTo(w * 0.85, bottom, 0, bottom);
     lip.quadraticCurveTo(-w * 0.85, bottom, -w, top - 1);
     lip.closePath();
@@ -1825,12 +1818,6 @@ function mouth(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): vo
       return;
     case 'big':
       open(8.5, 27, 38.5, false);
-      return;
-    case 'wide':
-      open(10.5, 27, 42, false);
-      return;
-    case 'wail':
-      open(9.5, 33, 42, false, 11);
       return;
     case 'cat':
       ctx.beginPath();
@@ -2019,6 +2006,48 @@ function speakiEye(ctx: CanvasRenderingContext2D, x: number, y: number, side: nu
     ctx.closePath();
     fillStroke(ctx, water(ty, ty + 8.5), 1.6, EYE);
   }
+}
+
+/**
+ * スピキの口: 縦長の卵形に大きく開けた口（中はほとんどピンク）。少し右へ傾き、上唇の線が右の口角から小さくはね上がる。
+ * 困り顔は上唇が「へ」の字の泣き口、驚くと小さな縦長の「o」。それ以外の表情はふつうの口に任せる（false を返す）
+ */
+function speakiMouth(ctx: CanvasRenderingContext2D, e: Expr): boolean {
+  const calm = e === 'normal' || e === 'smile' || e === 'happy';
+  if (!calm && e !== 'worried' && e !== 'surprised') return false;
+  const lip = new Path2D();
+  if (e === 'surprised') {
+    lip.ellipse(0, 33, 4, 6, 0, 0, Math.PI * 2);
+  } else if (e === 'worried') {
+    lip.moveTo(-6, 29);
+    lip.quadraticCurveTo(0, 20.5, 6, 29);
+    lip.bezierCurveTo(8, 35, 6, 42.5, 0, 42.5);
+    lip.bezierCurveTo(-6, 42.5, -8, 35, -6, 29);
+  } else {
+    lip.moveTo(-4, 25);
+    lip.quadraticCurveTo(0, 23, 4.5, 23);
+    lip.bezierCurveTo(8.5, 27, 7.5, 39.5, 1, 42.5);
+    lip.bezierCurveTo(-5.5, 44, -7.5, 33, -4, 25);
+  }
+  ctx.save();
+  if (calm) {
+    ctx.translate(0, 33);
+    ctx.rotate(0.12);
+    ctx.translate(0, -33);
+  }
+  ctx.fillStyle = vgrad(ctx, 23, 43, [MOUTH, '#ef8a92', TONGUE]);
+  ctx.fill(lip);
+  ctx.strokeStyle = LINE;
+  ctx.lineWidth = 2.3;
+  ctx.stroke(lip);
+  if (calm) {
+    ctx.beginPath();
+    ctx.moveTo(4.5, 23);
+    ctx.quadraticCurveTo(8.5, 25.2, 10.5, 21.8);
+    ctx.stroke();
+  }
+  ctx.restore();
+  return true;
 }
 
 /** スピキの眉: いつも内側の上がった困り眉 */
