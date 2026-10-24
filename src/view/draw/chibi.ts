@@ -2,9 +2,10 @@
 // 原作の画風（横に広いもち顔・低い位置の大きな目・赤茶の線・低彩度のパステル塗り）に寄せた
 // 描き起こし。公式イラストの模写・トレースではなく、設定資料の特徴から起こしたオリジナル。
 
-export type HairStyle = 'long' | 'wavy' | 'bob' | 'twin' | 'pony' | 'short' | 'bun';
-/** heavy = 目まで隠れる重い前髪（モブ） */
-export type BangStyle = 'blunt' | 'swept' | 'split' | 'heavy';
+/** straight = 床まで届くまっすぐな髪（しゃがむと床に広がる） */
+export type HairStyle = 'long' | 'wavy' | 'bob' | 'twin' | 'pony' | 'short' | 'bun' | 'straight';
+/** heavy = 目まで隠れる重い前髪（モブ）、hime = 目のすぐ上でまっすぐ切りそろえた前髪 */
+export type BangStyle = 'blunt' | 'swept' | 'split' | 'heavy' | 'hime';
 /** bowband = リボン付きのカチューシャ */
 export type HatKind = 'beret' | 'tiara' | 'veil' | 'ribbon' | 'leaf' | 'maid' | 'bowband' | null;
 export type WingKind = 'plain' | 'pink' | 'frost' | 'swirl' | null;
@@ -35,8 +36,6 @@ export interface ChibiSpec {
   halfLid?: boolean;
   /** 眉の色（怒り・困り顔のときだけ出る） */
   brows?: string;
-  /** 瞳の下側の色（省略時は焦げ茶一色） */
-  eye?: string;
   mouth: MouthKind;
   style: HairStyle;
   bangs: BangStyle;
@@ -55,6 +54,8 @@ export interface ChibiSpec {
   wings: WingKind;
   /** キャラ固有の服・小物 */
   extra?: 'eshur' | 'elfin' | 'nell' | 'komi' | 'butter' | 'speaki';
+  /** しゃがんだ姿（足の裏が CROUCH_FEET_R の高さになる） */
+  crouch?: boolean;
   /** 名前のないモブ（目は前髪で隠れ、口と頬で表情を出す） */
   mob?: boolean;
   /** モブのエプロンの色 */
@@ -83,6 +84,15 @@ export interface ChibiPose {
 const CHEEK = { x: 36, y: 29 };
 /** 足の裏の高さ（頭の半径に対する倍率） */
 export const FEET_R = 2.34;
+/** しゃがんだ時の足の裏の高さ */
+export const CROUCH_FEET_R = 2.08;
+/** しゃがんだ時の床の y（頭半径 50 の単位） */
+const FLOOR = CROUCH_FEET_R * 50;
+
+/** そのキャラの足の裏の高さ（頭の半径に対する倍率） */
+export function feetR(s: ChibiSpec): number {
+  return s.crouch ? CROUCH_FEET_R : FEET_R;
+}
 
 const LINE = '#5a2d32';
 const BLUSH = 'rgba(255, 166, 164, 0.95)';
@@ -95,6 +105,11 @@ const GOLD = '#fdd397';
 const GOLD_SHADE = '#e3a46f';
 const PUMPKIN = '#f3a25f';
 const PUMPKIN_SHADE = '#dc8546';
+const LAVENDER = '#cbbfcd';
+const LAVENDER_SHADE = '#ab9db0';
+const LACE = '#f7f2f7';
+/** スピキの頭巾の上側の色（下は hatColor） */
+const VEIL_TOP = '#5b5272';
 
 export function drawChibi(
   ctx: CanvasRenderingContext2D,
@@ -136,9 +151,6 @@ export function drawChibi(
   ctx.translate(g.turn * 3, 0);
   eyes(ctx, spec, pose);
   mouth(ctx, spec, pose);
-  // スピッキーは困るとすぐ涙ぐむ
-  const teary = spec.extra === 'speaki' && pose.expr === 'worried';
-  if (teary) tears(ctx);
   ctx.restore();
   frontHair(ctx, spec, body, g);
   ctx.save();
@@ -150,7 +162,7 @@ export function drawChibi(
   hat(ctx, spec);
   if (body && pose.prop) prop(ctx, spec);
   if (pose.expr === 'angry') angerMark(ctx, pose.t);
-  if (pose.expr === 'worried' && !teary) sweat(ctx);
+  if (pose.expr === 'worried' && spec.extra !== 'speaki') sweat(ctx);
   if (spec.mob && pose.expr === 'happy') heart(ctx, -g.turn * 50, -56 - Math.abs(Math.sin(pose.t * 5)) * 4);
   ctx.restore();
 }
@@ -301,7 +313,10 @@ function royalCape(ctx: CanvasRenderingContext2D): void {
 
 /** ネルのヴェールの後ろ側（頭の後ろから肩まで） */
 function veilBack(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
-  const speaki = s.extra === 'speaki';
+  if (s.extra === 'speaki') {
+    speakiVeilBack(ctx, s);
+    return;
+  }
   ctx.beginPath();
   ctx.moveTo(-62, -52);
   ctx.bezierCurveTo(-84, -12, -82, 40, -76, 78);
@@ -309,9 +324,9 @@ function veilBack(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
   ctx.bezierCurveTo(82, 40, 84, -12, 62, -52);
   ctx.bezierCurveTo(40, -92, -40, -92, -62, -52);
   ctx.closePath();
-  fillStroke(ctx, vgrad(ctx, -90, 80, [speaki ? '#625869' : '#7d7893', s.hatColor]));
-  // 縁の帯（スピッキーは金）
-  ctx.strokeStyle = speaki ? GOLD : '#4e3436';
+  fillStroke(ctx, vgrad(ctx, -90, 80, ['#7d7893', s.hatColor]));
+  // 縁の帯
+  ctx.strokeStyle = '#4e3436';
   ctx.lineWidth = 5;
   ctx.beginPath();
   ctx.moveTo(-77, 72);
@@ -319,6 +334,49 @@ function veilBack(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
   ctx.moveTo(77, 72);
   ctx.lineTo(60, 72);
   ctx.stroke();
+}
+
+/** スピキの頭巾の後ろ側: 左へ流れて床まで届く。金の縁取りと星、裾に白いレース */
+function speakiVeilBack(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
+  const drape = new Path2D();
+  drape.moveTo(-62, -52);
+  drape.bezierCurveTo(-86, -24, -96, 36, -92, FLOOR);
+  drape.lineTo(64, FLOOR);
+  drape.bezierCurveTo(76, 40, 82, -12, 62, -52);
+  drape.bezierCurveTo(40, -92, -40, -92, -62, -52);
+  drape.closePath();
+  ctx.strokeStyle = LINE;
+  ctx.lineWidth = 2.6;
+  ctx.stroke(drape);
+  ctx.fillStyle = vgrad(ctx, -90, 90, [VEIL_TOP, s.hatColor]);
+  ctx.fill(drape);
+  ctx.save();
+  ctx.clip(drape);
+  ctx.strokeStyle = GOLD;
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(-68, -44);
+  ctx.bezierCurveTo(-86, -14, -90, 40, -86, FLOOR);
+  ctx.stroke();
+  for (const [x, y] of [[-79, -12], [-82, 18], [-78, 44], [-84, 66], [-77, 86]]) star(ctx, x, y, 2.8, GOLD);
+  ctx.restore();
+  for (let x = -89; x <= -66; x += 5.8) dot(ctx, x, FLOOR - 1, 2.8, LACE, 1.3);
+}
+
+/** 星（lw = 0 なら線なし） */
+function star(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, fill: string, lw = 0): void {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const l = i % 2 ? r * 0.48 : r;
+    ctx.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l);
+  }
+  ctx.closePath();
+  if (lw) fillStroke(ctx, fill, lw);
+  else {
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
 }
 
 // ------------------------------------------------------------------ hair
@@ -384,6 +442,15 @@ function backHair(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
       ctx.lineTo(34, 32);
       ctx.bezierCurveTo(50, 32, 62, 16, 58, -20);
       break;
+    case 'straight':
+      // 左はまっすぐ落ち、右は床で外へ広がる（左は頭巾が流れる側）
+      bottom = FLOOR;
+      ctx.moveTo(-58, -34);
+      ctx.bezierCurveTo(-76, 0, -76, 56, -72, FLOOR);
+      for (const [x, d] of [[-60, 3], [-46, 0], [-30, 2], [-14, 0], [0, 2], [16, 0], [32, 2], [48, 0], [64, 3]]) ctx.lineTo(x, FLOOR - d);
+      ctx.lineTo(84, FLOOR);
+      ctx.bezierCurveTo(74, 62, 78, 0, 58, -34);
+      break;
     case 'short':
       bottom = 28;
       ctx.moveTo(-58, -20);
@@ -403,6 +470,8 @@ const BANG_EDGES: Record<BangStyle, number[][]> = {
   split: [[50, 8], [45, -4], [38, -6], [32, 0], [27, -8], [16, -12], [10, -6], [4, -24], [-4, -24], [-10, -6], [-16, -12], [-27, -8], [-32, 0], [-38, -6], [-45, -4], [-50, 8], [-58, 18]],
   // 目の下まで届く、ぱっつんの重い前髪。毛束の切れ目だけ小さく上がる
   heavy: [[56, 12], [46, 7], [37, 8], [34, 1], [30, 7], [13, 7], [9, 0], [5, 7], [-13, 7], [-17, 0], [-21, 7], [-39, 7], [-48, 8], [-56, 12], [-60, 20]],
+  // 目のすぐ上でまっすぐ切りそろえ、右寄りに分け目がひとつ
+  hime: [[50, 8], [47, -1], [34, -1], [31, -5], [28, -1], [16, -1], [11, -12], [6, -1], [-10, -1], [-13, -5], [-16, -1], [-30, -1], [-33, -5], [-36, -1], [-47, -1], [-50, 8], [-58, 18]],
 };
 
 /** 前髪（頭のてっぺんから額まで） */
@@ -425,7 +494,7 @@ function bangsPath(s: ChibiSpec): Path2D {
 
 function frontHair(ctx: CanvasRenderingContext2D, s: ChibiSpec, body: boolean, g: FaceGeom): void {
   // 顔の横に垂れる髪
-  const len = s.style === 'short' ? 22 : s.style === 'bob' ? 42 : s.style === 'long' || s.style === 'wavy' ? 60 : 46;
+  const len = s.style === 'short' ? 22 : s.style === 'bob' ? 42 : s.style === 'straight' ? 96 : s.style === 'long' || s.style === 'wavy' ? 60 : 46;
   for (const side of [-1, 1]) {
     ctx.beginPath();
     ctx.moveTo(side * 52, -22);
@@ -816,23 +885,14 @@ function veilFront(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
   ctx.bezierCurveTo(-34, -54, -58, -38, -64, -10);
   ctx.closePath();
   const speaki = s.extra === 'speaki';
-  fillStroke(ctx, vgrad(ctx, -86, -10, [speaki ? '#625869' : '#7d7893', s.hatColor]), 2.6);
+  fillStroke(ctx, vgrad(ctx, -86, -10, [speaki ? VEIL_TOP : '#7d7893', s.hatColor]), 2.6);
   ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
   ctx.beginPath();
   ctx.ellipse(-24, -72, 16, 5, -0.4, 0, Math.PI * 2);
   ctx.fill();
   if (speaki) {
-    // 帯の内側の白いレース
-    for (const side of [-1, 1]) {
-      for (let i = 0; i < 8; i++) {
-        const u = i / 8;
-        const x = side * cubic(61, 55, 32, 0, u);
-        const y = cubic(-18, -42, -57, -57, u);
-        const l = Math.hypot(x, y - 10);
-        dot(ctx, x - (x / l) * 4.5, y - ((y - 10) / l) * 4.5, 2.8, WHITE, 1.4);
-      }
-    }
-    dot(ctx, 0, -52.5, 2.8, WHITE, 1.4);
+    star(ctx, -36, -66, 2.6, GOLD);
+    star(ctx, 33, -69, 2.4, GOLD);
   }
   const band = () => {
     ctx.beginPath();
@@ -845,22 +905,13 @@ function veilFront(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
   ctx.lineWidth = 10;
   ctx.stroke();
   band();
-  ctx.strokeStyle = speaki ? GOLD : '#ffffff';
+  ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 6;
   ctx.stroke();
   if (speaki) {
-    // てっぺんの金の十字
-    ctx.beginPath();
-    ctx.roundRect(-2.4, -80, 4.8, 15, 1.5);
-    ctx.roundRect(-6.5, -76, 13, 4.4, 1.5);
-    fillStroke(ctx, GOLD, 1.6);
+    // 帯のてっぺんの金の星
+    star(ctx, 0, -58, 5.5, GOLD, 1.5);
   }
-}
-
-/** 3 次ベジェの 1 成分 */
-function cubic(a: number, b: number, c: number, d: number, t: number): number {
-  const m = 1 - t;
-  return m * m * m * a + 3 * m * m * t * b + 3 * m * t * t * c + t * t * t * d;
 }
 
 // ------------------------------------------------------------------ body
@@ -871,7 +922,7 @@ function drawBody(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose):
     mobBody(ctx, s);
     return;
   }
-  legs(ctx, s);
+  if (!s.crouch) legs(ctx, s);
   switch (s.extra) {
     case 'elfin':
       elfinBody(ctx, s, pose);
@@ -889,7 +940,7 @@ function drawBody(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose):
       butterBody(ctx, s);
       break;
     case 'speaki':
-      speakiBody(ctx, s, pose);
+      speakiBody(ctx, s);
       break;
     default:
       villagerBody(ctx, s);
@@ -1208,78 +1259,97 @@ function nellBody(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose):
   fillStroke(ctx, '#cc9359', 1.6);
 }
 
-/** スピッキー: ネルをまねたシスター服。黒いブラウスに白い襟とオレンジの蝶ネクタイ、前が短い黒とオレンジのスカート、腰にドクロの仮面 */
-function speakiBody(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): void {
-  // 後ろが長いオレンジのスカート
-  torsoPath(ctx, 38);
-  fillStroke(ctx, sideShade(ctx, -38, 38, PUMPKIN, PUMPKIN_SHADE));
-  // 前が短い黒い上着
-  ctx.beginPath();
-  ctx.moveTo(-19, 42);
-  ctx.quadraticCurveTo(-26, 58, -25, 74);
-  ctx.quadraticCurveTo(-33, 84, -35, 94);
-  ctx.quadraticCurveTo(0, 78, 35, 94);
-  ctx.quadraticCurveTo(33, 84, 25, 74);
-  ctx.quadraticCurveTo(26, 58, 19, 42);
-  ctx.closePath();
-  fillStroke(ctx, sideShade(ctx, -35, 35, s.outfit, s.outfitShade));
-  // 裾の金の線と白いレース
-  const hem = (t: number, dy: number): [number, number] => {
-    const m = 1 - t;
-    return [m * m * -35 + t * t * 35, m * m * 94 + 2 * m * t * 78 + t * t * 94 + dy];
-  };
-  for (let i = 0; i <= 10; i++) {
-    const [x, y] = hem(i / 10, 2.5);
-    dot(ctx, x, y, 3, WHITE, 1.4);
-  }
-  ctx.strokeStyle = GOLD;
+/**
+ * スピッキー: ネルをまねたシスター服で、床にしゃがみこんでいる。星の付いた黒いスカートが床に広がり、
+ * ラベンダーのフリルとひざがのぞく。黒い袖の両手はひざの間で床につく。白い襟にオレンジの蝶ネクタイ、腰にドクロの仮面
+ */
+function speakiBody(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
+  const F = FLOOR;
+  // 床に広がる黒いスカートと星
+  const skirt = new Path2D();
+  skirt.moveTo(-26, 44);
+  skirt.bezierCurveTo(-58, 50, -76, 76, -76, F);
+  skirt.lineTo(76, F);
+  skirt.bezierCurveTo(76, 76, 58, 50, 26, 44);
+  skirt.closePath();
+  ctx.fillStyle = sideShade(ctx, -76, 76, s.outfit, s.outfitShade);
+  ctx.fill(skirt);
+  ctx.save();
+  ctx.clip(skirt);
+  for (const [x, y] of [[-62, 80], [-50, 94], [56, 82], [66, 96]]) star(ctx, x, y, 2.6, GOLD);
+  ctx.restore();
+  ctx.strokeStyle = LINE;
   ctx.lineWidth = 2.4;
+  ctx.stroke(skirt);
+  // 内側のラベンダーのフリル
   ctx.beginPath();
-  for (let i = 0; i <= 10; i++) {
-    const [x, y] = hem(0.05 + i * 0.09, -4);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  ctx.stroke();
-  bow(ctx, -31, 94, 0.4, 0.42, PUMPKIN);
-  bow(ctx, 31, 94, -0.4, 0.42, PUMPKIN);
-  skull(ctx, 22, 76);
-
-  // 手は胸の前でもじもじ（バケツを持つ時は右手で提げる）
-  if (pose.prop) {
-    arm(ctx, s, -1, -5, 70, s.outfit, WHITE);
-    arm(ctx, s, 1, 34, 80, s.outfit, WHITE);
-  } else {
-    arm(ctx, s, -1, -4, 68, s.outfit, WHITE);
-    arm(ctx, s, 1, 4, 69, s.outfit, WHITE);
-  }
-
-  // 白い襟とオレンジの蝶ネクタイ
-  ctx.beginPath();
-  ctx.moveTo(-20, 43);
-  ctx.quadraticCurveTo(-31, 50, -25, 59);
-  ctx.quadraticCurveTo(-10, 61, 0, 51);
-  ctx.quadraticCurveTo(10, 61, 25, 59);
-  ctx.quadraticCurveTo(31, 50, 20, 43);
+  ctx.moveTo(-56, F);
+  ctx.quadraticCurveTo(-52, F - 20, -32, F - 24);
+  ctx.lineTo(32, F - 24);
+  ctx.quadraticCurveTo(52, F - 20, 56, F);
   ctx.closePath();
-  fillStroke(ctx, sideShade(ctx, -31, 31, WHITE, '#e2d4dd', 0.66));
-  bow(ctx, 0, 51, 0, 0.5, PUMPKIN);
+  fillStroke(ctx, sideShade(ctx, -56, 56, LAVENDER, LAVENDER_SHADE), 2.2);
+  for (let x = -52; x <= 52; x += 6.5) dot(ctx, x, F - 1.5, 3, LACE, 1.3);
+
+  // 立てたひざ（ラベンダーの長靴下）と靴
+  for (const side of [-1, 1]) {
+    const x = side * 30;
+    ctx.beginPath();
+    ctx.ellipse(x + side * 1.5, F - 1, 11, 5.5, 0, 0, Math.PI * 2);
+    fillStroke(ctx, s.shoes, 2.2);
+    ctx.beginPath();
+    ctx.roundRect(x - 12, 52, 24, F - 53, [12, 12, 6, 6]);
+    fillStroke(ctx, sideShade(ctx, x - 12, x + 12, s.legs, LAVENDER_SHADE, 0.7), 2.2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.beginPath();
+    ctx.ellipse(x - 4, 60, 4, 3, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    for (let i = 0; i < 4; i++) dot(ctx, x - 8 + i * 5.3, F - 20, 2.7, LACE, 1.2);
+  }
+  skull(ctx, -66, 86, 1.4);
+
+  // 胸元: ラベンダーのベストに白い襟とオレンジの蝶ネクタイ
+  ctx.beginPath();
+  ctx.roundRect(-22, 42, 44, 40, [4, 4, 10, 10]);
+  fillStroke(ctx, sideShade(ctx, -22, 22, LAVENDER, LAVENDER_SHADE), 2.2);
+  ctx.beginPath();
+  ctx.moveTo(-17, 44);
+  ctx.quadraticCurveTo(-24, 50, -18, 56);
+  ctx.quadraticCurveTo(-8, 57, 0, 50);
+  ctx.quadraticCurveTo(8, 57, 18, 56);
+  ctx.quadraticCurveTo(24, 50, 17, 44);
+  ctx.closePath();
+  fillStroke(ctx, WHITE, 2);
+  bow(ctx, 0, 52, 0, 0.5, PUMPKIN);
+
+  // ひざの間へまっすぐ下ろした腕。手は床につく
+  for (const side of [-1, 1]) {
+    tube(ctx, [side * 24, 46, side * 20, 70, side * 13, F - 12], 12.5, s.outfit);
+    tube(ctx, [side * 13.6, F - 14, side * 12.6, F - 9.5], 13.5, WHITE);
+    ctx.beginPath();
+    ctx.ellipse(side * 12, F - 4.5, 7, 4.8, 0, 0, Math.PI * 2);
+    fillStroke(ctx, s.skin, 2.2);
+  }
 }
 
 /** 幽霊のしるしのドクロの仮面 */
-function skull(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+function skull(ctx: CanvasRenderingContext2D, x: number, y: number, sc = 1): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(sc, sc);
   ctx.beginPath();
-  ctx.roundRect(x - 4.5, y + 2, 9, 6.5, 2.5);
+  ctx.roundRect(-4.5, 2, 9, 6.5, 2.5);
   fillStroke(ctx, WHITE, 1.8);
   ctx.beginPath();
-  ctx.ellipse(x, y, 7.5, 6.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, 7.5, 6.5, 0, 0, Math.PI * 2);
   fillStroke(ctx, WHITE, 1.8);
   ctx.fillStyle = LINE;
   for (const side of [-1, 1]) {
     ctx.beginPath();
-    ctx.ellipse(x + side * 2.8, y + 0.5, 2, 2.4, 0, 0, Math.PI * 2);
+    ctx.ellipse(side * 2.8, 0.5, 2, 2.4, 0, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.restore();
 }
 
 function eshurBody(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): void {
@@ -1430,7 +1500,9 @@ function prop(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
       dot(ctx, 80, 30, 3, WHITE, 1.6);
       break;
     case 'speaki': {
-      // お菓子でいっぱいのかぼちゃのバケツ
+      // お菓子でいっぱいのかぼちゃのバケツ（しゃがんでいる時は横の床に置く）
+      ctx.save();
+      if (s.crouch) ctx.translate(20, FLOOR - 116);
       ctx.strokeStyle = LINE;
       ctx.lineWidth = 2.4;
       ctx.beginPath();
@@ -1467,6 +1539,7 @@ function prop(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
       ctx.lineTo(35, 111);
       ctx.closePath();
       ctx.fill();
+      ctx.restore();
       break;
     }
   }
@@ -1595,9 +1668,8 @@ function eyes(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): voi
   for (const side of [-1, 1]) {
     const x = side * 22;
     const y = 12;
-    const iris = s.eye ? vgrad(ctx, y - 9, y + 9, [EYE, EYE, s.eye]) : EYE;
     ctx.strokeStyle = EYE;
-    ctx.fillStyle = iris;
+    ctx.fillStyle = EYE;
     ctx.lineWidth = 3;
 
     if (e === 'munch') {
@@ -1620,13 +1692,17 @@ function eyes(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): voi
       ctx.stroke();
       continue;
     }
+    if (s.extra === 'speaki') {
+      speakiEye(ctx, x, y + 1, side, e);
+      continue;
+    }
     if (e === 'surprised') {
       ctx.beginPath();
       ctx.ellipse(x, y, 7.5, 9, 0, 0, Math.PI * 2);
       fillStroke(ctx, WHITE, 2.4, EYE);
       ctx.beginPath();
       ctx.ellipse(x, y + 1, 3, 3.6, 0, 0, Math.PI * 2);
-      ctx.fillStyle = iris;
+      ctx.fillStyle = EYE;
       ctx.fill();
       continue;
     }
@@ -1666,6 +1742,10 @@ function eyes(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): voi
 
 function brows(ctx: CanvasRenderingContext2D, s: ChibiSpec, e: Expr): void {
   if (s.mob) return;
+  if (s.extra === 'speaki') {
+    speakiBrows(ctx, s, e);
+    return;
+  }
   const mood = e === 'angry' || e === 'worried' || e === 'sulk';
   if (!mood) return;
   ctx.strokeStyle = s.brows ?? mix(s.hairShade, LINE, 0.5);
@@ -1695,14 +1775,22 @@ function mouth(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): vo
     return;
   }
   const e = pose.expr;
-  const kind = e === 'normal' || e === 'smile' ? s.mouth : e === 'happy' ? (s.mouth === 'fang' ? 'fangBig' : 'big') : e;
+  const calm = e === 'normal' || e === 'smile' || e === 'happy';
+  // スピキはいつも涙目のまま、口を大きく開けて笑う（困ると泣きじゃくる）
+  const kind =
+    s.extra === 'speaki' && calm ? 'wide'
+    : s.extra === 'speaki' && e === 'worried' ? 'wail'
+    : e === 'normal' || e === 'smile' ? s.mouth
+    : e === 'happy' ? (s.mouth === 'fang' ? 'fangBig' : 'big')
+    : e;
   ctx.strokeStyle = LINE;
   ctx.lineWidth = 2.2;
-  const open = (w: number, top: number, bottom: number, fang: boolean) => {
+  /** arch = 上唇の中央を持ち上げる量（泣き顔の「へ」の字） */
+  const open = (w: number, top: number, bottom: number, fang: boolean, arch = 0) => {
     // 輪郭は Path2D で持つ（舌を描いたあとの現在パスは舌の楕円なので、そのまま stroke すると口の下に丸が出る）
     const lip = new Path2D();
     lip.moveTo(-w, top - 1);
-    lip.quadraticCurveTo(0, top + 1.5, w, top - 1);
+    lip.quadraticCurveTo(0, top + 1.5 - arch, w, top - 1);
     lip.quadraticCurveTo(w * 0.85, bottom, 0, bottom);
     lip.quadraticCurveTo(-w * 0.85, bottom, -w, top - 1);
     lip.closePath();
@@ -1737,6 +1825,12 @@ function mouth(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): vo
       return;
     case 'big':
       open(8.5, 27, 38.5, false);
+      return;
+    case 'wide':
+      open(10.5, 27, 42, false);
+      return;
+    case 'wail':
+      open(9.5, 33, 42, false, 11);
       return;
     case 'cat':
       ctx.beginPath();
@@ -1880,25 +1974,75 @@ function angerMark(ctx: CanvasRenderingContext2D, t: number): void {
   ctx.restore();
 }
 
-/** うるうるの目（光と、下まぶたにたまった涙）と、頬を伝うひとしずく */
-function tears(ctx: CanvasRenderingContext2D): void {
-  for (const side of [-1, 1]) {
-    const x = side * 22;
-    ctx.fillStyle = WHITE;
+/**
+ * スピキの目: 黒目がちの大きな丸い目に、大きな光と細かいきらめき。下まぶたには今にもこぼれそうな涙の粒（うるうる）。
+ * 困り顔では涙が頬を流れる
+ */
+function speakiEye(ctx: CanvasRenderingContext2D, x: number, y: number, side: number, e: Expr): void {
+  const wide = e === 'surprised';
+  const rx = wide ? 9.4 : 8.8;
+  const ry = wide ? 10.4 : 9.8;
+  const water = (y0: number, y1: number) => vgrad(ctx, y0, y1, [WHITE, WHITE, '#d3edf9']);
+  if (e === 'worried') {
     ctx.beginPath();
-    ctx.arc(x - 1.5, 7.5, 2.4, 0, Math.PI * 2);
-    ctx.arc(x + 1.8, 15.5, 1.2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.ellipse(x, 20, 8, 3.2, 0, 0, Math.PI);
-    fillStroke(ctx, 'rgba(173, 222, 245, 0.9)', 1.4, '#5aa6c8');
+    ctx.moveTo(x - 4, y + 6);
+    ctx.bezierCurveTo(x - 5, y + 16, x - 2.5, y + 24, x - 4.5, y + 33);
+    ctx.lineTo(x + 3.5, y + 33);
+    ctx.bezierCurveTo(x + 5.5, y + 24, x + 3, y + 16, x + 4, y + 6);
+    ctx.closePath();
+    fillStroke(ctx, 'rgba(173, 222, 245, 0.92)', 1.6, '#5aa6c8');
   }
   ctx.beginPath();
-  ctx.moveTo(31, 22);
-  ctx.quadraticCurveTo(36, 30, 34, 33);
-  ctx.quadraticCurveTo(29, 35, 29, 30);
-  ctx.closePath();
-  fillStroke(ctx, 'rgba(173, 222, 245, 0.95)', 1.4, '#5aa6c8');
+  ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+  fillStroke(ctx, vgrad(ctx, y - ry, y + ry, ['#2b161c', '#3a1f25', '#6e3d39']), 2.2, EYE);
+  discs(ctx, [[x - 2.8, y - 3.8, 3.6], [x + 3.8, y + 1.2, 1.5]], WHITE);
+  discs(ctx, [[x + 3, y - 6, 0.9], [x - 5.2, y + 1.5, 0.8], [x + 5.6, y - 2.2, 0.7], [x - 0.8, y + 3.6, 0.7]], 'rgba(255, 255, 255, 0.6)');
+  // 下まぶたにたまった涙の粒。縁を太く引いてから塗り、粒どうしの境目の線を消す
+  const pool = [[x + side * 5.4, y + 7.4, 3.6], [x + side * 0.4, y + 9.4, 3], [x - side * 4.6, y + 8.3, 2.3]];
+  ctx.strokeStyle = EYE;
+  ctx.lineWidth = 3;
+  for (const [cx, cy, r] of pool) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  discs(ctx, pool, water(y + 4, y + 12.5));
+  discs(ctx, [[x + side * 4.4, y + 6.2, 1]], WHITE);
+  // 片方の目からひとしずく
+  if (side < 0 && e !== 'worried') {
+    const tx = x + 1.5;
+    const ty = y + 13;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.bezierCurveTo(tx + 3.8, ty + 4.2, tx + 3.8, ty + 8.5, tx, ty + 8.5);
+    ctx.bezierCurveTo(tx - 3.8, ty + 8.5, tx - 3.8, ty + 4.2, tx, ty);
+    ctx.closePath();
+    fillStroke(ctx, water(ty, ty + 8.5), 1.6, EYE);
+  }
+}
+
+/** スピキの眉: いつも内側の上がった困り眉 */
+function speakiBrows(ctx: CanvasRenderingContext2D, s: ChibiSpec, e: Expr): void {
+  const deep = e === 'worried' || e === 'surprised';
+  ctx.strokeStyle = mix(s.hairShade, LINE, 0.55);
+  ctx.lineWidth = 2.4;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * 11, deep ? -5 : -2);
+    ctx.quadraticCurveTo(side * 19, deep ? -4 : -1.5, side * 27, deep ? 2 : 2.5);
+    ctx.stroke();
+  }
+}
+
+/** 塗りつぶしの丸をまとめて描く [x, y, r][] */
+function discs(ctx: CanvasRenderingContext2D, list: number[][], fill: string | CanvasGradient): void {
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  for (const [x, y, r] of list) {
+    ctx.moveTo(x + r, y);
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+  }
+  ctx.fill();
 }
 
 function sweat(ctx: CanvasRenderingContext2D): void {

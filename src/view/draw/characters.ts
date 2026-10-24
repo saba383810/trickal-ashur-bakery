@@ -127,29 +127,29 @@ export const BUTTER: ChibiSpec = {
   extra: 'butter',
 };
 
-// スピッキー（スピキ）: 幽霊の泣き虫で、ネルのまねをしたシスター姿。淡い金髪で毛先は淡い水色、ぱっつん前髪、
-// オレンジの瞳。金の帯と白いレースの黒い頭巾、黒いブラウスにオレンジの蝶ネクタイ、前が短い黒とオレンジのスカート、
-// 白いハイソックスに黒い靴、腰にドクロの仮面。お菓子の入ったかぼちゃのバケツを持つ
+// スピッキー（スピキ）: ネットで生まれて公式に逆輸入された、泣き虫の幽霊。ネルのまねをしたシスター姿で、床にしゃがみこんでいる。
+// 涙の粒がたまったうるうるの黒目と、大きく開けた口が顔のしるし。灰色がかったクリーム色のまっすぐな長い髪とぱっつん前髪、
+// 白い帯と金の星の黒い頭巾、黒い服にオレンジの蝶ネクタイとラベンダーのフリル、腰にドクロの仮面
 export const SPEAKI: ChibiSpec = {
   skin: '#fff4ef',
-  hair: '#fbefc9',
-  hairShade: '#dcc1a4',
-  hairTip: '#b9def0',
-  shine: '#fffbea',
-  eye: '#d9773a',
+  hair: '#efe9de',
+  hairShade: '#c9bdb0',
+  hairTip: '#e2dacd',
+  shine: '#ffffff',
   mouth: 'open',
-  style: 'long',
-  bangs: 'blunt',
-  outfit: '#4f4555',
-  outfitShade: '#3f3645',
+  style: 'straight',
+  bangs: 'hime',
+  outfit: '#3f3756',
+  outfitShade: '#302a45',
   collar: '#ffffff',
-  legs: '#ffffff',
-  shoes: '#4a3a44',
+  legs: '#ddd3df',
+  shoes: '#4a3a4e',
   ears: null,
   hat: 'veil',
-  hatColor: '#3f3645',
+  hatColor: '#352e4b',
   wings: null,
   extra: 'speaki',
+  crouch: true,
 };
 
 // 妖精村の人たち（原作キャラではないオリジナルのお客さん）。

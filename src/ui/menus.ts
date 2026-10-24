@@ -70,9 +70,9 @@ export function titleScreen(host: MenuHost, on: { start: () => void; howTo: () =
 
 // ============================================================== モード選択
 
-/** モードごとの顔（カードの左に出す） */
+/** モードごとの顔（カードの左に出す。しゃがんだスピキは顔と同じくらいの枠に収まるので体ごと） */
 const MODE_FACE: Record<string, [ChibiSpec, Expr]> = {
-  tutorial: [SPEAKI, 'worried'],
+  tutorial: [SPEAKI, 'happy'],
   mild: [KOMI, 'normal'],
   medium: [ESHUR, 'happy'],
   spicy: [BUTTER, 'happy'],
@@ -124,7 +124,7 @@ export function modeSelect(host: MenuHost, on: { pick: (s: StageDef) => void; ba
             on.pick(s);
           },
         },
-        h('span', { class: 'mode-face' }, chara(host, spec, expr, 26, { body: false })),
+        h('span', { class: `mode-face${spec.crouch ? ' crouch' : ''}` }, chara(host, spec, expr, 26, { body: !!spec.crouch })),
         h(
           'span',
           { class: 'mode-body' },

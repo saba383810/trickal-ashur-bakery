@@ -1,7 +1,7 @@
 // 開発用: キャラとパンの見た目を一覧で確認する（本番ビルドには含めない）
 import { BREADS, type BreadId } from '../config/breads';
 import { drawBread } from '../view/draw/breads';
-import { drawChibi, type Expr } from '../view/draw/chibi';
+import { FEET_R, drawChibi, feetR, type Expr } from '../view/draw/chibi';
 import { BUTTER, ELFIN, ESHUR, KOMI, NELL, SPEAKI, villager } from '../view/draw/characters';
 import { MochiBody } from '../mochi/body';
 
@@ -45,7 +45,10 @@ if (location.search.includes('mochi')) {
   };
   requestAnimationFrame(frame);
 } else if (location.search.includes('big')) {
-  [ESHUR, ELFIN, NELL, KOMI, BUTTER, SPEAKI].forEach((spec, i) => drawChibi(ctx, spec, 125 + i * 230, 330, 92, { expr: 'normal', t: 0.3, prop: true, turn: i % 2 ? -1 : 1 }));
+  // 足の裏をそろえる（しゃがんだスピキは頭が低い）
+  [ESHUR, ELFIN, NELL, KOMI, BUTTER, SPEAKI].forEach((spec, i) =>
+    drawChibi(ctx, spec, 125 + i * 230, 330 + (FEET_R - feetR(spec)) * 92, 92, { expr: 'normal', t: 0.3, prop: true, turn: i % 2 ? -1 : 1 }),
+  );
   const mobExprs: Expr[] = ['normal', 'happy', 'worried', 'normal'];
   [3, 1, 5, 9].forEach((seed, i) => drawChibi(ctx, villager(seed * 7919 + 13), 190 + i * 340, 870, 105, { expr: mobExprs[i], t: 0, turn: i % 2 ? -1 : 1 }));
 } else {

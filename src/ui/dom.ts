@@ -2,7 +2,7 @@ import type { Sound } from '../audio/sound';
 import type { BreadId } from '../config/breads';
 import { MochiBody } from '../mochi/body';
 import { drawBread } from '../view/draw/breads';
-import { FEET_R, drawChibi, type ChibiPose, type ChibiSpec, type Expr } from '../view/draw/chibi';
+import { drawChibi, feetR, type ChibiPose, type ChibiSpec, type Expr } from '../view/draw/chibi';
 
 type Child = Node | string | null | undefined | false;
 
@@ -32,15 +32,15 @@ function dpr(): number {
 }
 
 /** キャラの絵の枠（size = 頭の半径 px）。w = 幅、top = 頭の中心の高さ、ht = 高さ */
-function chibiBox(size: number, body: boolean): { w: number; top: number; ht: number } {
+function chibiBox(spec: ChibiSpec, size: number, body: boolean): { w: number; top: number; ht: number } {
   const top = size * 1.85;
-  return { w: size * 3.7, top, ht: top + (body ? size * (FEET_R + 0.1) : size * 1.25) };
+  return { w: size * 3.7, top, ht: top + (body ? size * (feetR(spec) + 0.1) : size * 1.25) };
 }
 
 /** キャラの絵を canvas 要素として作る（size = 頭の半径 px） */
 export function chibiCanvas(spec: ChibiSpec, expr: Expr, size: number, opts: { body?: boolean; flip?: boolean } = {}): HTMLCanvasElement {
   const body = opts.body !== false;
-  const { w, top, ht } = chibiBox(size, body);
+  const { w, top, ht } = chibiBox(spec, size, body);
   const cv = document.createElement('canvas');
   const k = dpr();
   cv.width = Math.ceil(w * k);
@@ -70,7 +70,7 @@ export function mochiChibi(
 ): HTMLElement {
   const body = opts.body !== false;
   const base = chibiCanvas(spec, expr, size, opts);
-  const { w, top, ht } = chibiBox(size, body);
+  const { w, top, ht } = chibiBox(spec, size, body);
   const flip = opts.flip ? -1 : 1;
   const mochi = new MochiBody();
   const m = (mochi.pinch.lmax * 1.25 * size) / 50;

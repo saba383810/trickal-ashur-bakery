@@ -510,6 +510,11 @@ canvas.bread {
   filter: drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff);
 }
 
+/* しゃがんだスピキは体ごと出すので、顔がほかと同じくらいになるよう枠を大きく */
+.mode-face.crouch canvas {
+  height: 76px !important;
+}
+
 .mode-body {
   display: flex;
   flex-direction: column;
