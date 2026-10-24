@@ -1455,12 +1455,11 @@ export class GameView {
       roundRect(c, bx, by, Math.max(bh, bw * (w.fever / BALANCE.fever.duration)), bh, bh / 2);
       c.fill();
     } else {
-      // 会計 1 回ぶんずつの目盛り。あと 1 回で満タンなら虹色に光る
-      const ready = w.feverGauge >= need - 1;
+      // 会計 1 回ぶんずつの目盛り
       const gap = 2;
       const pw = (bw - 4 - gap * (need - 1)) / need;
+      c.fillStyle = '#f0a53a';
       for (let i = 0; i < w.feverGauge; i++) {
-        c.fillStyle = ready ? `hsl(${(hue + i * 36) % 360}, 90%, 60%)` : '#f0a53a';
         roundRect(c, bx + 2 + i * (pw + gap), by + 2, pw, bh - 4, 4);
         c.fill();
       }
