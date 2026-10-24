@@ -3,6 +3,7 @@ import type { BreadId } from '../config/breads';
 import { MochiBody } from '../mochi/body';
 import { drawBread } from '../view/draw/breads';
 import { drawChibi, feetR, type ChibiPose, type ChibiSpec, type Expr } from '../view/draw/chibi';
+import { renderRatio } from '../view/screen';
 
 type Child = Node | string | null | undefined | false;
 
@@ -28,7 +29,7 @@ export function h<K extends keyof HTMLElementTagNameMap>(
 }
 
 function dpr(): number {
-  return Math.min(window.devicePixelRatio || 1, 3);
+  return renderRatio();
 }
 
 /** キャラの絵の枠（size = 頭の半径 px）。w = 幅、top = 頭の中心の高さ、ht = 高さ */

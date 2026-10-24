@@ -47,6 +47,8 @@ body {
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
   overscroll-behavior: none;
+  /* スクロールは残し、ピンチとダブルタップの拡大は止める */
+  touch-action: pan-x pan-y;
 }
 
 #game {

@@ -81,20 +81,28 @@ export function makeLayout(w: number, h: number, portrait: boolean, stage: Stage
 }
 
 function landscapeLayout(w: number, h: number, stage: StageDef): Layout {
+  // 基準は 1280×720。iPad のように縦が余れば店内とショーケース・オーブンに配り、
+  // 横持ちのスマホのように横が余れば客席を広げて作業場は真ん中に寄せる
+  const extra = Math.max(0, h - 720);
+  const top = Math.round(extra * 0.45);
+  const low = extra - top;
+  const dx = Math.round(Math.max(0, w - 1280) / 2);
   const hud = { x: 0, y: 0, w, h: 64 };
-  const floor = { x: 0, y: 64, w, h: 276 };
-  const counter = { x: 0, y: 330, w, h: 92 };
-  const margin = 170;
+  const floor = { x: 0, y: 64, w, h: 276 + top };
+  const counter = { x: 0, y: 330 + top, w, h: 92 };
+  const margin = 170 + dx / 2;
   const seats = Array.from({ length: stage.seats }, (_, i) => ({
     x: margin + ((w - margin * 2) * (i + 0.5)) / stage.seats,
-    y: 262,
+    y: 262 + top,
   }));
   const spacing = (w - margin * 2) / stage.seats;
-  const tray = { x: w / 2 - 190, y: 342, w: 380, h: 70 };
-  const work = { x: 0, y: 422, w, h: h - 422 };
-  const showcase = { x: 20, y: 440, w: 690, h: 262 };
-  const slots = grid(inset(showcase, 18, 22), stage.breads.length, 4, 12, 170, 112);
-  const ovenArea = { x: 730, y: 446, w: 530, h: 250 };
+  const tray = { x: w / 2 - 190, y: 342 + top, w: 380, h: 70 };
+  const work = { x: 0, y: 422 + top, w, h: h - 422 - top };
+  const showcase = { x: 20 + dx, y: 440 + top, w: 690, h: 262 + low };
+  const slots = grid(inset(showcase, 18, 22), stage.breads.length, 4, 12, 170, 112 + low * 0.6);
+  // かまどは縦に伸ばしすぎると細長くなるので、少しだけ伸ばして残りは上下に空ける
+  const ovenGrow = Math.min(low, 60);
+  const ovenArea = { x: 730 + dx, y: 446 + top + (low - ovenGrow) / 2, w: 530, h: 250 + ovenGrow };
   const ovens = row(ovenArea, stage.ovens, 16, 168);
   return {
     w,
@@ -115,19 +123,21 @@ function landscapeLayout(w: number, h: number, stage: StageDef): Layout {
     ovens,
     elfinDoor: { x: -70, y: showcase.y + showcase.h - 70 },
     // 注文の吹き出しを隠さないよう、客の顔の高さに出す
-    banner: { x: w / 2, y: 268 },
+    banner: { x: w / 2, y: 268 + top },
   };
 }
 
 function portraitLayout(w: number, h: number, stage: StageDef): Layout {
-  // 基準は 720×1280。それより縦長なら、客席・ショーケース・オーブンに余りを配る
+  // 基準は 720×1280。それより縦長なら、客席・ショーケース・オーブンに余りを配る。
+  // iPad の縦持ちのように横が余れば、客席の間を広げ、パンとかまどを大きくする
   const extra = Math.max(0, h - 1280);
+  const wide = Math.max(0, w - 720);
   const top = Math.round(extra * 0.4);
   const mid = Math.round(extra * 0.25);
   const hud = { x: 0, y: 0, w, h: 72 };
   const floor = { x: 0, y: 72, w, h: 450 + top };
   const counter = { x: 0, y: 512 + top, w, h: 100 };
-  const margin = 70;
+  const margin = 70 + wide / 4;
   const seats = Array.from({ length: stage.seats }, (_, i) => ({
     x: margin + ((w - margin * 2) * (i + 0.5)) / stage.seats,
     y: 440 + top,
@@ -136,9 +146,9 @@ function portraitLayout(w: number, h: number, stage: StageDef): Layout {
   const tray = { x: w / 2 - 190, y: 526 + top, w: 380, h: 74 };
   const work = { x: 0, y: 612 + top, w, h: h - 612 - top };
   const showcase = { x: 16, y: 630 + top, w: w - 32, h: 330 + mid };
-  const slots = grid(inset(showcase, 16, 22), stage.breads.length, 4, 10, 160, 150);
+  const slots = grid(inset(showcase, 16, 22), stage.breads.length, 4, 10, 160 + wide * 0.2, 150);
   const ovenArea = { x: 16, y: 984 + top + mid, w: w - 32, h: h - 1010 - top - mid };
-  const ovens = row(ovenArea, stage.ovens, 14, 216);
+  const ovens = row(ovenArea, stage.ovens, 14, 216 + wide * 0.1);
   return {
     w,
     h,

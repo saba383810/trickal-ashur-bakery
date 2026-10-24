@@ -12,7 +12,7 @@ import { outlined } from './view/draw/ui';
 import { GameView } from './view/gameView';
 import { inside, makeLayout } from './view/layout';
 import { C, font } from './view/palette';
-import { Screen } from './view/screen';
+import { Screen, pageZoom } from './view/screen';
 
 type Mode = 'menu' | 'tutorial' | 'countdown' | 'playing' | 'paused' | 'closing' | 'result';
 
@@ -324,6 +324,26 @@ export class App implements MenuHost {
     };
     window.addEventListener('resize', onResize);
     window.addEventListener('orientationchange', onResize);
+    // ピンチでページを拡大・縮小した時は resize が来ないので、拡大率が変わったら描き直す
+    // （sabanogames ではフレームの中にいるので、外側のページを見る）
+    let zoom = pageZoom();
+    let zoomTimer = 0;
+    const onZoom = () => {
+      clearTimeout(zoomTimer);
+      zoomTimer = window.setTimeout(() => {
+        if (pageZoom() === zoom) return;
+        zoom = pageZoom();
+        onResize();
+      }, 200);
+    };
+    window.visualViewport?.addEventListener('resize', onZoom);
+    try {
+      if (window.top && window.top !== window) window.top.visualViewport?.addEventListener('resize', onZoom);
+    } catch {
+      // 別オリジンのフレームの中では外側を読めない
+    }
+    // iOS は user-scalable=no を無視して 2 本指で拡大してしまうので止める（ほっぺは pointer で引っぱるので影響しない）
+    document.addEventListener('gesturestart', (e) => e.preventDefault());
 
     // タブを離れたら自動でポーズ
     document.addEventListener('visibilitychange', () => {
