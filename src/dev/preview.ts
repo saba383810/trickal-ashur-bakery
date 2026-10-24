@@ -44,6 +44,25 @@ if (location.search.includes('mochi')) {
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
+} else if (location.search.includes('pull')) {
+  // 上の段: ほっぺを引っぱっている最中（左右交互）、下の段: 離して 0.1 秒後の髪の揺れ
+  [ESHUR, ELFIN, NELL, KOMI, BUTTER, SPEAKI].forEach((spec, i) => {
+    const side = i % 2 ? -1 : 1;
+    const turn = side as -1 | 1;
+    const x = 125 + i * 230;
+    const held = new MochiBody();
+    held.grab(1, { x: side * 40, y: 30 });
+    held.pinch.move(1, { x: side * 110, y: 20 });
+    for (let f = 0; f < 40; f++) held.update(1 / 60);
+    held.draw(ctx, spec, x, 300 + (FEET_R - feetR(spec)) * 92, 92, { expr: 'surprised', t: 0.3, turn });
+    const swing = new MochiBody();
+    swing.grab(1, { x: side * 40, y: 30 });
+    swing.pinch.move(1, { x: side * 110, y: 20 });
+    for (let f = 0; f < 40; f++) swing.update(1 / 60);
+    swing.pinch.release(1);
+    for (let f = 0; f < 6; f++) swing.update(1 / 60);
+    swing.draw(ctx, spec, x, 820 + (FEET_R - feetR(spec)) * 92, 92, { expr: 'normal', t: 0.3, turn });
+  });
 } else if (location.search.includes('big')) {
   // 足の裏をそろえる（しゃがんだスピキは頭が低い）
   [ESHUR, ELFIN, NELL, KOMI, BUTTER, SPEAKI].forEach((spec, i) =>

@@ -107,6 +107,8 @@ export class GameView {
     keyHold: -1,
     /** 追い払えない時につまんだ（ほっぺが伸びるだけ） */
     free: false,
+    /** 前のフレームの横の速さ（描く向きに合わせた頭の単位 / 秒。髪の揺れに使う） */
+    hairVx: 0,
   };
   /**
    * 客を押している指。動かしたらほっぺを引っぱる（pinching）、動かさずに離したら渡す。
@@ -699,6 +701,11 @@ export class GameView {
     const vx = (e.x - prevX) / Math.max(dt, 1e-4);
     if (Math.abs(vx) > 20 && state !== 'launched') e.dir = vx > 0 ? 1 : -1;
     if (state === 'eating' && e.pointerId === null) e.dir = 1;
+    // 走り出し・立ち止まりの反動で髪を揺らす（drawElfin の左右反転に合わせる）
+    const flip = !w.elfin.grabbed && !e.free && state !== 'eating' ? e.dir : 1;
+    const hairVx = state === 'launched' || state === 'absent' ? 0 : (vx * flip * 50) / this.elfinR();
+    e.body.jolt(hairVx - e.hairVx);
+    e.hairVx = hairVx;
   }
 
   private elfinTargetPos(): Point {
@@ -708,6 +715,13 @@ export class GameView {
     const slot = this.L.slots[Math.max(0, idx)];
     // 足もとが棚の下端に来るように立つ（そのパンの棚をふさぐ）
     return { x: slot.x + slot.w / 2, y: slot.y + slot.h - this.elfinR() * FEET_R - 2 };
+  }
+
+  /** 客のほっぺをぷるんとさせ、顔を向けた側（店の真ん中）へ跳ねた反動で髪も揺らす */
+  private jiggle(c: Customer, kick: number): void {
+    const v = this.custView(c);
+    v.wobble.kick(kick);
+    v.body.jolt((this.custHead(c).x < this.L.w / 2 ? 1 : -1) * kick * 4);
   }
 
   private custView(c: Customer): CustView {
@@ -772,9 +786,8 @@ export class GameView {
         s.partial();
         const c = cust(ev.customerId);
         if (c) {
-          const v = this.custView(c);
-          v.wobble.kick(80);
-          v.bump = 1;
+          this.jiggle(c, 80);
+          this.custView(c).bump = 1;
           const h = this.custHead(c);
           this.fx.burst(h.x, h.y - 20, 'star', 6, C.gold, 160);
         }
@@ -787,7 +800,7 @@ export class GameView {
         s.serve(ev.combo);
         const c = cust(ev.customerId);
         const h = c ? this.custHead(c) : center(L.tray);
-        if (c) this.custView(c).wobble.kick(120);
+        if (c) this.jiggle(c, 120);
         this.fx.burst(h.x, h.y, 'heart', 5, '#f7808c', 140);
         this.fx.coinFly(h, this.hudSalesPos(), 1 + Math.floor(ev.payment.total / 150), () => {
           this.salesBump = 1;
@@ -828,7 +841,7 @@ export class GameView {
         s.partial();
         this.say(`cust:${ev.customerId}`, 'にゃっ！？ ……じゃあ、これとこれ。', () => this.custSayPos(ev.customerId), C.komi, 1.8);
         const c = cust(ev.customerId);
-        if (c) this.custView(c).wobble.kick(120);
+        if (c) this.jiggle(c, 120);
         break;
       }
       case 'butterArrive':

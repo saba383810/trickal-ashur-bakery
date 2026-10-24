@@ -78,7 +78,15 @@ export interface ChibiPose {
   prop?: boolean;
   /** 顔を向ける側（そちらのほっぺが輪郭の外へもちっと張り出す）。既定 1 */
   turn?: -1 | 1;
+  /** 髪の横揺れ（頭の単位。頭のてっぺんから 100 下の毛先が横へずれる量） */
+  sway?: number;
 }
+
+/**
+ * drawChibi で描く層（ビットの組み合わせ）。下から back（体・後ろ髪・横の髪）、face（輪郭・ほっぺ・目・口）、
+ * front（前髪・眉・帽子・持ち物）。ほっぺを引っぱる間は face だけを変形し、髪や体はそのまま上下に重ねる
+ */
+export const LAYER = { back: 1, face: 2, front: 4, all: 7 } as const;
 
 /** ほっぺの中心。頭半径 50 の単位 */
 const CHEEK = { x: 36, y: 29 };
@@ -118,52 +126,85 @@ export function drawChibi(
   y: number,
   r: number,
   pose: ChibiPose,
+  layers: number = LAYER.all,
 ): void {
   const k = r / 50;
   const squash = pose.squash ?? 1;
   const body = pose.body !== false;
+  const sway = pose.sway ?? 0;
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(pose.tilt ?? 0);
   ctx.scale(k * (2 - squash), k * squash);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-
-  if (body && spec.wings) wings(ctx, spec.wings);
-  if (body && spec.tail) tail(ctx, spec.tail);
-  // 顔だけの時は、肩から下に垂れる髪やヴェールを切る
-  ctx.save();
-  if (!body) {
-    ctx.beginPath();
-    ctx.rect(-140, -140, 280, 196);
-    ctx.clip();
-  }
-  if (spec.hat === 'veil') veilBack(ctx, spec);
-  if (body && spec.extra === 'elfin') royalCape(ctx);
-  backHair(ctx, spec);
-  ctx.restore();
-  if (body) drawBody(ctx, spec, pose);
-  if (spec.ears === 'elf') elfEars(ctx, spec);
   const g = faceGeom(spec, pose);
-  face(ctx, spec, g);
-  // 顔を向けた側へ目と口を少しずらす（3/4 向き）
-  ctx.save();
-  ctx.translate(g.turn * 3, 0);
-  eyes(ctx, spec, pose);
-  mouth(ctx, spec, pose);
+
+  if (layers & LAYER.back) {
+    if (body && spec.wings) wings(ctx, spec.wings);
+    if (body && spec.tail) tail(ctx, spec.tail);
+    // 顔だけの時は、肩から下に垂れる髪やヴェールを切る
+    ctx.save();
+    if (!body) {
+      ctx.beginPath();
+      ctx.rect(-140, -140, 280, 196);
+      ctx.clip();
+    }
+    if (spec.hat === 'veil') swayed(ctx, sway * 0.5, -60, () => veilBack(ctx, spec));
+    if (body && spec.extra === 'elfin') royalCape(ctx);
+    swayed(ctx, sway, -40, () => backHair(ctx, spec));
+    ctx.restore();
+    if (body) drawBody(ctx, spec, pose);
+    if (spec.ears === 'elf') elfEars(ctx, spec);
+    // 横の髪は顔より奥（ほっぺが髪の手前に出る）
+    sideHair(ctx, spec, body, sway);
+  }
+
+  if (layers & LAYER.face) {
+    face(ctx, spec, g, sway);
+    cheekBulge(ctx, spec, g);
+    // 顔を向けた側へ目と口を少しずらす（3/4 向き）
+    ctx.save();
+    ctx.translate(g.turn * 3, 0);
+    eyes(ctx, spec, pose);
+    mouth(ctx, spec, pose);
+    ctx.restore();
+  }
+
+  if (layers & LAYER.front) {
+    swayed(ctx, sway * BANG_SWAY, BANG_TOP, () => bangs(ctx, spec));
+    ctx.save();
+    ctx.translate(g.turn * 3, 0);
+    brows(ctx, spec, pose.expr);
+    ctx.restore();
+    if (spec.ears === 'cat') catEars(ctx, spec);
+    if (spec.ahoge) ahoge(ctx, spec, sway);
+    hat(ctx, spec);
+    if (body && pose.prop) prop(ctx, spec);
+    if (pose.expr === 'angry') angerMark(ctx, pose.t);
+    if (pose.expr === 'worried' && spec.extra !== 'speaki') sweat(ctx);
+    if (spec.mob && pose.expr === 'happy') heart(ctx, -g.turn * 50, -56 - Math.abs(Math.sin(pose.t * 5)) * 4);
+  }
   ctx.restore();
-  frontHair(ctx, spec, body, g);
+}
+
+/** 前髪の根もと（頭のてっぺん）と、毛先の揺れに対する前髪の揺れの割合（前髪は短いので少しだけ） */
+const BANG_TOP = -73;
+const BANG_SWAY = 0.2;
+
+/**
+ * 髪を揺らして描く。y = pivot の高さは動かさず、下へ行くほど横へずらす（毛先ほど大きく揺れる）。
+ * sway は pivot から 100 下でのずれ
+ */
+function swayed(ctx: CanvasRenderingContext2D, sway: number, pivot: number, draw: () => void): void {
+  if (!sway) {
+    draw();
+    return;
+  }
+  const c = sway / 100;
   ctx.save();
-  ctx.translate(g.turn * 3, 0);
-  brows(ctx, spec, pose.expr);
-  ctx.restore();
-  if (spec.ears === 'cat') catEars(ctx, spec);
-  if (spec.ahoge) ahoge(ctx, spec);
-  hat(ctx, spec);
-  if (body && pose.prop) prop(ctx, spec);
-  if (pose.expr === 'angry') angerMark(ctx, pose.t);
-  if (pose.expr === 'worried' && spec.extra !== 'speaki') sweat(ctx);
-  if (spec.mob && pose.expr === 'happy') heart(ctx, -g.turn * 50, -56 - Math.abs(Math.sin(pose.t * 5)) * 4);
+  ctx.transform(1, 0, c, 1, -c * pivot, 0);
+  draw();
   ctx.restore();
 }
 
@@ -465,19 +506,20 @@ function backHair(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
 
 // 前髪の下端（右 → 左）。ほぼ切りそろえた線に、とがった毛束をいくつか混ぜる
 const BANG_EDGES: Record<BangStyle, number[][]> = {
-  blunt: [[50, 8], [46, -3], [40, -6], [34, 1], [29, -7], [18, -8], [12, -1], [7, -9], [-4, -9], [-9, -1], [-14, -9], [-26, -8], [-31, 0], [-36, -7], [-44, -4], [-50, 8], [-58, 18]],
-  swept: [[50, 8], [45, -8], [38, -14], [33, -6], [28, -15], [18, -17], [12, -9], [6, -19], [-4, -15], [-10, -5], [-16, -12], [-28, -6], [-33, 2], [-38, -3], [-46, -1], [-52, 10], [-58, 18]],
-  split: [[50, 8], [45, -4], [38, -6], [32, 0], [27, -8], [16, -12], [10, -6], [4, -24], [-4, -24], [-10, -6], [-16, -12], [-27, -8], [-32, 0], [-38, -6], [-45, -4], [-50, 8], [-58, 18]],
+  blunt: [[50, 8], [46, -3], [40, -6], [34, 1], [29, -7], [18, -8], [12, -1], [7, -9], [-4, -9], [-9, -1], [-14, -9], [-26, -8], [-31, 0], [-36, -7], [-44, -4], [-50, 8], [-57, 9]],
+  swept: [[50, 8], [45, -8], [38, -14], [33, -6], [28, -15], [18, -17], [12, -9], [6, -19], [-4, -15], [-10, -5], [-16, -12], [-28, -6], [-33, 2], [-38, -3], [-46, -1], [-52, 10], [-57, 9]],
+  split: [[50, 8], [45, -4], [38, -6], [32, 0], [27, -8], [16, -12], [10, -6], [4, -24], [-4, -24], [-10, -6], [-16, -12], [-27, -8], [-32, 0], [-38, -6], [-45, -4], [-50, 8], [-57, 9]],
   // 目の下まで届く、ぱっつんの重い前髪。毛束の切れ目だけ小さく上がる
-  heavy: [[56, 12], [46, 7], [37, 8], [34, 1], [30, 7], [13, 7], [9, 0], [5, 7], [-13, 7], [-17, 0], [-21, 7], [-39, 7], [-48, 8], [-56, 12], [-60, 20]],
+  heavy: [[56, 12], [46, 7], [37, 8], [34, 1], [30, 7], [13, 7], [9, 0], [5, 7], [-13, 7], [-17, 0], [-21, 7], [-39, 7], [-48, 8], [-56, 12], [-59, 14]],
   // 目のすぐ上でまっすぐ切りそろえ、右寄りに分け目がひとつ
-  hime: [[50, 8], [47, -1], [34, -1], [31, -5], [28, -1], [16, -1], [11, -12], [6, -1], [-10, -1], [-13, -5], [-16, -1], [-30, -1], [-33, -5], [-36, -1], [-47, -1], [-50, 8], [-58, 18]],
+  hime: [[50, 8], [47, -1], [34, -1], [31, -5], [28, -1], [16, -1], [11, -12], [6, -1], [-10, -1], [-13, -5], [-16, -1], [-30, -1], [-33, -5], [-36, -1], [-47, -1], [-50, 8], [-57, 9]],
 };
 
 /** 前髪（頭のてっぺんから額まで） */
 function bangsPath(s: ChibiSpec): Path2D {
   const p = new Path2D();
-  const e = s.bangs === 'heavy' ? 20 : 18;
+  // 横の端はこめかみで止める（ほっぺまで下ろすと、伸ばしたほっぺに毛先が刺さって見える）
+  const e = s.bangs === 'heavy' ? 14 : 9;
   p.moveTo(-58, e);
   p.bezierCurveTo(-68, -38, -38, -73, 0, -73);
   p.bezierCurveTo(38, -73, 68, -38, 58, e);
@@ -492,29 +534,33 @@ function bangsPath(s: ChibiSpec): Path2D {
   return p;
 }
 
-function frontHair(ctx: CanvasRenderingContext2D, s: ChibiSpec, body: boolean, g: FaceGeom): void {
-  // 顔の横に垂れる髪
+/** 顔の横に垂れる髪と、三つ編み・垂れ耳。顔の輪郭より奥に描き、ほっぺの外側から毛先がのぞく */
+function sideHair(ctx: CanvasRenderingContext2D, s: ChibiSpec, body: boolean, sway: number): void {
   const len = s.style === 'short' ? 22 : s.style === 'bob' ? 42 : s.style === 'straight' ? 96 : s.style === 'long' || s.style === 'wavy' ? 60 : 46;
-  for (const side of [-1, 1]) {
-    ctx.beginPath();
-    ctx.moveTo(side * 52, -22);
-    ctx.bezierCurveTo(side * 64, 4, side * 63, len * 0.6, side * 55, len);
-    ctx.quadraticCurveTo(side * 51, len - 7, side * 46, len - 2);
-    ctx.bezierCurveTo(side * 47, len * 0.6, side * 45, 10, side * 40, -10);
-    ctx.closePath();
-    fillStroke(ctx, vgrad(ctx, -20, len, [s.hair, s.hair, s.hairTip]), 2.4);
-  }
-  if (s.extra === 'elfin' && body) braid(ctx, s);
-  // 垂れ耳は横の髪より手前・前髪より奥（付け根は前髪に隠れる）
-  if (s.ears === 'dog') dogEars(ctx, s);
-  cheekBulge(ctx, s, g);
+  swayed(ctx, sway, -22, () => {
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(side * 54, -24);
+      ctx.bezierCurveTo(side * 68, 4, side * 68, len * 0.6, side * 60, len);
+      ctx.quadraticCurveTo(side * 55, len - 7, side * 50, len - 2);
+      ctx.bezierCurveTo(side * 50, len * 0.6, side * 48, 10, side * 42, -10);
+      ctx.closePath();
+      fillStroke(ctx, vgrad(ctx, -20, len, [s.hair, s.hair, s.hairTip]), 2.4);
+    }
+    if (s.extra === 'elfin' && body) braid(ctx, s);
+  });
+  // 垂れ耳は横の髪より手前・顔より奥（付け根は前髪に隠れる）
+  if (s.ears === 'dog') swayed(ctx, sway * 0.8, -50, () => dogEars(ctx, s));
+}
 
-  const bangs = bangsPath(s);
+/** 前髪（毛束の線・つや・ヘアピンも） */
+function bangs(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
+  const path = bangsPath(s);
   ctx.fillStyle = vgrad(ctx, -73, 12, [s.hair, s.hair, mix(s.hair, s.hairShade, 0.55)]);
-  ctx.fill(bangs);
+  ctx.fill(path);
   // 毛束の線
   ctx.save();
-  ctx.clip(bangs);
+  ctx.clip(path);
   ctx.strokeStyle = s.hairShade;
   ctx.lineWidth = 1.8;
   const tip = s.bangs === 'heavy' ? 16 : 0;
@@ -533,7 +579,7 @@ function frontHair(ctx: CanvasRenderingContext2D, s: ChibiSpec, body: boolean, g
   ctx.restore();
   ctx.strokeStyle = LINE;
   ctx.lineWidth = 2.6;
-  ctx.stroke(bangs);
+  ctx.stroke(path);
 
   // つや
   ctx.fillStyle = s.shine;
@@ -670,13 +716,19 @@ function tail(ctx: CanvasRenderingContext2D, t: NonNullable<ChibiSpec['tail']>):
 }
 
 /** 頭のてっぺんのアホ毛 1 本 */
-function ahoge(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
+function ahoge(ctx: CanvasRenderingContext2D, s: ChibiSpec, sway: number): void {
+  // 根もとを軸に、髪の揺れと同じ向きへしなる
+  ctx.save();
+  ctx.translate(0, -60);
+  ctx.rotate(sway * 0.03);
+  ctx.translate(0, 60);
   ctx.beginPath();
   ctx.moveTo(-4, -60);
   ctx.bezierCurveTo(-2, -78, 16, -88, 18, -76);
   ctx.bezierCurveTo(12, -82, 4, -76, 4, -60);
   ctx.closePath();
   fillStroke(ctx, s.hair, 2.2);
+  ctx.restore();
 }
 
 /** 左右の輪とまん中の結び目のリボン */
@@ -1590,7 +1642,7 @@ function faceGeom(s: ChibiSpec, pose: ChibiPose): FaceGeom {
   };
 }
 
-function face(ctx: CanvasRenderingContext2D, s: ChibiSpec, g: FaceGeom): void {
+function face(ctx: CanvasRenderingContext2D, s: ChibiSpec, g: FaceGeom, sway: number): void {
   // 外側だけ線が見えるよう、太く引いてから塗る
   ctx.strokeStyle = LINE;
   ctx.lineWidth = 5.2;
@@ -1603,7 +1655,7 @@ function face(ctx: CanvasRenderingContext2D, s: ChibiSpec, g: FaceGeom): void {
   ctx.clip(g.path);
   ctx.translate(0, 5);
   ctx.fillStyle = 'rgba(226, 150, 150, 0.32)';
-  ctx.fill(bangsPath(s));
+  swayed(ctx, sway * BANG_SWAY, BANG_TOP, () => ctx.fill(bangsPath(s)));
   ctx.restore();
 
   for (const b of g.blush) cheekBlush(ctx, s, b.x, b.y, b.sc);

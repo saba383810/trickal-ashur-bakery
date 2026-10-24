@@ -124,8 +124,8 @@ export function mochiChibi(
     const dt = last ? Math.min(0.05, (t - last) / 1000) : 1 / 60;
     last = t;
     mochi.update(dt);
-    if (!mochi.pinch.active || !wrap.isConnected) {
-      mochi.pinch.reset();
+    if (!mochi.active || !wrap.isConnected) {
+      mochi.reset();
       stop();
       return;
     }

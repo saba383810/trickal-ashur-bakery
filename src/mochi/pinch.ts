@@ -213,6 +213,19 @@ export class Pinch {
     return Math.min(1, Math.hypot(g.pull.x, g.pull.y) / this.lmax);
   }
 
+  /** 指でつかんでいるほっぺの動く速さ（頭の単位 / 秒。全部の合計。離して揺れ戻っているところは入れない） */
+  get velocity(): Vec {
+    let x = 0;
+    let y = 0;
+    for (const g of this.grabs) {
+      if (g.released) continue;
+      const s = this.strengthOf(g);
+      x += g.vel.x * s;
+      y += g.vel.y * s;
+    }
+    return { x, y };
+  }
+
   /** いちばん伸びているところの強さ */
   get maxIntensity(): number {
     let m = 0;
