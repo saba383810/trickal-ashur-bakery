@@ -87,18 +87,28 @@ describe('音の解禁（別のアプリから戻った時）', () => {
     expect(fake(s)).toBe(FakeContext.made[1]);
   });
 
-  it('画面を離れていた時間は、固まった時間に数えない', () => {
+  it('別のアプリから戻ったら、running と言っていても最初の操作で 1 回だけ作り直す', () => {
     const s = new Sound();
     s.unlock();
-    const ctx = fake(s);
-    ctx.state = 'interrupted';
-    s.unlock();
+    const old = fake(s);
     s.sleep();
     now += 60_000;
     s.wake();
-    s.unlock();
-    expect(fake(s)).toBe(ctx);
+    // iOS は鳴らないまま running を返すことがある
+    old.state = 'running';
     expect(FakeContext.made).toHaveLength(1);
+    s.unlock();
+    expect(old.state).toBe('closed');
+    expect(FakeContext.made).toHaveLength(2);
+    s.unlock();
+    expect(FakeContext.made).toHaveLength(2);
+  });
+
+  it('まだ一度も鳴らしていなければ、戻っても作らない', () => {
+    const s = new Sound();
+    s.sleep();
+    s.wake();
+    expect(FakeContext.made).toHaveLength(0);
   });
 
   it('閉じられていたら作り直す', () => {

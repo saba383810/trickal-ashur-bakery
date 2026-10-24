@@ -15,13 +15,20 @@ export class Sound {
   muted = false;
   /** 操作しても AudioContext が動かないままになった時刻（0 = 動いている） */
   private stuckSince = 0;
+  /** 画面を離れて戻ってきた（次の操作で AudioContext を作り直す） */
+  private revive = false;
 
   /**
    * ユーザー操作の中で呼ぶ（自動再生制限・iOS 対策）。
-   * 別のアプリから戻ると、iOS では 'interrupted'、Android では 'suspended' のまま止まっていることがあるので、
-   * 動いていなければ操作のたびに起こし直す。それでも STUCK_MS 戻らなければ捨てて作り直す
+   * 別のアプリから戻った後の最初の操作では、AudioContext を作り直す
+   * （iOS は 'running' と言いながら鳴らないままのことがあり、状態では見分けられない）。
+   * 画面にいたまま止まった時（電話・アラームなど）は操作のたびに起こし直し、それでも STUCK_MS 戻らなければ作り直す
    */
   unlock(): AudioContext | null {
+    if (this.revive) {
+      this.revive = false;
+      this.reset();
+    }
     if (this.ctx && this.ctx.state !== 'running') {
       const now = performance.now();
       if (this.ctx.state === 'closed' || (this.stuckSince && now - this.stuckSince > STUCK_MS)) this.reset();
@@ -58,10 +65,11 @@ export class Sound {
   /** 画面を離れる時に止める */
   sleep(): void {
     this.stuckSince = 0;
+    if (this.ctx) this.revive = true;
     void this.ctx?.suspend().catch(() => undefined);
   }
 
-  /** 画面に戻った時に起こす（iOS では操作の中でないと戻らないことがあり、その時は次の unlock で起こし直す） */
+  /** 画面に戻った時に起こす（操作を待たずに戻る端末向け。戻らなくても、次の unlock で作り直す） */
   wake(): void {
     void this.ctx?.resume().catch(() => undefined);
   }
