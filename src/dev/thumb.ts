@@ -2,8 +2,8 @@
 import { PLAY_STAGES } from '../config/stages';
 import { drawBread } from '../view/draw/breads';
 import { MochiBody } from '../mochi/body';
-import { BUTTER, ELFIN, ESHUR, KOMI, NELL } from '../view/draw/characters';
-import { drawChibi } from '../view/draw/chibi';
+import { BUTTER, ELFIN, ESHUR, KOMI, NELL, SPEAKI } from '../view/draw/characters';
+import { drawChibi, feetR } from '../view/draw/chibi';
 import { SceneCache } from '../view/draw/scene';
 import { makeLayout } from '../view/layout';
 import { C, font } from '../view/palette';
@@ -49,6 +49,8 @@ async function draw(): Promise<void> {
   drawChibi(c, BUTTER, 548, 322, 44, { expr: 'happy', t: 0, turn: -1 });
   drawChibi(c, NELL, 690, 300, 54, { expr: 'smile', t: 0, turn: -1 });
   drawChibi(c, ESHUR, 400, 268, 74, { expr: 'happy', t: 0 });
+  // スピキはタイトルと同じく、エシュールの右の足もとにしゃがむ
+  drawChibi(c, SPEAKI, 466, 414 - feetR(SPEAKI) * 27, 27, { expr: 'happy', t: 0, turn: -1 });
 
   // カウンターの上のパン
   const breads = ['croissant', 'melon', 'shokupan', 'cornet', 'roll'] as const;
