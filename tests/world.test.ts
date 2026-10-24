@@ -467,12 +467,18 @@ describe('モード定義', () => {
     }
   });
 
-  it('微辛 → 中辛 → 激辛 の順に長く・忙しくなる', () => {
-    const [mild, medium, hot] = PLAY_STAGES.filter((s) => !s.endless);
-    expect(mild.duration).toBeLessThan(medium.duration);
-    expect(medium.duration).toBeLessThan(hot.duration);
-    expect(mild.breads.length).toBeLessThan(hot.breads.length);
-    expect(mild.customer.intervalEnd).toBeGreaterThan(hot.customer.intervalEnd);
+  it('微辛 → 中辛 → 辛口 → 激辛 の順に長く・忙しくなり、焦げるのは辛口から', () => {
+    const timed = PLAY_STAGES.filter((s) => !s.endless);
+    expect(timed.map((s) => s.title)).toEqual(['微辛', '中辛', '辛口', '激辛']);
+    expect(timed.map((s) => s.breads.length)).toEqual([2, 3, 4, 7]);
+    expect(timed.map((s) => s.burnTime)).toEqual([null, null, 10, 8]);
+    for (let i = 1; i < timed.length; i++) {
+      const [a, b] = [timed[i - 1], timed[i]];
+      expect(a.duration, b.id).toBeLessThan(b.duration);
+      expect(a.customer.intervalEnd, b.id).toBeGreaterThan(b.customer.intervalEnd);
+      expect(a.customer.itemWeights.length, b.id).toBeLessThanOrEqual(b.customer.itemWeights.length);
+      expect(a.heat, b.id).toBeLessThan(b.heat);
+    }
   });
 });
 
@@ -551,6 +557,24 @@ describe('微辛', () => {
     expect(sizes('nell')).toEqual([2]);
     expect(sizes('butter')).toEqual([2]);
     for (const c of seen.values()) expect(c.order.every((b) => mild.breads.includes(b))).toBe(true);
+  });
+});
+
+describe('中辛', () => {
+  it('パンは 3 種で焦げない。注文は 2 個まで', () => {
+    const medium = PLAY_STAGES.find((s) => s.id === 'medium')!;
+    expect(medium.breads).toHaveLength(3);
+    expect(medium.burnTime).toBeNull();
+    const w = new World(medium, 3);
+    const seen = new Map<number, Customer>();
+    while (w.phase === 'playing') {
+      w.step(DT);
+      for (const c of w.customers) seen.set(c.id, c);
+    }
+    const sizes = new Set([...seen.values()].map((c) => c.order.length));
+    expect(Math.max(...sizes)).toBe(2);
+    expect(sizes.has(1)).toBe(true);
+    for (const c of seen.values()) expect(c.order.every((b) => medium.breads.includes(b))).toBe(true);
   });
 });
 

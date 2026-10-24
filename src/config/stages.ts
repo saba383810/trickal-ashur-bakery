@@ -1,6 +1,6 @@
 import type { BreadId } from './breads';
 
-export type ModeId = 'tutorial' | 'mild' | 'medium' | 'hot' | 'endless';
+export type ModeId = 'tutorial' | 'mild' | 'medium' | 'spicy' | 'hot' | 'endless';
 
 /** エンドレス: 会計で時間が延び、時間がたつほど忙しくなる */
 export interface EndlessDef {
@@ -38,7 +38,7 @@ export interface EndlessDef {
 export interface StageDef {
   id: ModeId | string;
   title: string;
-  /** 辛さ（モード選択の唐辛子の数）。0 = チュートリアル */
+  /** 辛さ（モード選択の唐辛子の数）。0 = チュートリアル、5 = エンドレス（∞） */
   heat: number;
   /** 紹介画面でエシュールがかける一言（このモードの特徴と気をつけること） */
   blurb: string;
@@ -140,9 +140,31 @@ export const STAGES: StageDef[] = [
     id: 'medium',
     title: '中辛',
     heat: 2,
+    blurb: 'お客さんが増えてきたわ。パンは3種類で、ふたつまとめての注文もあるの。まだ焦げないから、注文をよく見て渡してね！',
+    duration: 75,
+    // 微辛の次の一歩: パン 3 種・注文は 1〜2 個。オーブンはパンの数だけあり、まだ焦げない
+    breads: ['roll', 'croissant', 'melon'],
+    ovens: 3,
+    seats: 3,
+    initialStock: 3,
+    burnTime: null,
+    customer: { intervalStart: 4.9, intervalEnd: 3.7, jitter: 0.25, itemWeights: [3, 1], patienceBase: 16, patiencePerItem: 5 },
+    elfin: { firstAt: 11, intervalMin: 12, intervalMax: 16, eatInterval: 2.3, maxEat: 2 },
+    nellVisits: [30, 58],
+    nellItems: 2,
+    komi: [15, 48],
+    butter: [40],
+    guestItems: { komi: 2, butter: 2 },
+    // 微辛と同じく来店ペースで頭打ち（ふつう・上手いボットは約 7,400）。★はその約 46% / 67% / 86%
+    stars: [3400, 5000, 6400],
+  },
+  {
+    id: 'spicy',
+    title: '辛口',
+    heat: 3,
     blurb: 'お昼どきよ。パンは4種類。ここからは焼けたパンを放っておくと焦げちゃうから、「やけた！」が出たらすぐ取り出してね。',
     duration: 90,
-    // 微辛の次の一歩: パン 4 種・注文はほぼ 1〜2 個。ここで「焦げる」が入る（猶予は長め）
+    // 中辛の次の一歩: パン 4 種・注文はほぼ 1〜2 個（たまに 3 個）。ここで「焦げる」が入る（猶予は長め）
     breads: ['roll', 'croissant', 'melon', 'anpan'],
     ovens: 3,
     seats: 4,
@@ -159,7 +181,7 @@ export const STAGES: StageDef[] = [
   {
     id: 'hot',
     title: '激辛',
-    heat: 3,
+    heat: 4,
     blurb: '全部のパンに全部のお客さん。焦げるのも早いし、女王様もおなかぺこぺこよ。教主、覚悟はいい？',
     duration: 120,
     breads: ALL_BREADS,
@@ -178,7 +200,7 @@ export const STAGES: StageDef[] = [
   {
     id: 'endless',
     title: 'エンドレス',
-    heat: 4,
+    heat: 5,
     blurb: 'コンボを続けると時間が延びるの。どんどん忙しくなるお店で、どこまで続けられるかしら？',
     duration: 45,
     breads: ['roll', 'croissant', 'melon', 'anpan', 'curry', 'cornet'],

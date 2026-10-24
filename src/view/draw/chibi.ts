@@ -35,6 +35,8 @@ export interface ChibiSpec {
   halfLid?: boolean;
   /** 眉の色（怒り・困り顔のときだけ出る） */
   brows?: string;
+  /** 瞳の下側の色（省略時は焦げ茶一色） */
+  eye?: string;
   mouth: MouthKind;
   style: HairStyle;
   bangs: BangStyle;
@@ -52,7 +54,7 @@ export interface ChibiSpec {
   hatColor: string;
   wings: WingKind;
   /** キャラ固有の服・小物 */
-  extra?: 'eshur' | 'elfin' | 'nell' | 'komi' | 'butter';
+  extra?: 'eshur' | 'elfin' | 'nell' | 'komi' | 'butter' | 'speaki';
   /** 名前のないモブ（目は前髪で隠れ、口と頬で表情を出す） */
   mob?: boolean;
   /** モブのエプロンの色 */
@@ -91,6 +93,8 @@ const TONGUE = '#fda3a2';
 const WHITE = '#fffdfb';
 const GOLD = '#fdd397';
 const GOLD_SHADE = '#e3a46f';
+const PUMPKIN = '#f3a25f';
+const PUMPKIN_SHADE = '#dc8546';
 
 export function drawChibi(
   ctx: CanvasRenderingContext2D,
@@ -132,6 +136,9 @@ export function drawChibi(
   ctx.translate(g.turn * 3, 0);
   eyes(ctx, spec, pose);
   mouth(ctx, spec, pose);
+  // スピッキーは困るとすぐ涙ぐむ
+  const teary = spec.extra === 'speaki' && pose.expr === 'worried';
+  if (teary) tears(ctx);
   ctx.restore();
   frontHair(ctx, spec, body, g);
   ctx.save();
@@ -143,7 +150,7 @@ export function drawChibi(
   hat(ctx, spec);
   if (body && pose.prop) prop(ctx, spec);
   if (pose.expr === 'angry') angerMark(ctx, pose.t);
-  if (pose.expr === 'worried') sweat(ctx);
+  if (pose.expr === 'worried' && !teary) sweat(ctx);
   if (spec.mob && pose.expr === 'happy') heart(ctx, -g.turn * 50, -56 - Math.abs(Math.sin(pose.t * 5)) * 4);
   ctx.restore();
 }
@@ -294,6 +301,7 @@ function royalCape(ctx: CanvasRenderingContext2D): void {
 
 /** ネルのヴェールの後ろ側（頭の後ろから肩まで） */
 function veilBack(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
+  const speaki = s.extra === 'speaki';
   ctx.beginPath();
   ctx.moveTo(-62, -52);
   ctx.bezierCurveTo(-84, -12, -82, 40, -76, 78);
@@ -301,9 +309,9 @@ function veilBack(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
   ctx.bezierCurveTo(82, 40, 84, -12, 62, -52);
   ctx.bezierCurveTo(40, -92, -40, -92, -62, -52);
   ctx.closePath();
-  fillStroke(ctx, vgrad(ctx, -90, 80, ['#7d7893', s.hatColor]));
-  // 縁の焦げ茶の帯
-  ctx.strokeStyle = '#4e3436';
+  fillStroke(ctx, vgrad(ctx, -90, 80, [speaki ? '#625869' : '#7d7893', s.hatColor]));
+  // 縁の帯（スピッキーは金）
+  ctx.strokeStyle = speaki ? GOLD : '#4e3436';
   ctx.lineWidth = 5;
   ctx.beginPath();
   ctx.moveTo(-77, 72);
@@ -807,11 +815,25 @@ function veilFront(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
   ctx.bezierCurveTo(58, -38, 34, -54, 0, -54);
   ctx.bezierCurveTo(-34, -54, -58, -38, -64, -10);
   ctx.closePath();
-  fillStroke(ctx, vgrad(ctx, -86, -10, ['#7d7893', s.hatColor]), 2.6);
+  const speaki = s.extra === 'speaki';
+  fillStroke(ctx, vgrad(ctx, -86, -10, [speaki ? '#625869' : '#7d7893', s.hatColor]), 2.6);
   ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
   ctx.beginPath();
   ctx.ellipse(-24, -72, 16, 5, -0.4, 0, Math.PI * 2);
   ctx.fill();
+  if (speaki) {
+    // 帯の内側の白いレース
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 8; i++) {
+        const u = i / 8;
+        const x = side * cubic(61, 55, 32, 0, u);
+        const y = cubic(-18, -42, -57, -57, u);
+        const l = Math.hypot(x, y - 10);
+        dot(ctx, x - (x / l) * 4.5, y - ((y - 10) / l) * 4.5, 2.8, WHITE, 1.4);
+      }
+    }
+    dot(ctx, 0, -52.5, 2.8, WHITE, 1.4);
+  }
   const band = () => {
     ctx.beginPath();
     ctx.moveTo(-61, -18);
@@ -823,9 +845,22 @@ function veilFront(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
   ctx.lineWidth = 10;
   ctx.stroke();
   band();
-  ctx.strokeStyle = '#ffffff';
+  ctx.strokeStyle = speaki ? GOLD : '#ffffff';
   ctx.lineWidth = 6;
   ctx.stroke();
+  if (speaki) {
+    // てっぺんの金の十字
+    ctx.beginPath();
+    ctx.roundRect(-2.4, -80, 4.8, 15, 1.5);
+    ctx.roundRect(-6.5, -76, 13, 4.4, 1.5);
+    fillStroke(ctx, GOLD, 1.6);
+  }
+}
+
+/** 3 次ベジェの 1 成分 */
+function cubic(a: number, b: number, c: number, d: number, t: number): number {
+  const m = 1 - t;
+  return m * m * m * a + 3 * m * m * t * b + 3 * m * t * t * c + t * t * t * d;
 }
 
 // ------------------------------------------------------------------ body
@@ -852,6 +887,9 @@ function drawBody(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose):
       break;
     case 'butter':
       butterBody(ctx, s);
+      break;
+    case 'speaki':
+      speakiBody(ctx, s, pose);
       break;
     default:
       villagerBody(ctx, s);
@@ -1170,6 +1208,80 @@ function nellBody(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose):
   fillStroke(ctx, '#cc9359', 1.6);
 }
 
+/** スピッキー: ネルをまねたシスター服。黒いブラウスに白い襟とオレンジの蝶ネクタイ、前が短い黒とオレンジのスカート、腰にドクロの仮面 */
+function speakiBody(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): void {
+  // 後ろが長いオレンジのスカート
+  torsoPath(ctx, 38);
+  fillStroke(ctx, sideShade(ctx, -38, 38, PUMPKIN, PUMPKIN_SHADE));
+  // 前が短い黒い上着
+  ctx.beginPath();
+  ctx.moveTo(-19, 42);
+  ctx.quadraticCurveTo(-26, 58, -25, 74);
+  ctx.quadraticCurveTo(-33, 84, -35, 94);
+  ctx.quadraticCurveTo(0, 78, 35, 94);
+  ctx.quadraticCurveTo(33, 84, 25, 74);
+  ctx.quadraticCurveTo(26, 58, 19, 42);
+  ctx.closePath();
+  fillStroke(ctx, sideShade(ctx, -35, 35, s.outfit, s.outfitShade));
+  // 裾の金の線と白いレース
+  const hem = (t: number, dy: number): [number, number] => {
+    const m = 1 - t;
+    return [m * m * -35 + t * t * 35, m * m * 94 + 2 * m * t * 78 + t * t * 94 + dy];
+  };
+  for (let i = 0; i <= 10; i++) {
+    const [x, y] = hem(i / 10, 2.5);
+    dot(ctx, x, y, 3, WHITE, 1.4);
+  }
+  ctx.strokeStyle = GOLD;
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  for (let i = 0; i <= 10; i++) {
+    const [x, y] = hem(0.05 + i * 0.09, -4);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  bow(ctx, -31, 94, 0.4, 0.42, PUMPKIN);
+  bow(ctx, 31, 94, -0.4, 0.42, PUMPKIN);
+  skull(ctx, 22, 76);
+
+  // 手は胸の前でもじもじ（バケツを持つ時は右手で提げる）
+  if (pose.prop) {
+    arm(ctx, s, -1, -5, 70, s.outfit, WHITE);
+    arm(ctx, s, 1, 34, 80, s.outfit, WHITE);
+  } else {
+    arm(ctx, s, -1, -4, 68, s.outfit, WHITE);
+    arm(ctx, s, 1, 4, 69, s.outfit, WHITE);
+  }
+
+  // 白い襟とオレンジの蝶ネクタイ
+  ctx.beginPath();
+  ctx.moveTo(-20, 43);
+  ctx.quadraticCurveTo(-31, 50, -25, 59);
+  ctx.quadraticCurveTo(-10, 61, 0, 51);
+  ctx.quadraticCurveTo(10, 61, 25, 59);
+  ctx.quadraticCurveTo(31, 50, 20, 43);
+  ctx.closePath();
+  fillStroke(ctx, sideShade(ctx, -31, 31, WHITE, '#e2d4dd', 0.66));
+  bow(ctx, 0, 51, 0, 0.5, PUMPKIN);
+}
+
+/** 幽霊のしるしのドクロの仮面 */
+function skull(ctx: CanvasRenderingContext2D, x: number, y: number): void {
+  ctx.beginPath();
+  ctx.roundRect(x - 4.5, y + 2, 9, 6.5, 2.5);
+  fillStroke(ctx, WHITE, 1.8);
+  ctx.beginPath();
+  ctx.ellipse(x, y, 7.5, 6.5, 0, 0, Math.PI * 2);
+  fillStroke(ctx, WHITE, 1.8);
+  ctx.fillStyle = LINE;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(x + side * 2.8, y + 0.5, 2, 2.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
 function eshurBody(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): void {
   // くすんだローズのプリーツスカート
   ctx.beginPath();
@@ -1317,6 +1429,46 @@ function prop(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
       tube(ctx, [42, 68, 80, 30], 3.2, '#6d5f66');
       dot(ctx, 80, 30, 3, WHITE, 1.6);
       break;
+    case 'speaki': {
+      // お菓子でいっぱいのかぼちゃのバケツ
+      ctx.strokeStyle = LINE;
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(40, 96, 13, Math.PI * 1.08, Math.PI * 1.92);
+      ctx.stroke();
+      for (const [x, y, c] of [[31, 90, '#f2a7b6'], [40, 87, '#a9d8ef'], [48, 90, '#f8dc7a'], [36, 92, '#bfe3a8'], [45, 93, '#f2a7b6']] as const) dot(ctx, x, y, 4, c, 1.6);
+      ctx.beginPath();
+      ctx.ellipse(40, 103, 16, 12.5, 0, 0, Math.PI * 2);
+      fillStroke(ctx, vgrad(ctx, 90, 116, [PUMPKIN, PUMPKIN_SHADE]), 2.2);
+      ctx.strokeStyle = '#c96a32';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.ellipse(40, 103, 7, 12, 0, -Math.PI / 2, Math.PI / 2, true);
+      ctx.moveTo(40, 91);
+      ctx.ellipse(40, 103, 7, 12, 0, -Math.PI / 2, Math.PI / 2);
+      ctx.stroke();
+      // ジャック・オー・ランタンの顔
+      ctx.fillStyle = LINE;
+      for (const side of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(40 + side * 3, 101);
+        ctx.lineTo(40 + side * 9, 101);
+        ctx.lineTo(40 + side * 6, 96);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.beginPath();
+      ctx.moveTo(32, 106);
+      ctx.lineTo(48, 106);
+      ctx.lineTo(45, 111);
+      ctx.lineTo(42.5, 108.5);
+      ctx.lineTo(40, 111);
+      ctx.lineTo(37.5, 108.5);
+      ctx.lineTo(35, 111);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
   }
 }
 
@@ -1443,8 +1595,9 @@ function eyes(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): voi
   for (const side of [-1, 1]) {
     const x = side * 22;
     const y = 12;
+    const iris = s.eye ? vgrad(ctx, y - 9, y + 9, [EYE, EYE, s.eye]) : EYE;
     ctx.strokeStyle = EYE;
-    ctx.fillStyle = EYE;
+    ctx.fillStyle = iris;
     ctx.lineWidth = 3;
 
     if (e === 'munch') {
@@ -1473,7 +1626,7 @@ function eyes(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): voi
       fillStroke(ctx, WHITE, 2.4, EYE);
       ctx.beginPath();
       ctx.ellipse(x, y + 1, 3, 3.6, 0, 0, Math.PI * 2);
-      ctx.fillStyle = EYE;
+      ctx.fillStyle = iris;
       ctx.fill();
       continue;
     }
@@ -1725,6 +1878,27 @@ function angerMark(ctx: CanvasRenderingContext2D, t: number): void {
     ctx.stroke();
   }
   ctx.restore();
+}
+
+/** うるうるの目（光と、下まぶたにたまった涙）と、頬を伝うひとしずく */
+function tears(ctx: CanvasRenderingContext2D): void {
+  for (const side of [-1, 1]) {
+    const x = side * 22;
+    ctx.fillStyle = WHITE;
+    ctx.beginPath();
+    ctx.arc(x - 1.5, 7.5, 2.4, 0, Math.PI * 2);
+    ctx.arc(x + 1.8, 15.5, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x, 20, 8, 3.2, 0, 0, Math.PI);
+    fillStroke(ctx, 'rgba(173, 222, 245, 0.9)', 1.4, '#5aa6c8');
+  }
+  ctx.beginPath();
+  ctx.moveTo(31, 22);
+  ctx.quadraticCurveTo(36, 30, 34, 33);
+  ctx.quadraticCurveTo(29, 35, 29, 30);
+  ctx.closePath();
+  fillStroke(ctx, 'rgba(173, 222, 245, 0.95)', 1.4, '#5aa6c8');
 }
 
 function sweat(ctx: CanvasRenderingContext2D): void {

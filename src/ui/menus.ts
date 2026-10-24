@@ -4,7 +4,7 @@ import { BREADS } from '../config/breads';
 import { PLAY_STAGES, STAGES, type StageDef } from '../config/stages';
 import type { World } from '../sim/world';
 import type { SaveData } from '../storage';
-import { BUTTER, ELFIN, ESHUR, KOMI, NELL, villager } from '../view/draw/characters';
+import { BUTTER, ELFIN, ESHUR, KOMI, NELL, SPEAKI, villager } from '../view/draw/characters';
 import type { ChibiSpec, Expr } from '../view/draw/chibi';
 import { DISCLAIMER, breadCanvas, h, mochiChibi, starsText, yen } from './dom';
 
@@ -72,17 +72,19 @@ export function titleScreen(host: MenuHost, on: { start: () => void; howTo: () =
 
 /** モードごとの顔（カードの左に出す） */
 const MODE_FACE: Record<string, [ChibiSpec, Expr]> = {
-  tutorial: [ESHUR, 'happy'],
+  tutorial: [SPEAKI, 'worried'],
   mild: [KOMI, 'normal'],
-  medium: [BUTTER, 'happy'],
+  medium: [ESHUR, 'happy'],
+  spicy: [BUTTER, 'happy'],
   hot: [ELFIN, 'munch'],
   endless: [NELL, 'smile'],
 };
 
+/** 辛さ 1〜4 は唐辛子の数、5（エンドレス）は ∞ */
 function chilis(heat: number): HTMLElement {
-  const el = h('span', { class: 'chilis', 'aria-label': `辛さ${heat}` });
-  for (let i = 0; i < Math.min(heat, 3); i++) el.append(h('span', { class: 'chili' }));
-  if (heat > 3) el.append(h('span', { class: 'chili-inf' }, '∞'));
+  const el = h('span', { class: 'chilis', 'aria-label': heat > 4 ? '辛さ∞' : `辛さ${heat}` });
+  if (heat > 4) el.append(h('span', { class: 'chili' }), h('span', { class: 'chili-inf' }, '∞'));
+  else for (let i = 0; i < heat; i++) el.append(h('span', { class: 'chili' }));
   return el;
 }
 
@@ -249,7 +251,7 @@ export function settingsPanel(host: MenuHost, on: { close: () => void }): HTMLEl
 
 // =============================================================== あそびかた
 
-/** 例: 「微辛では焦げません。中辛は10秒、激辛・エンドレス（レベル3から）は8秒で焦げてしまいます。」 */
+/** 例: 「微辛・中辛では焦げません。辛口は10秒、激辛・エンドレス（レベル3から）は8秒で焦げてしまいます。」 */
 function burnText(): string {
   const label = (s: StageDef) => (s.endless ? `${s.title}（レベル${s.endless.burnLevel}から）` : s.title);
   const names = (pick: (s: StageDef) => boolean) => PLAY_STAGES.filter(pick).map(label).join('・');
@@ -261,6 +263,7 @@ function burnText(): string {
 
 export function howToPanel(host: MenuHost, on: { close: () => void }): HTMLElement {
   const n = BALANCE.nell;
+  const timed = PLAY_STAGES.filter((s) => !s.endless);
   const pages: { title: string; art: () => HTMLElement; text: string[] }[] = [
     {
       title: 'お店の流れ',
@@ -331,7 +334,7 @@ export function howToPanel(host: MenuHost, on: { close: () => void }): HTMLEleme
       title: 'モード',
       art: () => h('div', { class: 'art' }, ...PLAY_STAGES.map((s) => h('span', { class: 'mode-chip' }, s.title))),
       text: [
-        `微辛・中辛・激辛：${PLAY_STAGES.filter((s) => !s.endless).map((s) => `${s.duration}秒`).join(' / ')}。辛いほどパンもお客さんも増えます。`,
+        `${timed.map((s) => s.title).join('・')}：${timed.map((s) => `${s.duration}秒`).join(' / ')}。辛いほどパンもお客さんも増えます。`,
         'エンドレス：会計するたびに時間が延び、コンボが続くほど長く延びます。時間がたつほどお客さんが増えていきます。',
         'チュートリアルはモード選択からいつでも。途中でスキップもできます。',
       ],

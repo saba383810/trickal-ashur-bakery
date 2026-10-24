@@ -21,7 +21,7 @@ const c = canvas.getContext('2d')!;
 async function draw(): Promise<void> {
   await document.fonts.load("800 40px 'M PLUS Rounded 1c'", 'エシュールのパン屋さんベーカリー');
   c.scale(dpr, dpr);
-  const stage = PLAY_STAGES[1];
+  const stage = PLAY_STAGES.find((s) => s.id === 'spicy')!;
   const L = makeLayout(1280, 720, false, stage);
   const scene = new SceneCache();
   scene.ensure(L, stage, 2);

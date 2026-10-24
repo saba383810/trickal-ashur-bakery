@@ -127,6 +127,31 @@ export const BUTTER: ChibiSpec = {
   extra: 'butter',
 };
 
+// スピッキー（スピキ）: 幽霊の泣き虫で、ネルのまねをしたシスター姿。淡い金髪で毛先は淡い水色、ぱっつん前髪、
+// オレンジの瞳。金の帯と白いレースの黒い頭巾、黒いブラウスにオレンジの蝶ネクタイ、前が短い黒とオレンジのスカート、
+// 白いハイソックスに黒い靴、腰にドクロの仮面。お菓子の入ったかぼちゃのバケツを持つ
+export const SPEAKI: ChibiSpec = {
+  skin: '#fff4ef',
+  hair: '#fbefc9',
+  hairShade: '#dcc1a4',
+  hairTip: '#b9def0',
+  shine: '#fffbea',
+  eye: '#d9773a',
+  mouth: 'open',
+  style: 'long',
+  bangs: 'blunt',
+  outfit: '#4f4555',
+  outfitShade: '#3f3645',
+  collar: '#ffffff',
+  legs: '#ffffff',
+  shoes: '#4a3a44',
+  ears: null,
+  hat: 'veil',
+  hatColor: '#3f3645',
+  wings: null,
+  extra: 'speaki',
+};
+
 // 妖精村の人たち（原作キャラではないオリジナルのお客さん）。
 // 原作のモブらしく、重い前髪で目を隠し、大きな頬と小さな口で表情を出す。髪と服はくすんだ色
 const HAIR: [string, string, string][] = [

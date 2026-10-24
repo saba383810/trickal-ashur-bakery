@@ -481,8 +481,9 @@ canvas.bread {
   outline-offset: 2px;
 }
 
-/* チュートリアルは横いっぱい、その下に 2×2 */
-.mode-card.heat-0 {
+/* チュートリアルとエンドレスは横いっぱい、その間に 2×2 */
+.mode-card.heat-0,
+.mode-card.heat-5 {
   grid-column: 1 / -1;
 }
 
@@ -498,7 +499,7 @@ canvas.bread {
   box-shadow: 0 4px 0 var(--gold-deep);
 }
 
-.mode-card.heat-4 {
+.mode-card.heat-5 {
   background: linear-gradient(100deg, #eef4ff, #fff7fb);
 }
 

@@ -137,7 +137,7 @@ export class Tutorial {
       {
         kind: 'act',
         expr: 'surprised',
-        text: '焼けたわ！ タップして取り出して。微辛では焦げないけど、中辛からは放っておくと焦げちゃうから気をつけるのよ！',
+        text: '焼けたわ！ タップして取り出して。微辛と中辛では焦げないけど、辛口からは放っておくと焦げちゃうから気をつけるのよ！',
         allow: (a) => a.type === 'ovenTap' && a.oven === this.ovenIndex,
         advance: (a) => a.type === 'ovenTap',
         target: () => [view.L.ovens[this.ovenIndex]],
@@ -217,7 +217,7 @@ export class Tutorial {
       {
         kind: 'tap',
         expr: 'happy',
-        text: 'これで全員の相手はばっちりね！ まずは微辛から。慣れたら中辛・激辛、エンドレスにも挑戦してみて！',
+        text: 'これで全員の相手はばっちりね！ まずは微辛から。慣れたら少しずつ辛くして、エンドレスにも挑戦してみて！',
       },
     ];
 

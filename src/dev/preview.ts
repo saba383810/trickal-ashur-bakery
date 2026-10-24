@@ -2,7 +2,7 @@
 import { BREADS, type BreadId } from '../config/breads';
 import { drawBread } from '../view/draw/breads';
 import { drawChibi, type Expr } from '../view/draw/chibi';
-import { BUTTER, ELFIN, ESHUR, KOMI, NELL, villager } from '../view/draw/characters';
+import { BUTTER, ELFIN, ESHUR, KOMI, NELL, SPEAKI, villager } from '../view/draw/characters';
 import { MochiBody } from '../mochi/body';
 
 const canvas = document.getElementById('c') as HTMLCanvasElement;
@@ -18,7 +18,7 @@ ctx.scale(dpr, dpr);
 
 // ?mochi ならドラッグでほっぺを引っぱれる（もちほっぺの手触りの確認用）
 if (location.search.includes('mochi')) {
-  const cast = [ESHUR, ELFIN, NELL, KOMI, BUTTER, villager(3 * 7919 + 13)].map((spec, i) => ({ spec, body: new MochiBody(), x: 130 + i * 228, y: 420, r: 80 }));
+  const cast = [ESHUR, ELFIN, NELL, KOMI, BUTTER, SPEAKI, villager(3 * 7919 + 13)].map((spec, i) => ({ spec, body: new MochiBody(), x: 110 + i * 196, y: 420, r: 72 }));
   const at = (e: PointerEvent) => ({ x: e.offsetX, y: e.offsetY });
   canvas.addEventListener('pointerdown', (e) => {
     const p = at(e);
@@ -45,16 +45,16 @@ if (location.search.includes('mochi')) {
   };
   requestAnimationFrame(frame);
 } else if (location.search.includes('big')) {
-  [ESHUR, ELFIN, NELL, KOMI, BUTTER].forEach((spec, i) => drawChibi(ctx, spec, 150 + i * 275, 330, 105, { expr: 'normal', t: 0.3, prop: true, turn: i % 2 ? -1 : 1 }));
+  [ESHUR, ELFIN, NELL, KOMI, BUTTER, SPEAKI].forEach((spec, i) => drawChibi(ctx, spec, 125 + i * 230, 330, 92, { expr: 'normal', t: 0.3, prop: true, turn: i % 2 ? -1 : 1 }));
   const mobExprs: Expr[] = ['normal', 'happy', 'worried', 'normal'];
   [3, 1, 5, 9].forEach((seed, i) => drawChibi(ctx, villager(seed * 7919 + 13), 190 + i * 340, 870, 105, { expr: mobExprs[i], t: 0, turn: i % 2 ? -1 : 1 }));
 } else {
   // 立ち絵（持ち物つき）・ほっぺを引っぱった顔・顔アイコン
-  // 表情の一覧（5 人 × 11 表情）
+  // 表情の一覧（6 人 × 11 表情）
   const exprs: Expr[] = ['normal', 'happy', 'smile', 'angry', 'worried', 'munch', 'surprised', 'sulk', 'dizzy', 'stern', 'sleep'];
-  [ESHUR, ELFIN, NELL, KOMI, BUTTER].forEach((spec, row) => {
+  [ESHUR, ELFIN, NELL, KOMI, BUTTER, SPEAKI].forEach((spec, row) => {
     exprs.forEach((expr, i) => {
-      drawChibi(ctx, spec, 60 + i * 125, 90 + row * 165, 34, { expr, t: 0.3 });
+      drawChibi(ctx, spec, 60 + i * 125, 80 + row * 140, 30, { expr, t: 0.3 });
     });
   });
   const mobExprs: Expr[] = ['normal', 'happy', 'normal', 'worried', 'normal', 'angry', 'normal', 'surprised', 'happy', 'normal'];
