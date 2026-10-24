@@ -32,7 +32,8 @@ export class Screen {
     this.w = size.w;
     // 縦長のスマホでは上下の余白を作らず、論理サイズを縦に伸ばす
     this.h = this.portrait ? Math.round(Math.min(PORTRAIT_MAX_H, Math.max(size.h, (size.w * ch) / Math.max(1, cw)))) : size.h;
-    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // スマホは 3 倍が多いので 3 まで（2 で止めると絵と文字がぼやける）
+    this.dpr = Math.min(window.devicePixelRatio || 1, 3);
     this.scale = Math.min(cw / this.w, ch / this.h);
     this.offsetX = (cw - this.w * this.scale) / 2;
     this.offsetY = (ch - this.h * this.scale) / 2;

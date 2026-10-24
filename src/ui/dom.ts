@@ -28,7 +28,7 @@ export function h<K extends keyof HTMLElementTagNameMap>(
 }
 
 function dpr(): number {
-  return Math.min(window.devicePixelRatio || 1, 2);
+  return Math.min(window.devicePixelRatio || 1, 3);
 }
 
 /** キャラの絵の枠（size = 頭の半径 px）。w = 幅、top = 頭の中心の高さ、ht = 高さ */
