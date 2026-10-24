@@ -117,6 +117,7 @@ export function mochiChibi(
     last = 0;
     over.getContext('2d')!.clearRect(0, 0, over.width, over.height);
     base.style.visibility = '';
+    wrap.style.zIndex = '';
   };
   const tick = (t: number) => {
     const dt = last ? Math.min(0.05, (t - last) / 1000) : 1 / 60;
@@ -140,9 +141,12 @@ export function mochiChibi(
   let start: { x: number; y: number } | null = null;
   let pulled = false;
   wrap.addEventListener('pointerdown', (e) => {
+    if (e.isTrusted && passDown(wrap, base, e)) return;
     if (!mochi.grab(e.pointerId, local(e))) return;
     e.preventDefault();
     wrap.setPointerCapture(e.pointerId);
+    // 重ねて並べたキャラの上へ、伸びたほっぺを出す
+    wrap.style.zIndex = '2';
     start = { x: e.clientX, y: e.clientY };
     pulled = false;
     opts.sound?.mochiGrab();
@@ -167,6 +171,31 @@ export function mochiChibi(
     { capture: true },
   );
   return wrap;
+}
+
+/**
+ * 絵の透明な所を押されて、その下に別のキャラが重なっていたら、そちらへ押したことを渡す。
+ * 下に何もなければ渡さない（絵の少し外を押しても、今までどおりそのキャラをつまめる）
+ */
+function passDown(wrap: HTMLElement, base: HTMLCanvasElement, e: PointerEvent): boolean {
+  const r = base.getBoundingClientRect();
+  const px = Math.floor(((e.clientX - r.left) / r.width) * base.width);
+  const py = Math.floor(((e.clientY - r.top) / r.height) * base.height);
+  // 枠の外は読まない（Chrome は枠の外を透明で返さないことがある）
+  const x0 = Math.max(0, px - 4);
+  const y0 = Math.max(0, py - 4);
+  const x1 = Math.min(base.width, px + 5);
+  const y1 = Math.min(base.height, py + 5);
+  if (x1 <= x0 || y1 <= y0) return false;
+  const near = base.getContext('2d')!.getImageData(x0, y0, x1 - x0, y1 - y0).data;
+  for (let i = 3; i < near.length; i += 4) if (near[i] > 0) return false;
+  const below = document
+    .elementsFromPoint(e.clientX, e.clientY)
+    .map((el) => el.closest('.mochi'))
+    .find((m) => m && m !== wrap);
+  if (!below) return false;
+  if (!below.dispatchEvent(new PointerEvent('pointerdown', e))) e.preventDefault();
+  return true;
 }
 
 export function breadCanvas(id: BreadId, size: number): HTMLCanvasElement {

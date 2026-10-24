@@ -50,6 +50,8 @@ export function titleScreen(host: MenuHost, on: { start: () => void; howTo: () =
       { class: 'cast main' },
       h('div', { class: 'say' }, 'パン屋じゃなくて、大魔法使いの店よ！'),
       chara(host, ESHUR, 'smile', 50),
+      // スピキはエシュールとネルの足もとにしゃがむ
+      h('div', { class: 'cast pet' }, chara(host, SPEAKI, 'happy', 26, { flip: true })),
     ),
     h('div', { class: 'cast side' }, chara(host, NELL, 'smile', 34, { flip: true })),
     h('div', { class: 'cast side far' }, chara(host, BUTTER, 'happy', 30, { flip: true })),

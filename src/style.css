@@ -395,6 +395,19 @@ canvas.bread {
   height: clamp(64px, 15vmin, 128px) !important;
 }
 
+/* しゃがんだスピキ。エシュールの右下から、ネルの足もとへはみ出して前に出す */
+.title-cast .pet {
+  position: absolute;
+  right: -18%;
+  bottom: -2px;
+  z-index: 1;
+}
+
+.title-cast .pet canvas {
+  width: auto !important;
+  height: clamp(50px, 11.5vmin, 96px) !important;
+}
+
 .say {
   position: absolute;
   bottom: calc(100% - 6px);
@@ -1124,6 +1137,10 @@ kbd {
 
   .title-cast .main canvas {
     height: 92px !important;
+  }
+
+  .title-cast .pet canvas {
+    height: 42px !important;
   }
 
   .title-cast .side canvas {
