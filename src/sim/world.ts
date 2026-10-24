@@ -31,6 +31,8 @@ export interface Customer {
   asleep: boolean;
   /** ほっぺを引っぱって待ち時間を回復済み（1 人 1 回） */
   mochi: boolean;
+  /** フィーバータイムに来た客（注文 1 個・出入りが速い） */
+  fever: boolean;
 }
 
 export type OvenState = 'idle' | 'baking' | 'ready' | 'burnt';
@@ -81,6 +83,9 @@ export interface Stats {
   butterShots: number;
   /** エンドレスで延びた秒数の合計 */
   timeAdded: number;
+  fevers: number;
+  /** フィーバー中に会計した客 */
+  feverServed: number;
 }
 
 export type Phase = 'playing' | 'ended';
@@ -123,6 +128,10 @@ export class World {
   combo = 0;
   /** ネルの祝福の残り秒数 */
   buff = 0;
+  /** フィーバータイムの残り秒数 */
+  fever = 0;
+  /** フィーバーまでの会計数（stage.feverServes で満タン。フィーバー中は増えない） */
+  feverGauge = 0;
   ledger: Ledger = { base: 0, tip: 0, combo: 0, nell: 0, tabCollected: 0 };
   stats: Stats = {
     served: 0,
@@ -137,6 +146,8 @@ export class World {
     mochi: 0,
     butterShots: 0,
     timeAdded: 0,
+    fevers: 0,
+    feverServed: 0,
   };
   events: GameEvent[] = [];
 
@@ -149,7 +160,10 @@ export class World {
   private nextId = 1;
   private nextSpawnAt = 1;
   private nextElfinAt: number;
+  /** 席の空く時刻。frozen でも進む clock で数える（チュートリアルのフィーバーでも席が回るように） */
   private seatFreeAt: number[];
+  private clock = 0;
+  private feverSpawnAt = 0;
   private warned = false;
   /** 直近の注文（BALANCE.orderBias の recentOrders と maxRun の多いほうの件数） */
   private recentOrders: BreadId[][] = [];
@@ -212,11 +226,16 @@ export class World {
     return this.nellPendingAt !== null || this.customers.some((c) => c.kind === 'nell' && c.state !== 'leaving');
   }
 
+  /** ショーケースから取れるか（フィーバー中はいくらでも取れる） */
+  hasBread(bread: BreadId): boolean {
+    return this.fever > 0 || this.stock[bread] > 0;
+  }
+
   // ---------------------------------------------------------------- commands
 
   pickBread(bread: BreadId): boolean {
     if (this.phase !== 'playing') return false;
-    if (this.stock[bread] <= 0) {
+    if (!this.hasBread(bread)) {
       this.emit({ type: 'pickFail', bread, reason: 'empty' });
       return false;
     }
@@ -224,7 +243,7 @@ export class World {
       this.emit({ type: 'pickFail', bread, reason: 'full' });
       return false;
     }
-    this.stock[bread]--;
+    if (this.fever <= 0) this.stock[bread]--;
     this.tray.push(bread);
     this.emit({ type: 'pick', bread });
     return true;
@@ -235,7 +254,7 @@ export class World {
     const bread = this.tray[index];
     if (!bread) return false;
     this.tray.splice(index, 1);
-    this.stock[bread]++;
+    if (this.fever <= 0) this.stock[bread]++;
     this.emit({ type: 'return', bread });
     return true;
   }
@@ -275,6 +294,22 @@ export class World {
     this.stats.mochi++;
     this.emit({ type: 'customerMochi', customerId: c.id });
     return 'refill';
+  }
+
+  /**
+   * フィーバータイムを始める（ゲージ満タンで自動。チュートリアルは直接呼ぶ）。
+   * 来ていたエルフィンは逃げ出す
+   */
+  startFever(): void {
+    if (this.phase !== 'playing' || this.fever > 0) return;
+    const d = BALANCE.fever.duration;
+    this.fever = d;
+    this.feverGauge = this.stage.feverServes ?? 0;
+    this.feverSpawnAt = this.clock;
+    this.stats.fevers++;
+    this.emit({ type: 'feverStart', duration: d });
+    const e = this.elfin;
+    if (e.state === 'entering' || e.state === 'eating') this.elfinFlee('fever');
   }
 
   /** チュートリアル用: エルフィンをすぐ呼ぶ */
@@ -352,7 +387,9 @@ export class World {
   step(dt: number): void {
     if (this.phase !== 'playing') return;
 
+    this.clock += dt;
     this.updateOvens(dt);
+    this.updateFever(dt);
     if (this.frozen) {
       this.updateCustomers(dt, false);
       this.updateElfin(dt);
@@ -362,9 +399,12 @@ export class World {
 
     this.time += dt;
     this.updateLevel();
-    this.updateNell();
-    this.updateGuests();
-    this.updateSpawner();
+    // フィーバー中はネル・コミー・バターを待たせ、ふだんの客も来ない（席はフィーバーの客で埋める）
+    if (this.fever <= 0) {
+      this.updateNell();
+      this.updateGuests();
+      this.updateSpawner();
+    }
     this.updateCustomers(dt);
     this.updateElfin(dt);
     this.updateButter(dt);
@@ -419,7 +459,9 @@ export class World {
       this.leave(c, 'happy');
       this.emit({ type: 'serveComplete', customerId: c.id, payment, combo: this.combo });
       const e = this.stage.endless;
-      if (e) this.extendTime(e.timeBase + e.timePerCombo * Math.min(this.combo, e.timeComboCap));
+      // エンドレスのフィーバー中は時計が止まっているので延ばさない
+      if (e && this.fever <= 0) this.extendTime(e.timeBase + e.timePerCombo * Math.min(this.combo, e.timeComboCap));
+      this.countFever();
       return 'complete';
     }
     c.patience = Math.min(c.patienceMax, c.patience + BALANCE.customer.partialBonus);
@@ -452,8 +494,44 @@ export class World {
     this.stats.nellSuccess++;
     this.leave(c, 'happy');
     this.emit({ type: 'nellSuccess', customerId: c.id, tabPaid, payment });
-    if (this.stage.endless) this.extendTime(this.stage.endless.nellTime);
+    if (this.stage.endless && this.fever <= 0) this.extendTime(this.stage.endless.nellTime);
+    this.countFever();
     return 'complete';
+  }
+
+  /** 会計 1 回ぶんゲージを進め、満タンならフィーバー */
+  private countFever(): void {
+    if (this.fever > 0) {
+      this.stats.feverServed++;
+      return;
+    }
+    const need = this.stage.feverServes;
+    if (!need) return;
+    this.feverGauge = Math.min(need, this.feverGauge + 1);
+    if (this.feverGauge >= need) this.startFever();
+  }
+
+  // ------------------------------------------------------------------ fever
+
+  private updateFever(dt: number): void {
+    if (this.fever <= 0) return;
+    // エンドレスは残り時間が減らない（会計でも延びない）
+    if (this.stage.endless && !this.frozen) this.timeLimit += Math.min(dt, this.fever);
+    this.fever = Math.max(0, this.fever - dt);
+    if (this.fever === 0) {
+      this.feverGauge = 0;
+      this.nextElfinAt = Math.max(this.nextElfinAt, this.time + BALANCE.fever.elfinAfter);
+      // 予告できなかったネルは、ここから予告しなおす（予告から来店まで announceLead 秒あける）
+      const lead = BALANCE.nell.announceLead;
+      if (this.nellQueue.length > 0 && this.nellQueue[0] - lead < this.time) this.nellQueue[0] = this.time + lead;
+      this.emit({ type: 'feverEnd' });
+      return;
+    }
+    if (this.clock < this.feverSpawnAt) return;
+    const seat = this.pickFreeSeat(false);
+    if (seat === null) return;
+    this.feverSpawnAt = this.clock + BALANCE.fever.spawnGap;
+    this.addCustomer('normal', seat, this.randomBreads(1), BALANCE.fever.patience).fever = true;
   }
 
   // ---------------------------------------------------------------- endless
@@ -553,6 +631,7 @@ export class World {
       reveal: 0,
       asleep: kind === 'komi',
       mochi: false,
+      fever: false,
     };
     this.customers.push(c);
     const type = ({ normal: 'customerArrive', nell: 'nellArrive', komi: 'komiArrive', butter: 'butterArrive' } as const)[kind];
@@ -576,13 +655,14 @@ export class World {
     const near = this.recentOrders.slice(-bias.recentOrders);
     // 全部のパンが続いているとき（パンが少なく注文が多いとき）は締め出さない
     const streak = menu.filter((b) => run.length >= bias.maxRun && run.every((o) => o.includes(b)));
-    const blocked = streak.length < menu.length ? streak : [];
+    // フィーバー中はパンが減らないので、続いても足りなくても構わない
+    const blocked = streak.length < menu.length && this.fever <= 0 ? streak : [];
     const items: BreadId[] = [];
     for (let i = 0; i < count; i++) {
       const weights = menu.map((b) => {
         if (blocked.includes(b)) return 0;
         const recent = [...near, items].reduce((n, o) => n + countOf(o, b), 0);
-        const short = Math.max(0, countOf(items, b) + 1 - spare[b]);
+        const short = this.fever > 0 ? 0 : Math.max(0, countOf(items, b) + 1 - spare[b]);
         return BREADS[b].popularity * bias.recentRate ** recent * bias.shortRate ** short;
       });
       items.push(menu[this.rng.weighted(weights)]);
@@ -612,7 +692,7 @@ export class World {
   private pickFreeSeat(keepOne: boolean): number | null {
     const free: number[] = [];
     for (let s = 0; s < this.stage.seats; s++) {
-      if (this.time >= this.seatFreeAt[s] && !this.customers.some((c) => c.seat === s)) free.push(s);
+      if (this.clock >= this.seatFreeAt[s] && !this.customers.some((c) => c.seat === s)) free.push(s);
     }
     if (free.length === 0 || (keepOne && free.length <= 1)) return null;
     return this.rng.pick(free);
@@ -652,13 +732,14 @@ export class World {
     for (const c of this.customers) {
       c.stateTime += dt;
       c.reject = Math.max(0, c.reject - dt);
-      if (c.state === 'entering' && c.stateTime >= cfg.enterTime) {
+      if (c.state === 'entering' && c.stateTime >= enterTimeOf(c)) {
         c.state = 'waiting';
         c.stateTime = 0;
         if (c.kind === 'nell') c.reveal = BALANCE.nell.revealTime;
       } else if (c.state === 'waiting') {
         c.reveal = Math.max(0, c.reveal - dt);
-        if (drain && !c.asleep) c.patience -= dt;
+        // フィーバー中は誰も待ちくたびれない
+        if (drain && !c.asleep && this.fever <= 0) c.patience -= dt;
         if (c.patience <= 0 && c.kind === 'komi') {
           // コミーは怒って帰らず、また眠ってしまう（席はふさがったまま）
           c.asleep = true;
@@ -678,8 +759,9 @@ export class World {
         }
       }
     }
-    const gone = this.customers.filter((c) => c.state === 'leaving' && c.stateTime >= cfg.leaveTime);
-    for (const c of gone) this.seatFreeAt[c.seat] = this.time + cfg.minGapAfterLeave;
+    const gone = this.customers.filter((c) => c.state === 'leaving' && c.stateTime >= leaveTimeOf(c));
+    const gap = this.fever > 0 ? BALANCE.fever.seatGap : cfg.minGapAfterLeave;
+    for (const c of gone) this.seatFreeAt[c.seat] = this.clock + gap;
     if (gone.length) this.customers = this.customers.filter((c) => !gone.includes(c));
   }
 
@@ -727,7 +809,7 @@ export class World {
           oven.t = 0;
           this.emit({ type: 'ovenReady', oven: i });
         }
-      } else if (oven.state === 'ready' && !this.frozen) {
+      } else if (oven.state === 'ready' && !this.frozen && this.fever <= 0) {
         oven.t += dt;
         if (this.burnTime !== null && oven.t >= this.burnTime) {
           oven.state = 'burnt';
@@ -760,17 +842,22 @@ export class World {
 
     switch (e.state) {
       case 'absent':
-        if (this.time >= this.nextElfinAt && !this.nellInShop && (this.stage.endless || this.remaining > BALANCE.closingTime + 1)) {
+        if (
+          this.time >= this.nextElfinAt &&
+          this.fever <= 0 &&
+          !this.nellInShop &&
+          (this.stage.endless || this.remaining > BALANCE.closingTime + 1)
+        ) {
           this.elfinArrive();
         }
         break;
       case 'entering':
-        if (this.nellInShop) return this.elfinFlee();
+        if (this.nellInShop) return this.elfinFlee('nell');
         if (!held) e.enter = Math.min(1, e.enter + dt / b.enterTime);
         if (e.enter >= 1) this.setElfin('eating');
         break;
       case 'eating':
-        if (this.nellInShop) return this.elfinFlee();
+        if (this.nellInShop) return this.elfinFlee('nell');
         if (held) break;
         e.eatTimer += dt;
         if (e.eatTimer < cfg.eatInterval) break;
@@ -842,9 +929,9 @@ export class World {
     this.emit({ type: 'elfinLeave', full });
   }
 
-  private elfinFlee(): void {
+  private elfinFlee(reason: 'nell' | 'fever'): void {
     this.setElfin('leaving');
-    this.emit({ type: 'elfinFlee' });
+    this.emit({ type: 'elfinFlee', reason });
   }
 
   private elfinGone(cooldown: number): void {
@@ -862,6 +949,15 @@ export class World {
   private emit(e: GameEvent): void {
     this.events.push(e);
   }
+}
+
+/** 入店・退店にかかる秒数（フィーバーの客は速い） */
+export function enterTimeOf(c: Customer): number {
+  return c.fever ? BALANCE.fever.enterTime : BALANCE.customer.enterTime;
+}
+
+export function leaveTimeOf(c: Customer): number {
+  return c.fever ? BALANCE.fever.leaveTime : BALANCE.customer.leaveTime;
 }
 
 /** 種類と個数が一致するか（順番は問わない） */

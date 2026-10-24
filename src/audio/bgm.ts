@@ -33,7 +33,8 @@ function freq(name: string): number {
   return 440 * Math.pow(2, (midi - 69) / 12);
 }
 
-export type BgmMode = 'title' | 'normal' | 'fever' | 'hurry';
+/** fever = ネルの祝福 / rainbow = フィーバータイム */
+export type BgmMode = 'title' | 'normal' | 'fever' | 'rainbow' | 'hurry';
 
 export class Bgm {
   private timer: number | null = null;
@@ -71,6 +72,8 @@ export class Bgm {
         return 100;
       case 'fever':
         return 132;
+      case 'rainbow':
+        return 150;
       case 'hurry':
         return 140;
       default:
@@ -99,6 +102,8 @@ export class Bgm {
     const sixteenth = 60 / this.bpm / 4;
     const chord = CHORDS[bar][s < 8 ? 0 : 1];
     const title = this.mode === 'title';
+    const rainbow = this.mode === 'rainbow';
+    const sparkle = this.mode === 'fever' || rainbow;
 
     // メロディ（8 分音符）
     if (s % 2 === 0) {
@@ -108,7 +113,7 @@ export class Bgm {
         let len = 1;
         while (cells[s / 2 + len] === '-') len++;
         this.voice(freq(note), t, sixteenth * 2 * len * 0.92, 'triangle', title ? 0.16 : 0.2, true);
-        if (this.mode === 'fever') this.voice(freq(note) * 2, t, sixteenth * 1.5, 'sine', 0.05);
+        if (sparkle) this.voice(freq(note) * 2, t, sixteenth * 1.5, 'sine', 0.05);
       }
     }
 
@@ -121,16 +126,17 @@ export class Bgm {
       for (const n of chord) this.voice(freq(n), t, sixteenth * 1.2, title ? 'sine' : 'square', title ? 0.04 : 0.025);
     }
 
-    // フィーバー中のきらきらアルペジオ
-    if (this.mode === 'fever' && s % 2 === 1) {
-      const n = chord[(s >> 1) % 3];
-      this.voice(freq(n) * 4, t, sixteenth * 0.8, 'sine', 0.035);
+    // 祝福中のきらきらアルペジオ（フィーバータイムは 16 分で駆け上がる）
+    if ((sparkle && s % 2 === 1) || rainbow) {
+      const n = chord[(rainbow ? s : s >> 1) % 3];
+      this.voice(freq(n) * (rainbow && s % 6 >= 3 ? 8 : 4), t, sixteenth * 0.8, 'sine', rainbow ? 0.03 : 0.035);
     }
 
     if (title) return;
     // ドラム
     if (s % 4 === 0) this.kick(t);
-    if (s === 4 || s === 12) this.snare(t);
+    if (s === 4 || s === 12 || (rainbow && s === 14)) this.snare(t);
+    if (rainbow && s % 8 === 6) this.kick(t);
     if (s % 2 === 0 || this.mode !== 'normal') this.hat(t, s % 4 === 2 ? 0.05 : 0.025);
   }
 

@@ -11,6 +11,8 @@ export interface SlotLook {
   flash: number;
   /** 取ったときのぽよん 0..1 */
   pop: number;
+  /** フィーバー中: 在庫に関係なく山盛りにして「∞」を出す（値はバッジの色相） */
+  infinite?: number;
 }
 
 /** ショーケースのパン（在庫を山盛りで見せる） */
@@ -18,6 +20,8 @@ export function drawSlot(c: CanvasRenderingContext2D, r: Rect, bread: BreadId, s
   const cx = r.x + r.w / 2;
   const cy = r.y + r.h * 0.46;
   const size = Math.min(r.w * 0.5, r.h * 0.62);
+  const inf = look.infinite !== undefined;
+  if (inf) stock = 3;
 
   if (look.hover && stock > 0) {
     c.fillStyle = 'rgba(255, 255, 255, 0.55)';
@@ -46,7 +50,7 @@ export function drawSlot(c: CanvasRenderingContext2D, r: Rect, bread: BreadId, s
     // 個数バッジ
     const bx = r.x + r.w - 20;
     const by = r.y + 18;
-    c.fillStyle = stock <= 1 ? C.warn : C.woodDark;
+    c.fillStyle = inf ? `hsl(${look.infinite} 85% 52%)` : stock <= 1 ? C.warn : C.woodDark;
     c.beginPath();
     c.arc(bx, by, 15, 0, Math.PI * 2);
     c.fill();
@@ -54,10 +58,10 @@ export function drawSlot(c: CanvasRenderingContext2D, r: Rect, bread: BreadId, s
     c.lineWidth = 2.5;
     c.stroke();
     c.fillStyle = C.white;
-    c.font = font(stock >= 10 ? 13 : 16);
+    c.font = font(inf ? 22 : stock >= 10 ? 13 : 16);
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.fillText(String(stock), bx, by + 1);
+    c.fillText(inf ? '∞' : String(stock), bx, by + (inf ? 0 : 1));
   }
 
   if (look.flash > 0) {

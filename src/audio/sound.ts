@@ -345,6 +345,17 @@ export class Sound {
     [659, 880, 1175].forEach((f, i) => this.tone(f, 0.16, { type: 'square', vol: 0.08, at: i * 0.09 }));
   }
 
+  /** フィーバータイム: 虹のように駆け上がって、鈴がきらめく */
+  feverStart(): void {
+    [523, 659, 784, 988, 1175, 1319, 1568, 2093].forEach((f, i) => this.tone(f, 0.18, { type: 'triangle', vol: 0.13, at: i * 0.045 }));
+    [1568, 2093, 2637].forEach((f, i) => this.bell(f, 0.4 + i * 0.08, 0.12, 0.6));
+    this.noise(0.9, { freq: 9000, q: 2, vol: 0.05, at: 0.2, type: 'highpass' });
+  }
+
+  feverEnd(): void {
+    [1319, 1047, 784].forEach((f, i) => this.bell(f, i * 0.1, 0.1, 0.5));
+  }
+
   buffEnd(): void {
     this.tone(784, 0.15, { type: 'triangle', vol: 0.14 });
     this.tone(523, 0.25, { type: 'triangle', vol: 0.14, at: 0.14 });

@@ -90,7 +90,7 @@ export class Bot {
       for (const c of waiting) {
         if (c.kind === 'nell') continue;
         const missing = this.missingFromTray(c);
-        const bread = missing.find((b) => w.stock[b] > 0);
+        const bread = missing.find((b) => w.hasBread(b));
         if (bread) return w.pickBread(bread), t;
       }
     } else if (!waiting.some((c) => c.kind === 'normal' && this.need(c).some((b) => w.tray.includes(b)))) {
@@ -116,7 +116,7 @@ export class Bot {
       return t + 1;
     }
     // 足りないパンがあるうちは焼くだけにして、トレーは他の客に使う
-    const lacking = nell.order.find((b) => w.stock[b] + w.tray.filter((x) => x === b).length < count(nell.order, b));
+    const lacking = w.fever > 0 ? undefined : nell.order.find((b) => w.stock[b] + w.tray.filter((x) => x === b).length < count(nell.order, b));
     if (lacking) {
       const idle = w.ovens.findIndex((o) => o.state === 'idle');
       if (idle >= 0 && !w.ovens.some((o) => o.bread === lacking)) return w.bake(idle, lacking), t;
@@ -129,7 +129,7 @@ export class Bot {
       else return w.returnTray(w.tray.indexOf(b)), t;
     }
     if (want.length === 0) return w.serve(nell.id), t;
-    const bread = want.find((b) => w.stock[b] > 0);
+    const bread = want.find((b) => w.hasBread(b));
     if (bread && w.tray.length < 4) return w.pickBread(bread), t;
     return null;
   }

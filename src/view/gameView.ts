@@ -3,10 +3,10 @@ import type { Sound } from '../audio/sound';
 import { BALANCE } from '../config/balance';
 import { BREADS, type BreadId } from '../config/breads';
 import type { GameEvent } from '../sim/events';
-import type { Customer, World } from '../sim/world';
+import { enterTimeOf, leaveTimeOf, type Customer, type World } from '../sim/world';
 import { drawBread } from './draw/breads';
 import { MochiBody } from '../mochi/body';
-import { BUTTER, ELFIN, KOMI, NELL, villager } from './draw/characters';
+import { BUTTER, ELFIN, KOMI, NELL, SPEAKI, villager } from './draw/characters';
 import { FEET_R, type ChibiPose, type ChibiSpec, type Expr } from './draw/chibi';
 import { bubbleSize, drawBubble, drawOven, drawSlot, drawTray } from './draw/props';
 import { SceneCache } from './draw/scene';
@@ -14,6 +14,7 @@ import { clock, coin, keycap, outlined, roundRect, star } from './draw/ui';
 import { Effects } from './effects';
 import { center, inside, makeLayout, type Layout, type Point, type Rect } from './layout';
 import { C, font } from './palette';
+import { RainbowParade } from './rainbow';
 import type { Screen } from './screen';
 import { Spring } from './spring';
 
@@ -47,8 +48,8 @@ interface Banner {
   face?: Face;
 }
 
-type Face = 'nell' | 'elfin' | 'komi' | 'butter';
-const FACES: Record<Face, ChibiSpec> = { nell: NELL, elfin: ELFIN, komi: KOMI, butter: BUTTER };
+type Face = 'nell' | 'elfin' | 'komi' | 'butter' | 'speaki';
+const FACES: Record<Face, ChibiSpec> = { nell: NELL, elfin: ELFIN, komi: KOMI, butter: BUTTER, speaki: SPEAKI };
 
 function bannerFaceKey(b: Banner): string {
   return `banner-${b.id}`;
@@ -135,6 +136,9 @@ export class GameView {
   private salesBump = 0;
   private tabBump = 0;
   private lastCombo = 0;
+  /** フィーバーのゲージが進んだ直後のはずみ */
+  private feverBump = 0;
+  private rainbow = new RainbowParade();
   private time = 0;
   private lastTick = -1;
 
@@ -154,6 +158,7 @@ export class GameView {
   ) {
     this.L = makeLayout(screen.w, screen.h, screen.portrait, world.stage);
     this.fx.reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.rainbow.reduced = this.fx.reduced;
     this.shownSales = world.sales;
   }
 
@@ -578,6 +583,8 @@ export class GameView {
     this.salesBump = Math.max(0, this.salesBump - dt * 4);
     this.tabBump = Math.max(0, this.tabBump - dt * 4);
     this.levelBump = Math.max(0, this.levelBump - dt * 3);
+    this.feverBump = Math.max(0, this.feverBump - dt * 4);
+    this.rainbow.update(dt, this.L, this.world.fever > 0 && this.world.phase === 'playing');
     if (this.picker) this.picker.t += dt;
 
     const target = this.world.sales;
@@ -721,14 +728,13 @@ export class GameView {
 
   private custHead(c: Customer): Point {
     const seat = this.L.seats[c.seat];
-    const cfg = BALANCE.customer;
     if (c.state === 'entering') {
-      const p = Math.min(1, c.stateTime / cfg.enterTime);
+      const p = Math.min(1, c.stateTime / enterTimeOf(c));
       const back = 1 + 2.2 * Math.pow(p - 1, 3) + 1.2 * Math.pow(p - 1, 2);
       return { x: seat.x, y: seat.y + (1 - back) * 150 };
     }
     if (c.state === 'leaving') {
-      const p = Math.min(1, c.stateTime / cfg.leaveTime);
+      const p = Math.min(1, c.stateTime / leaveTimeOf(c));
       if (c.mood === 'angry') return { x: seat.x + Math.sin(p * 40) * 6 * (1 - p), y: seat.y + p * p * 170 };
       return { x: seat.x, y: seat.y - Math.sin(p * Math.PI) * 28 + p * p * 150 };
     }
@@ -787,6 +793,8 @@ export class GameView {
           this.salesBump = 1;
         });
         this.fx.float(`+${ev.payment.total}`, h.x, h.y - 60, w.buff > 0 ? '#bfe3ff' : C.gold, 34);
+        if (w.fever > 0) this.fx.burst(h.x, h.y - 20, 'star', 5, `hsl(${(this.time * 300) % 360}, 90%, 65%)`);
+        else this.feverBump = 1;
         if (ev.payment.tipRate >= BALANCE.tip.high) this.fx.float('はやい！', h.x, h.y - 100, '#ffffff', 22, C.good);
         if (ev.combo >= 2) this.fx.float(`${ev.combo} コンボ`, h.x + 60, h.y - 20, '#ffe08a', 22, '#a0461e');
         this.lastCombo = ev.combo;
@@ -911,7 +919,7 @@ export class GameView {
         break;
       case 'elfinFlee':
         this.sound.stretch(null);
-        this.say('elfin', 'ネ、ネル…！？', () => this.elfinSayPos(), C.elfin, 1.4);
+        this.say('elfin', ev.reason === 'nell' ? 'ネ、ネル…！？' : 'な、なにこの光…！？', () => this.elfinSayPos(), C.elfin, 1.4);
         break;
       case 'nellAnnounce':
         s.nellAnnounce();
@@ -938,7 +946,8 @@ export class GameView {
         if (ev.tabPaid > 0) this.fx.float(`ツケ回収 +${ev.tabPaid}`, h.x, h.y - 110, '#ffffff', 28, C.tab);
         this.say(`cust:${ev.customerId}`, ev.tabPaid > 0 ? '完璧です。ツケはこちらで。' : '完璧です。ありがとうございます。', () => this.custSayPos(ev.customerId), C.nell, 2);
         this.banner('ネルの祝福！', `${BALANCE.nell.buffDuration}秒間 売上 ×${BALANCE.nell.buffRate}`, C.nell, 2.4, 'nell');
-        this.bgm.mode = 'fever';
+        this.feverBump = 1;
+        this.refreshBgm();
         break;
       }
       case 'nellFail':
@@ -949,17 +958,28 @@ export class GameView {
         break;
       case 'buffEnd':
         s.buffEnd();
-        this.bgm.mode = w.remaining <= BALANCE.warningTime ? 'hurry' : 'normal';
+        this.refreshBgm();
+        break;
+      case 'feverStart':
+        s.feverStart();
+        this.rainbow.start(L);
+        this.banner('フィーバータイム！', 'パンが減らない！ 1個ずつ、どんどん渡して', '#e0569b', 2.2, 'speaki');
+        this.refreshBgm();
+        break;
+      case 'feverEnd':
+        s.feverEnd();
+        this.fx.float('フィーバーおしまい', L.w / 2, L.banner.y - 40, '#ffffff', 26, '#e0569b');
+        this.refreshBgm();
         break;
       case 'timeWarning':
         this.banner(`のこり${BALANCE.warningTime}秒！`, undefined, C.bad, 1.6);
-        if (w.buff <= 0) this.bgm.mode = 'hurry';
+        this.refreshBgm();
         break;
       case 'timeExtend': {
         const cy = L.portrait ? 36 : 32;
         // 時計の下のレベル札の右に出す
         this.fx.float(`+${ev.seconds.toFixed(1)}秒`, 160, cy + 46, '#e9ffd0', 24, C.good);
-        if (w.buff <= 0 && this.bgm.mode === 'hurry' && w.remaining > BALANCE.warningTime) this.bgm.mode = 'normal';
+        this.refreshBgm();
         break;
       }
       case 'levelUp':
@@ -974,6 +994,12 @@ export class GameView {
         this.banner('閉店！', undefined, C.eshur, 2.2, undefined, true);
         break;
     }
+  }
+
+  /** フィーバー > ネルの祝福 > 残りわずか > ふだん */
+  private refreshBgm(): void {
+    const w = this.world;
+    this.bgm.mode = w.fever > 0 ? 'rainbow' : w.buff > 0 ? 'fever' : w.remaining <= BALANCE.warningTime ? 'hurry' : 'normal';
   }
 
   /** チュートリアル中は説明が重なるので、初回の案内を出さない */
@@ -1057,11 +1083,13 @@ export class GameView {
       c.translate((Math.random() - 0.5) * s, (Math.random() - 0.5) * s);
     }
     c.drawImage(this.scene.back!, 0, 0, L.w, L.h);
+    this.rainbow.drawBack(c, L, pr);
 
     const sorted = [...w.customers].sort((a, b) => a.seat - b.seat);
     for (const cu of sorted) this.drawCustomer(c, cu);
 
     c.drawImage(this.scene.front!, 0, 0, L.w, L.h);
+    this.rainbow.drawCounter(c, L, pr);
 
     drawTray(c, L.tray, L.traySlots, w.tray, pr, this.trayPulse);
 
@@ -1071,6 +1099,7 @@ export class GameView {
         hover: !!this.hover && inside(r, this.hover) && !this.picker,
         flash: this.slotFlash[i] ?? 0,
         pop: this.slotPop[i] ?? 0,
+        infinite: w.fever > 0 ? (this.time * 200 + i * 50) % 360 : undefined,
       });
     });
     this.drawGlass(c);
@@ -1087,6 +1116,8 @@ export class GameView {
 
     this.fx.draw(c);
     this.drawSays(c);
+    this.rainbow.drawEdge(c, L, pr);
+    if (w.fever > 0) this.drawFeverFrame(c);
     c.restore();
 
     this.drawHud(c);
@@ -1369,6 +1400,8 @@ export class GameView {
       outlined(c, left > 0 ? `ネル来店まで ${left}` : 'ネル来店！', nx + 10, ny + 1, 20, '#3f5f86', '#ffffff');
     }
 
+    this.drawFeverGauge(c);
+
     // ポーズ
     const pb = L.pauseBtn;
     c.beginPath();
@@ -1386,6 +1419,80 @@ export class GameView {
     c.fillStyle = '#ffffff';
     c.fillRect(pb.x + pb.w / 2 - 9, pb.y + pb.h / 2 - 11, 6, 22);
     c.fillRect(pb.x + pb.w / 2 + 3, pb.y + pb.h / 2 - 11, 6, 22);
+  }
+
+  /** フィーバーのゲージ（左端 x・中心 cy・幅 w）。縦画面は 2 段目の右（チュートリアルはスキップボタンをよけて左） */
+  private feverGaugeRect(): { x: number; cy: number; w: number } {
+    const L = this.L;
+    if (!L.portrait) return { x: L.pauseBtn.x - 198, cy: 32, w: 186 };
+    return this.world.stage.tutorial ? { x: 14, cy: 96, w: 196 } : { x: L.w - 206, cy: 96, w: 196 };
+  }
+
+  private drawFeverGauge(c: CanvasRenderingContext2D): void {
+    const w = this.world;
+    const need = w.stage.feverServes ?? 0;
+    const on = w.fever > 0;
+    if (!need && !on) return;
+    const g = this.feverGaugeRect();
+    const bump = 1 + this.feverBump * 0.08;
+    c.save();
+    c.translate(g.x + g.w / 2, g.cy);
+    c.scale(bump, bump);
+    c.translate(-g.x - g.w / 2, -g.cy);
+    hudPill(c, g.x, g.cy, g.w);
+    const bx = g.x + 44;
+    const bw = g.w - 58;
+    const bh = 16;
+    const by = g.cy - bh / 2;
+    c.fillStyle = '#efe4d8';
+    roundRect(c, bx, by, bw, bh, bh / 2);
+    c.fill();
+    const hue = (this.time * 240) % 360;
+    if (on) {
+      const grad = c.createLinearGradient(bx, 0, bx + bw, 0);
+      for (let i = 0; i <= 6; i++) grad.addColorStop(i / 6, `hsl(${(hue + i * 60) % 360}, 90%, 62%)`);
+      c.fillStyle = grad;
+      roundRect(c, bx, by, Math.max(bh, bw * (w.fever / BALANCE.fever.duration)), bh, bh / 2);
+      c.fill();
+    } else {
+      // 会計 1 回ぶんずつの目盛り。あと 1 回で満タンなら虹色に光る
+      const ready = w.feverGauge >= need - 1;
+      const gap = 2;
+      const pw = (bw - 4 - gap * (need - 1)) / need;
+      for (let i = 0; i < w.feverGauge; i++) {
+        c.fillStyle = ready ? `hsl(${(hue + i * 36) % 360}, 90%, 60%)` : '#f0a53a';
+        roundRect(c, bx + 2 + i * (pw + gap), by + 2, pw, bh - 4, 4);
+        c.fill();
+      }
+    }
+    c.strokeStyle = HUD_INK;
+    c.lineWidth = 2;
+    roundRect(c, bx, by, bw, bh, bh / 2);
+    c.stroke();
+    if (on) outlined(c, 'フィーバー！', bx + bw / 2, g.cy + 1, 17, '#ffffff', HUD_INK);
+    this.drawFace(c, 'hud-fever', SPEAKI, g.x + 24, g.cy + 3, 14, { expr: on ? 'happy' : 'normal', t: this.time, body: false });
+    c.restore();
+  }
+
+  /** フィーバー中は画面のふちを虹色に光らせる */
+  private drawFeverFrame(c: CanvasRenderingContext2D): void {
+    const L = this.L;
+    const w = this.world;
+    const fade = Math.min(1, w.fever / 0.5, (BALANCE.fever.duration - w.fever) / 0.3);
+    const hue = (this.time * 160) % 360;
+    const t = 10;
+    c.save();
+    c.globalAlpha = fade * (0.55 + 0.25 * Math.sin(this.time * 8));
+    const edge = (x0: number, y0: number, x1: number, y1: number, rx: number, ry: number, rw: number, rh: number) => {
+      const g = c.createLinearGradient(x0, y0, x1, y1);
+      for (let i = 0; i <= 6; i++) g.addColorStop(i / 6, `hsl(${(hue + i * 60) % 360}, 95%, 62%)`);
+      c.fillStyle = g;
+      c.fillRect(rx, ry, rw, rh);
+    };
+    edge(0, 0, 0, L.h, 0, 0, t, L.h);
+    edge(0, L.h, 0, 0, L.w - t, 0, t, L.h);
+    edge(0, 0, L.w, 0, 0, L.h - t, L.w, t);
+    c.restore();
   }
 
   /** エンドレス: 時計の下にレベルの札を下げる */

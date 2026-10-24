@@ -163,6 +163,9 @@ export function stageIntro(host: MenuHost, s: StageDef, on: { start: () => void;
     tip(NELL, 'smile', 'ネル', `注文は最初の${n.revealTime}秒だけ。覚えてぴったり渡すと、ツケ回収＋${n.buffDuration}秒間 売上×${n.buffRate}。`),
     tip(KOMI, 'sleep', 'コミー', '居眠りしていて注文してくれません。ほっぺを引っぱると起きます。'),
     tip(BUTTER, 'happy', 'バター', '座っている間、エルフィンをパチンコで追い払ってくれます。'),
+    s.feverServes
+      ? tip(SPEAKI, 'happy', 'フィーバータイム', `会計${s.feverServes}回でゲージ満タン。${BALANCE.fever.duration}秒間パンが減らず、1個だけほしいお客さんが次々来ます。`)
+      : null,
   );
   return panel(
     'intro',
@@ -176,6 +179,7 @@ export function stageIntro(host: MenuHost, s: StageDef, on: { start: () => void;
           { class: 'endless-rules' },
           h('li', {}, `会計で時間が延びる：${e.timeBase}秒＋コンボ×${e.timePerCombo}秒（残りは最大${e.maxRemaining}秒）。ネル成功で＋${e.nellTime}秒。`),
           h('li', {}, `${e.levelTime}秒ごとにレベルアップ。お客さんが増え、注文が多く、気が短くなっていく。`),
+          h('li', {}, 'フィーバータイムの間は、残り時間が減らない（会計でも延びない）。'),
           s.burnTime !== null ? h('li', {}, `レベル${e.burnLevel}から、焼けたパンが${s.burnTime}秒で焦げるように。`) : null,
         )
       : null,
@@ -319,6 +323,15 @@ export function howToPanel(host: MenuHost, on: { close: () => void }): HTMLEleme
         '覚えたパンをトレーにそろえて、1回で渡します。多すぎても少なすぎてもダメ（順番は自由）。',
         `成功：ツケを全額回収＋${n.buffDuration}秒間 売上×${n.buffRate}。失敗：ツケはそのまま。`,
         `トレーが空のときにタップするか、ほっぺを引っぱると、もう一度見せてもらえます（${n.peekCost}秒待たせます）。`,
+      ],
+    },
+    {
+      title: 'フィーバータイム',
+      art: () => h('div', { class: 'art' }, chara(host, SPEAKI, 'happy', 26), h('span', { class: 'big-num' }, '∞')),
+      text: [
+        '会計するたびに、右上のスピキのゲージがたまります。満タンでフィーバータイム！',
+        `${BALANCE.fever.duration}秒間、ショーケースのパンが減らなくなり、パンを1個だけほしいお客さんが次々来ます。`,
+        'フィーバー中は誰も待ちくたびれず、焼けたパンも焦げません。女王様たちは終わるまで来ません。',
       ],
     },
     {
@@ -468,6 +481,7 @@ export function resultPanel(
     h('span', {}, `焦がした ${st.burnt}回`),
     w.stage.elfin ? h('span', {}, `追い払った ${st.repelled}回`) : null,
     h('span', {}, `ネル接客 ${st.nellSuccess}/${st.nellSuccess + st.nellFail}`),
+    st.fevers > 0 ? h('span', {}, `フィーバー ${st.fevers}回（${st.feverServed}人）`) : null,
     h('span', {}, `ほっぺ ${st.mochi}回`),
     h('span', {}, `バターの援護 ${st.butterShots}回`),
   );

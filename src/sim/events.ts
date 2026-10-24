@@ -37,7 +37,8 @@ export type GameEvent =
   | { type: 'elfinStun' }
   | { type: 'elfinLaunched' }
   | { type: 'elfinLeave'; full: boolean }
-  | { type: 'elfinFlee' }
+  /** ネルが来る / フィーバーが始まった */
+  | { type: 'elfinFlee'; reason: 'nell' | 'fever' }
   | { type: 'nellAnnounce' }
   | { type: 'nellArrive'; customerId: number }
   | { type: 'nellPeek'; customerId: number }
@@ -45,6 +46,8 @@ export type GameEvent =
   | { type: 'nellSuccess'; customerId: number; tabPaid: number; payment: Payment }
   | { type: 'nellFail'; customerId: number }
   | { type: 'buffEnd' }
+  | { type: 'feverStart'; duration: number }
+  | { type: 'feverEnd' }
   | { type: 'timeWarning' }
   /** エンドレス: 会計で残り時間が延びた */
   | { type: 'timeExtend'; seconds: number }

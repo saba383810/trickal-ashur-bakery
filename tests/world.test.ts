@@ -454,6 +454,143 @@ describe('チュートリアル用の操作', () => {
   });
 });
 
+describe('フィーバータイム', () => {
+  const F = BALANCE.fever;
+
+  /** 1 個注文の客を座らせて会計する */
+  function serveOne(w: World): void {
+    const c = seated(w, ['roll']);
+    w.pickBread('roll');
+    w.serve(c.id);
+    run(w, BALANCE.customer.leaveTime + BALANCE.customer.minGapAfterLeave + 0.05);
+  }
+
+  it('会計 feverServes 回でゲージが満タンになって始まり、時間がたつと終わってゲージが空になる', () => {
+    const w = quiet({ feverServes: 3, initialStock: 9 });
+    serveOne(w);
+    serveOne(w);
+    expect(w.feverGauge).toBe(2);
+    expect(w.fever).toBe(0);
+    const c = seated(w, ['roll']);
+    w.pickBread('roll');
+    w.drainEvents();
+    w.serve(c.id);
+    expect(w.drainEvents().map((e) => e.type)).toEqual(['serveComplete', 'feverStart']);
+    expect(w.fever).toBe(F.duration);
+    expect(w.stats.fevers).toBe(1);
+    run(w, F.duration + 0.1);
+    expect(w.fever).toBe(0);
+    expect(w.feverGauge).toBe(0);
+    expect(w.drainEvents().some((e) => e.type === 'feverEnd')).toBe(true);
+  });
+
+  it('feverServes が無いモードでは自動で始まらない', () => {
+    const w = quiet({ initialStock: 9 });
+    for (let i = 0; i < 5; i++) serveOne(w);
+    expect(w.fever).toBe(0);
+    expect(w.feverGauge).toBe(0);
+  });
+
+  it('フィーバー中はパンが減らず、在庫 0 でも取れて、戻しても増えない', () => {
+    const w = quiet({ initialStock: 0 });
+    expect(w.pickBread('roll')).toBe(false);
+    w.startFever();
+    expect(w.pickBread('roll')).toBe(true);
+    expect(w.pickBread('roll')).toBe(true);
+    expect(w.stock.roll).toBe(0);
+    w.returnTray(0);
+    expect(w.stock.roll).toBe(0);
+    expect(w.tray).toEqual(['roll']);
+  });
+
+  it('フィーバー中は注文 1 個の客が空いた席に次々来て、待ち時間は減らず、会計してもゲージは進まない', () => {
+    const w = quiet({ feverServes: 5, seats: 4 });
+    const before = seated(w, ['roll', 'melon']);
+    const patience = before.patience;
+    w.startFever();
+    run(w, 1.5);
+    expect(w.customers).toHaveLength(4);
+    const fevers = w.customers.filter((c) => c.fever);
+    expect(fevers).toHaveLength(3);
+    for (const c of fevers) expect(c.order).toHaveLength(1);
+    expect(before.patience).toBe(patience);
+
+    const c = fevers.find((x) => x.state === 'waiting')!;
+    w.pickBread(c.order[0]);
+    expect(w.serve(c.id)).toBe('complete');
+    expect(w.stats.feverServed).toBe(1);
+    expect(w.feverGauge).toBe(5);
+    // 空いた席にはすぐ次の客が来る
+    run(w, F.leaveTime + F.seatGap + F.spawnGap + 0.1);
+    expect(w.customers.filter((x) => x.state !== 'leaving')).toHaveLength(4);
+  });
+
+  it('フィーバー中は焼けたパンが焦げない', () => {
+    const w = quiet({ burnTime: 2 });
+    w.bake(0, 'roll');
+    run(w, BREADS.roll.bakeTime + 0.05);
+    w.startFever();
+    run(w, F.duration - 0.5);
+    expect(w.ovens[0].state).toBe('ready');
+    run(w, 3);
+    expect(w.ovens[0].state).toBe('burnt');
+  });
+
+  it('来ていたエルフィンは逃げ出し、終わるまで来ない。ネル・コミー・バターも終わってから来る', () => {
+    const w = quiet({
+      elfin: { firstAt: 1, intervalMin: 1, intervalMax: 1, eatInterval: 1, maxEat: 9 },
+      komi: [2],
+      nellVisits: [8],
+      seats: 4,
+    });
+    run(w, 1.1);
+    expect(w.elfin.state).toBe('entering');
+    w.startFever();
+    expect(w.drainEvents().map((e) => e.type)).toContain('elfinFlee');
+    run(w, F.duration - 0.2);
+    expect(['leaving', 'absent']).toContain(w.elfin.state);
+    expect(w.customers.some((c) => c.kind === 'komi' || c.kind === 'nell')).toBe(false);
+    expect(w.nellPendingAt).toBeNull();
+    // 終わったらコミーが来て、ネルの予告が出る（席はフィーバーの客が帰ってから）
+    for (const c of w.customers) {
+      w.pickBread(c.order[0]);
+      w.serve(c.id);
+    }
+    run(w, 2);
+    expect(w.customers.some((c) => c.kind === 'komi')).toBe(true);
+    expect(w.nellPendingAt).not.toBeNull();
+    expect(w.elfin.state).toBe('absent');
+  });
+
+  it('エンドレスのフィーバー中は残り時間が減らず、会計でも延びない', () => {
+    const ENDLESS = STAGES.find((x) => x.endless)!.endless!;
+    const w = quiet({ duration: 30, endless: ENDLESS, seats: 4 });
+    run(w, 1);
+    const left = w.remaining;
+    w.startFever();
+    run(w, 2);
+    expect(w.remaining).toBeCloseTo(left, 5);
+    const c = w.customers.find((x) => x.fever && x.state === 'waiting')!;
+    w.pickBread(c.order[0]);
+    w.serve(c.id);
+    expect(w.remaining).toBeCloseTo(left, 5);
+    expect(w.stats.timeAdded).toBe(0);
+    run(w, F.duration);
+    expect(w.remaining).toBeLessThan(left);
+  });
+
+  it('時計を止めたチュートリアルでも、呼べば客が来て時間どおりに終わる', () => {
+    const w = quiet();
+    w.frozen = true;
+    w.startFever();
+    run(w, 1);
+    expect(w.customers.filter((c) => c.fever).length).toBe(3);
+    expect(w.time).toBe(0);
+    run(w, F.duration);
+    expect(w.fever).toBe(0);
+  });
+});
+
 describe('モード定義', () => {
   it('どのモードにもエルフィン・ネル・コミー・バターが来て、制限時間内に収まる', () => {
     for (const s of PLAY_STAGES) {
@@ -462,6 +599,7 @@ describe('モード定義', () => {
       expect(s.komi.length, s.id).toBeGreaterThan(0);
       expect(s.butter.length, s.id).toBeGreaterThan(0);
       for (const t of [...s.nellVisits, ...s.komi, ...s.butter]) expect(t, s.id).toBeLessThan(s.duration - BALANCE.closingTime);
+      expect(s.feverServes, s.id).toBeGreaterThan(0);
       expect(s.stars[0]).toBeLessThan(s.stars[1]);
       expect(s.stars[1]).toBeLessThan(s.stars[2]);
     }

@@ -8,7 +8,7 @@ import type { Rect } from '../view/layout';
 import { C, font } from '../view/palette';
 
 // チュートリアルモードの手順説明。時計を止めた World の上で、指示した操作だけを通す。
-// エルフィン・コミー・バター・ネルも順に呼んで、全員の相手のしかたを一度ずつやってもらう。いつでもスキップできる。
+// エルフィン・コミー・バター・ネルも順に呼んで、全員の相手のしかたを一度ずつやってもらい、最後にフィーバータイムを体験。いつでもスキップできる。
 interface Step {
   text: string;
   expr?: Expr;
@@ -213,6 +213,20 @@ export class Tutorial {
         allow: (a) => shop(a) || isServe(a) || isPinch(a),
         done: servedLeft,
         target: () => [shopArea()],
+      },
+      // ---- フィーバータイム
+      {
+        kind: 'tap',
+        expr: 'happy',
+        text: 'さいごに、ごほうびの時間！ 接客を続けるとスピキのゲージがたまって、満タンになるとフィーバータイムよ！',
+      },
+      {
+        kind: 'wait',
+        text: 'フィーバー中はパンが減らないし、パンを1個だけほしいお客さんが次々来るわ。どんどん渡して！',
+        enter: () => w.startFever(),
+        allow: (a) => shop(a) || a.type === 'serve' || a.type === 'pinch',
+        done: () => w.fever <= 0,
+        target: () => [union(view.L.floor, view.L.showcase, view.L.tray)],
       },
       {
         kind: 'tap',
