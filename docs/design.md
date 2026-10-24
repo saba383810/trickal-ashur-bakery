@@ -382,7 +382,8 @@
 - Vite + TypeScript（strict）・フレームワークなし（もちほっぺメーカーと同じ構成）。描画は Canvas 2D（ほっぺの変形だけ WebGL2）、メニューは DOM。
 - `npm run build -- --base=/entertainments/<slug>/app/` で動く静的出力（sabanogames の CI 前提）。
 - 状態保存は localStorage（失敗しても動く）。タブ非表示で自動ポーズ。
-- テスト: `npm test`（vitest 48 件。ほっぺ・コミー・バター・エンドレス・モード定義・注文の偏り・保存の移行を含むロジック単体）。
+- テスト: `npm test`（vitest 52 件。ほっぺ・コミー・バター・エンドレス・モード定義・注文の偏り・保存の移行・音の解禁を含むロジック単体）。
+- 音: タブ／アプリを離れると AudioContext を止め、戻ったら起こす。iOS では戻っても `interrupted` のまま止まっていることがあるので、操作のたびに動いていなければ起こし直し、1.5 秒たっても戻らなければ作り直す（BGM は新しい時計から刻み直す）。
 
 ```
 src/

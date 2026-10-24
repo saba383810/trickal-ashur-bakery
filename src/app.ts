@@ -329,9 +329,9 @@ export class App implements MenuHost {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         this.pause();
-        void this.sound.ctx?.suspend();
+        this.sound.sleep();
       } else {
-        void this.sound.ctx?.resume();
+        this.sound.wake();
       }
     });
     window.addEventListener('blur', () => this.pause());

@@ -39,6 +39,8 @@ export class Bgm {
   private timer: number | null = null;
   private step = 0;
   private nextTime = 0;
+  /** nextTime を数えている AudioContext */
+  private clock: AudioContext | null = null;
   private noise: AudioBuffer | null = null;
   mode: BgmMode = 'title';
 
@@ -53,6 +55,7 @@ export class Bgm {
     const ctx = this.sound.ctx;
     if (!ctx || this.timer !== null) return;
     this.step = 0;
+    this.clock = ctx;
     this.nextTime = ctx.currentTime + 0.1;
     this.timer = window.setInterval(() => this.schedule(), 25);
   }
@@ -78,6 +81,11 @@ export class Bgm {
   private schedule(): void {
     const ctx = this.sound.ctx;
     if (!ctx) return;
+    // 固まった AudioContext が作り直されたら、新しい時計から刻み直す
+    if (ctx !== this.clock) {
+      this.clock = ctx;
+      this.nextTime = ctx.currentTime + 0.1;
+    }
     while (this.nextTime < ctx.currentTime + 0.12) {
       this.playStep(this.step, this.nextTime);
       this.nextTime += 60 / this.bpm / 4;

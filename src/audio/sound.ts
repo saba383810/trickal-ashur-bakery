@@ -1,4 +1,8 @@
 // 効果音はすべて WebAudio で合成する（公式の音声・効果音は使わない）。
+
+/** 操作しても AudioContext が動かないまま、これだけ経ったら作り直す（ms） */
+const STUCK_MS = 1500;
+
 export class Sound {
   ctx: AudioContext | null = null;
   private sfxGain: GainNode | null = null;
@@ -9,9 +13,20 @@ export class Sound {
   sfxVolume = 0.8;
   bgmVolume = 0.5;
   muted = false;
+  /** 操作しても AudioContext が動かないままになった時刻（0 = 動いている） */
+  private stuckSince = 0;
 
-  /** ユーザー操作の中で呼ぶ（自動再生制限・iOS 対策） */
+  /**
+   * ユーザー操作の中で呼ぶ（自動再生制限・iOS 対策）。
+   * 別のアプリから戻ると、iOS では 'interrupted'、Android では 'suspended' のまま止まっていることがあるので、
+   * 動いていなければ操作のたびに起こし直す。それでも STUCK_MS 戻らなければ捨てて作り直す
+   */
   unlock(): AudioContext | null {
+    if (this.ctx && this.ctx.state !== 'running') {
+      const now = performance.now();
+      if (this.ctx.state === 'closed' || (this.stuckSince && now - this.stuckSince > STUCK_MS)) this.reset();
+      else if (!this.stuckSince) this.stuckSince = now;
+    }
     if (!this.ctx) {
       try {
         this.ctx = new AudioContext();
@@ -29,14 +44,48 @@ export class Sound {
       this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
       const d = this.noiseBuf.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-      // iOS: 無音を 1 回鳴らして解禁する
-      const src = this.ctx.createBufferSource();
-      src.buffer = this.ctx.createBuffer(1, 1, 22050);
-      src.connect(this.ctx.destination);
-      src.start(0);
+      this.silence();
     }
-    if (this.ctx.state === 'suspended') void this.ctx.resume();
+    if (this.ctx.state === 'running') {
+      this.stuckSince = 0;
+    } else {
+      this.silence();
+      void this.ctx.resume().catch(() => undefined);
+    }
     return this.ctx;
+  }
+
+  /** 画面を離れる時に止める */
+  sleep(): void {
+    this.stuckSince = 0;
+    void this.ctx?.suspend().catch(() => undefined);
+  }
+
+  /** 画面に戻った時に起こす（iOS では操作の中でないと戻らないことがあり、その時は次の unlock で起こし直す） */
+  wake(): void {
+    void this.ctx?.resume().catch(() => undefined);
+  }
+
+  /** iOS: 操作の中で無音を鳴らして解禁する */
+  private silence(): void {
+    const ctx = this.ctx!;
+    const src = ctx.createBufferSource();
+    src.buffer = ctx.createBuffer(1, 1, 22050);
+    src.connect(ctx.destination);
+    src.start(0);
+  }
+
+  /** 固まった AudioContext を捨てる（呼んだ unlock の中で作り直す。BGM は新しい時計から刻み直す） */
+  private reset(): void {
+    const old = this.ctx;
+    this.ctx = null;
+    this.sfxGain = null;
+    this.bgmGain = null;
+    this.noiseBuf = null;
+    this.stretchOsc = null;
+    this.stretchGain = null;
+    this.stuckSince = 0;
+    void old?.close().catch(() => undefined);
   }
 
   applyVolume(): void {
