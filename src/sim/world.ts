@@ -399,8 +399,9 @@ export class World {
 
     this.time += dt;
     this.updateLevel();
-    // フィーバー中はネル・コミー・バターを待たせ、ふだんの客も来ない（席はフィーバーの客で埋める）
-    if (this.fever <= 0) {
+    // フィーバー中はネル・コミー・バターを待たせ、ふだんの客も来ない（席はフィーバーの客で埋める）。
+    // 時間切れのあとのフィーバーが終わった時は、そのまま閉店するので呼ばない
+    if (this.fever <= 0 && this.time < this.timeLimit) {
       this.updateNell();
       this.updateGuests();
       this.updateSpawner();
@@ -417,7 +418,8 @@ export class World {
       // エンドレスで時間が延びたら、また警告できるようにする
       this.warned = false;
     }
-    if (this.time >= this.timeLimit) {
+    // フィーバー中に時間が切れても、閉店はフィーバーが終わってから
+    if (this.time >= this.timeLimit && this.fever <= 0) {
       this.phase = 'ended';
       this.elfin.grabbed = false;
       this.emit({ type: 'timeUp' });

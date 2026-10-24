@@ -579,6 +579,30 @@ describe('フィーバータイム', () => {
     expect(w.remaining).toBeLessThan(left);
   });
 
+  it('フィーバー中に時間が切れても閉店せず、フィーバーが終わってから閉店する', () => {
+    // ネルの予告（来店の announceLead 秒前）はフィーバーの最中に来るはずだった
+    const w = quiet({ duration: 30, seats: 4, nellVisits: [26 + BALANCE.nell.announceLead + 1] });
+    run(w, 26);
+    w.startFever();
+    run(w, 4.5);
+    expect(w.remaining).toBe(0);
+    expect(w.phase).toBe('playing');
+    // 延長中も渡せる
+    const c = w.customers.find((x) => x.fever && x.state === 'waiting')!;
+    w.pickBread(c.order[0]);
+    expect(w.serve(c.id)).toBe('complete');
+    w.drainEvents();
+    run(w, F.duration - 4.5 - 0.1);
+    expect(w.phase).toBe('playing');
+    run(w, 0.2);
+    expect(w.phase).toBe('ended');
+    const types = w.drainEvents().map((e) => e.type);
+    expect(types).toEqual(expect.arrayContaining(['feverEnd', 'timeUp']));
+    // 待たせていたネルは、閉店まぎわに予告しなおさない
+    expect(types).not.toContain('nellAnnounce');
+    expect(types).not.toContain('nellArrive');
+  });
+
   it('時計を止めたチュートリアルでも、呼べば客が来て時間どおりに終わる', () => {
     const w = quiet();
     w.frozen = true;

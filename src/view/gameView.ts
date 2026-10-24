@@ -967,8 +967,11 @@ export class GameView {
         this.refreshBgm();
         break;
       case 'feverEnd':
-        s.feverEnd();
-        this.fx.float('フィーバーおしまい', L.w / 2, L.banner.y - 40, '#ffffff', 26, '#e0569b');
+        // 時間切れのあとのフィーバーが終わったら、そのまま閉店の知らせだけ出す
+        if (this.world.phase === 'playing') {
+          s.feverEnd();
+          this.fx.float('フィーバーおしまい', L.w / 2, L.banner.y - 40, '#ffffff', 26, '#e0569b');
+        }
         this.refreshBgm();
         break;
       case 'timeWarning':
@@ -1333,9 +1336,11 @@ export class GameView {
 
     // 残り時間
     const ratio = Math.min(1, w.remaining / w.stage.duration);
-    const hurry = w.remaining <= BALANCE.warningTime && w.phase === 'playing';
+    // 時間切れのあと、フィーバーが終わるまでは「延長」
+    const overtime = w.remaining <= 0 && w.fever > 0;
+    const hurry = w.remaining <= BALANCE.warningTime && w.phase === 'playing' && !overtime;
     const sec = Math.ceil(w.remaining);
-    const label = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+    const label = overtime ? '延長！' : `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
     const pulse = hurry ? 1 + Math.max(0, Math.sin(this.time * 10)) * 0.12 : 1;
     const timeSize = portrait ? 28 : 30;
     hudPill(c, 8, cy, 66 + measure(c, label, timeSize) + 14 - 8);
@@ -1343,7 +1348,7 @@ export class GameView {
     c.save();
     c.translate(66, cy);
     c.scale(pulse, pulse);
-    outlined(c, label, 0, 1, timeSize, hurry ? C.bad : HUD_INK, '#ffffff', 'left');
+    outlined(c, label, 0, 1, timeSize, overtime ? '#e0569b' : hurry ? C.bad : HUD_INK, '#ffffff', 'left');
     c.restore();
     if (w.stage.endless) this.drawLevel(c, cy);
 
