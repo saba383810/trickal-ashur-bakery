@@ -58,7 +58,7 @@ npm run sim      # ボットによるバランス確認（モードごとの売�
 npm run build    # 型チェック + 本番ビルド（dist/）
 ```
 
-- 開発用ページ: `/preview.html`（キャラ・表情・パンの一覧）、`/thumb.html`（掲載用サムネイル 800×515）。本番ビルドには含まれません。
+- 開発用ページ: `/preview.html`（キャラ・表情・パンの一覧）、`/thumb.html`（掲載用サムネイル 800×515。`?og` で SNS のリンクの絵 1200×630）。本番ビルドには含まれません。
 - 開発サーバーではコンソールから `app` で状態を触れます（本番ビルドでは無効）。
 - 絵はすべて Canvas 2D のコード描画（ほっぺの変形だけ WebGL2。使えない環境では変形なしで描画）、音はすべて WebAudio の合成です（素材ファイルなし）。
 
@@ -70,7 +70,8 @@ npm run build    # 型チェック + 本番ビルド（dist/）
 - 公開 URL: `https://sabanogames.com/entertainments/trickal-ashur-bakery/`（CI が作るフレームページ。本体は `app/` 配下）
 - CI は `npm ci && npm run build -- --base=/entertainments/trickal-ashur-bakery/app/` でビルドする
 - 一覧のエントリは sabanogames の `site/src/data/entertainments.ts`、サムネイルは `docs/thumbnail.png` のコピー
-  （`site/public/images/entertainments/trickal-ashur-bakery.png`）
+  （`site/public/images/entertainments/trickal-ashur-bakery.png`）。X などのリンクの絵は `docs/og.png` のコピー
+  （`trickal-ashur-bakery-og.png`。エントリの `ogImage`）
 
 このリポジトリを更新したら、sabanogames 側でポインタを進めてコミットする:
 

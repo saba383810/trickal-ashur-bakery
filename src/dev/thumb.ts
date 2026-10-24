@@ -1,4 +1,5 @@
-// 開発用: サイト掲載用サムネイル（800×515）を描く（本番ビルドには含めない）
+// 開発用: サイト掲載用サムネイル（800×515）を描く（本番ビルドには含めない）。
+// ?og を付けると SNS のリンクの絵（1200×630）。X などは 1.91:1 に切るので、上下が欠けないよう別に描く
 import { PLAY_STAGES } from '../config/stages';
 import { drawBread } from '../view/draw/breads';
 import { MochiBody } from '../mochi/body';
@@ -8,8 +9,12 @@ import { SceneCache } from '../view/draw/scene';
 import { makeLayout } from '../view/layout';
 import { C, font } from '../view/palette';
 
-const W = 800;
-const H = 515;
+const OG = new URLSearchParams(location.search).has('og');
+const W = OG ? 1200 : 800;
+const H = OG ? 630 : 515;
+// 中身は 800×515 で組み、OG は高さに合わせて拡大して真ん中に置く（左右は背景とパンを足す）
+const S = H / 515;
+const OX = (W - 800 * S) / 2;
 const canvas = document.getElementById('c') as HTMLCanvasElement;
 const dpr = window.devicePixelRatio || 1;
 canvas.width = W * dpr;
@@ -21,23 +26,28 @@ const c = canvas.getContext('2d')!;
 async function draw(): Promise<void> {
   await document.fonts.load("800 40px 'M PLUS Rounded 1c'", 'エシュールのパン屋さんベーカリー');
   c.scale(dpr, dpr);
+  c.translate(OX, 0);
+  c.scale(S, S);
+  /** 絵の左右の端（中身の座標） */
+  const left = -OX / S;
+  const right = (W - OX) / S;
   const stage = PLAY_STAGES.find((s) => s.id === 'spicy')!;
   const L = makeLayout(1280, 720, false, stage);
   const scene = new SceneCache();
   scene.ensure(L, stage, 2);
   // 背景は店内の上半分（壁と窓）を拡大して使う
-  const k = H / 520;
-  c.drawImage(scene.back!, 0, 124 * 2, 1280 * 2, 520 * 2, (W - 1280 * k) / 2, 0, 1280 * k, H);
+  const k = 515 / 520;
+  c.drawImage(scene.back!, 0, 124 * 2, 1280 * 2, 520 * 2, (800 - 1280 * k) / 2, 0, 1280 * k, 515);
   c.fillStyle = 'rgba(255, 246, 232, 0.25)';
-  c.fillRect(0, 0, W, H);
+  c.fillRect(left, 0, right - left, 515);
 
   // カウンター
   c.fillStyle = C.counterTop;
-  c.fillRect(0, 392, W, 18);
+  c.fillRect(left, 392, right - left, 18);
   c.fillStyle = C.wood;
-  c.fillRect(0, 410, W, H - 410);
+  c.fillRect(left, 410, right - left, 515 - 410);
   c.fillStyle = C.woodDark;
-  c.fillRect(0, 410, W, 6);
+  c.fillRect(left, 410, right - left, 6);
 
   // エルフィンのほっぺは、ゲームと同じもちほっぺの変形で引っぱった形にする
   const mochi = new MochiBody();
@@ -54,11 +64,15 @@ async function draw(): Promise<void> {
 
   // カウンターの上のパン
   const breads = ['croissant', 'melon', 'shokupan', 'cornet', 'roll'] as const;
-  breads.forEach((b, i) => drawBread(c, b, 120 + i * 140, 452, 96, dpr * 2));
+  breads.forEach((b, i) => drawBread(c, b, 120 + i * 140, 452, 96, dpr * 2 * S));
+  if (OG) {
+    drawBread(c, 'anpan', -20, 452, 96, dpr * 2 * S);
+    drawBread(c, 'curry', 820, 452, 96, dpr * 2 * S);
+  }
 
   // タイトル（赤茶の外フチ + 白フチ + コーラル→黄→空色）
-  logo('エシュールの', W / 2, 46, 44);
-  logo('パン屋さん', W / 2, 108, 76);
+  logo('エシュールの', 400, 46, 44);
+  logo('パン屋さん', 400, 108, 76);
   logo('★', 190, 40, 34, '#feb44d');
   logo('★', 612, 128, 30, '#feb44d');
 }
