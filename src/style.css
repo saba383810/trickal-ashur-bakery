@@ -1008,6 +1008,10 @@ kbd {
   color: var(--nell-ink);
 }
 
+.line.burumi {
+  color: #9a7a12;
+}
+
 .line.bad {
   color: var(--bad);
 }

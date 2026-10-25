@@ -106,10 +106,10 @@ export function feetR(s: ChibiSpec): number {
   return s.crouch ? CROUCH_FEET_R : FEET_R;
 }
 
-const LINE = '#5a2d32';
+export const LINE = '#5a2d32';
 const BLUSH = 'rgba(255, 166, 164, 0.95)';
 /** 原作の SD の目の色（焦げ茶） */
-const EYE = '#55242a';
+export const EYE = '#55242a';
 const MOUTH = '#b23a48';
 const TONGUE = '#fda3a2';
 const WHITE = '#fffdfb';
@@ -132,7 +132,7 @@ const grains = new Map<string, CanvasPattern>();
 let ink: string | CanvasPattern = LINE;
 let eyeInk: string | CanvasPattern = EYE;
 
-function crayon(ctx: CanvasRenderingContext2D, color: string): string | CanvasPattern {
+export function crayon(ctx: CanvasRenderingContext2D, color: string): string | CanvasPattern {
   const hit = grains.get(color);
   if (hit) return hit;
   if (typeof document === 'undefined') return color;

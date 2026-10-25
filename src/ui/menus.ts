@@ -470,6 +470,7 @@ export function resultPanel(
     line('コンボ', l.combo),
     line(`ネルの祝福 ×${BALANCE.nell.buffRate}`, l.nell, 'nell'),
     line('ツケ回収', l.tabCollected, 'nell'),
+    w.stage.burumi ? line('ブルミ', l.burumi, 'burumi') : null,
     w.stage.elfin ? h('div', { class: 'line bad' }, h('span', {}, '未回収のツケ（売上外）'), h('span', {}, w.tab ? `${w.tab.toLocaleString('ja-JP')} G` : 'なし')) : null,
   );
   const st = w.stats;
@@ -487,6 +488,7 @@ export function resultPanel(
     st.fevers > 0 ? h('span', {}, `フィーバー ${st.fevers}回（${st.feverServed}人）`) : null,
     h('span', {}, `ほっぺ ${st.mochi}回`),
     h('span', {}, `バターの援護 ${st.butterShots}回`),
+    w.stage.burumi ? h('span', {}, `ブルミ ${st.burumi}回`) : null,
   );
   const c = eshurComment(r);
   const comment = h('div', { class: 'comment' }, h('div', { class: 'comment-face' }, chara(host, ESHUR, c.expr, 28, { body: false })), h('p', {}, c.text));

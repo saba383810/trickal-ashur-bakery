@@ -107,6 +107,19 @@ export const BALANCE = {
     elfinAfter: 3,
   },
 
+  /**
+   * ブルミ: ときどき左右どちらかの窓の外に張り付く。張り付いている間にタップすると reward G（売上に入る）。
+   * 最初は firstAt 秒後、帰ってから interval 秒後にまた来る。フィーバー中と閉店間際は来ない
+   */
+  burumi: {
+    firstAt: [12, 20],
+    interval: [16, 28],
+    enterTime: 0.45,
+    stay: 4.5,
+    leaveTime: 0.5,
+    reward: 150,
+  },
+
   /** 終了の何秒前から新しい客が来なくなるか（エンドレスは来つづける） */
   closingTime: 4,
   /** 残り何秒で警告を出すか */

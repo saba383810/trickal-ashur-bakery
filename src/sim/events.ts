@@ -46,6 +46,10 @@ export type GameEvent =
   | { type: 'nellSuccess'; customerId: number; tabPaid: number; payment: Payment }
   | { type: 'nellFail'; customerId: number }
   | { type: 'buffEnd' }
+  /** ブルミが窓に張り付きに来た / タップされた / 帰った */
+  | { type: 'burumiArrive'; window: 0 | 1 }
+  | { type: 'burumiCatch'; window: 0 | 1; reward: number }
+  | { type: 'burumiLeave'; window: 0 | 1 }
   | { type: 'feverStart'; duration: number }
   | { type: 'feverEnd' }
   | { type: 'timeWarning' }

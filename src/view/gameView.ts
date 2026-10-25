@@ -8,6 +8,7 @@ import { drawBread } from './draw/breads';
 import { MochiBody } from '../mochi/body';
 import { BUTTER, ELFIN, KOMI, NELL, SPEAKI, villager } from './draw/characters';
 import { FEET_R, type ChibiPose, type ChibiSpec, type Expr } from './draw/chibi';
+import { burumiCenter, drawBurumi } from './draw/burumi';
 import { bubbleSize, drawBubble, drawOven, drawSlot, drawTray } from './draw/props';
 import { SceneCache } from './draw/scene';
 import { clock, coin, keycap, outlined, roundRect, star } from './draw/ui';
@@ -26,7 +27,8 @@ export type Action =
   | { type: 'bake'; oven: number; bread: BreadId }
   | { type: 'ovenTap'; oven: number }
   | { type: 'elfinGrab' }
-  | { type: 'pinch'; customerId: number };
+  | { type: 'pinch'; customerId: number }
+  | { type: 'burumi' };
 
 interface CustView {
   spec: ChibiSpec;
@@ -80,6 +82,8 @@ interface DecoFace {
 
 const SEAT_KEYS = ['A', 'S', 'D', 'F'];
 const OVEN_KEYS = ['Z', 'X', 'C'];
+/** 窓のブルミをタップするキー */
+const BURUMI_KEY = 'B';
 /** Space 長押しでこの秒数ためると追い払える */
 const KEY_PULL_TIME = 0.45;
 /** Space 長押しでつまむときの、仮の指の id */
@@ -208,6 +212,9 @@ export class GameView {
       case 'pinch':
         ok = w.pinchCustomer(a.customerId) !== 'none';
         break;
+      case 'burumi':
+        ok = w.tapBurumi();
+        break;
     }
     if (ok) this.onAction?.(a);
     return ok;
@@ -241,6 +248,8 @@ export class GameView {
 
     const L = this.L;
     const w = this.world;
+    // 窓のブルミ（窓のどこを押してもよい）
+    if (this.burumiTappable() && inside(L.windows[w.burumi.window], p, 8) && this.act({ type: 'burumi' })) return;
     const trayIdx = L.traySlots.findIndex((r) => inside(r, p, 4));
     if (trayIdx >= 0 && w.tray[trayIdx]) {
       this.act({ type: 'return', index: trayIdx });
@@ -418,6 +427,10 @@ export class GameView {
     }
     if (key === 'Backspace') {
       if (w.tray.length) this.act({ type: 'return', index: w.tray.length - 1 });
+      return true;
+    }
+    if (key.toUpperCase() === BURUMI_KEY) {
+      this.act({ type: 'burumi' });
       return true;
     }
     if (key === ' ') {
@@ -973,6 +986,26 @@ export class GameView {
         s.buffEnd();
         this.refreshBgm();
         break;
+      case 'burumiArrive':
+        s.burumiArrive();
+        // 初めて来た時だけ、窓の上に遊び方を出す（真ん中のお知らせは窓と客にかぶる）
+        if (!this.seen.has('burumi')) {
+          this.seen.add('burumi');
+          this.say('burumi', `タップで +${BALANCE.burumi.reward} G`, () => this.burumiSayPos(ev.window), C.burumi, BALANCE.burumi.stay);
+        }
+        break;
+      case 'burumiCatch': {
+        s.burumiCatch();
+        const p = burumiCenter(L.windows[ev.window]);
+        this.fx.burst(p.x, p.y, 'star', 12, C.burumi, 220);
+        this.fx.coinFly(p, this.hudSalesPos(), 2, () => (this.salesBump = 1));
+        this.fx.float(`+${ev.reward}`, p.x, p.y + 10, C.gold, 30);
+        this.say('burumi', 'えへへ、みつかっちゃった', () => this.burumiSayPos(ev.window), C.burumi, 1.6);
+        break;
+      }
+      case 'burumiLeave':
+        s.burumiLeave();
+        break;
       case 'feverStart':
         s.feverStart();
         this.rainbow.start(L);
@@ -1032,6 +1065,17 @@ export class GameView {
 
   private flashTrayFull(): void {
     this.fx.float('トレーがいっぱい', this.L.tray.x + this.L.tray.w / 2, this.L.tray.y - 6, '#ffffff', 20, C.bad);
+  }
+
+  /** ブルミの吹き出しは窓の上のほうに出す（窓の下には客の注文の吹き出しがある） */
+  private burumiSayPos(window: 0 | 1): Point {
+    const r = this.L.windows[window];
+    return { x: r.x + r.w / 2, y: r.y + 8 };
+  }
+
+  private burumiTappable(): boolean {
+    const st = this.world.burumi.state;
+    return st === 'entering' || st === 'stuck';
   }
 
   private elfinSayPos(): Point | null {
@@ -1099,6 +1143,7 @@ export class GameView {
       c.translate((Math.random() - 0.5) * s, (Math.random() - 0.5) * s);
     }
     c.drawImage(this.scene.back!, 0, 0, L.w, L.h);
+    if (w.burumi.state !== 'absent') drawBurumi(c, L.windows[w.burumi.window], w.burumi, this.time);
     this.rainbow.drawBack(c, L, pr);
 
     const sorted = [...w.customers].sort((a, b) => a.seat - b.seat);
@@ -1599,6 +1644,10 @@ export class GameView {
     L.ovens.forEach((r, i) => keycap(c, OVEN_KEYS[i], r.x + 16, r.y + r.h - 34));
     keycap(c, 'BS', L.tray.x + L.tray.w + 22, L.tray.y + L.tray.h / 2);
     if (this.elfinActive()) keycap(c, 'Space', this.elfin.x, this.elfin.y + this.elfinR() * (FEET_R + 0.25));
+    if (this.burumiTappable()) {
+      const r = L.windows[this.world.burumi.window];
+      keycap(c, BURUMI_KEY, r.x + r.w - 14, r.y + r.h - 14);
+    }
   }
 
   private drawBanners(c: CanvasRenderingContext2D): void {

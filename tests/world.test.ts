@@ -758,3 +758,48 @@ describe('終了と評価', () => {
     expect(sameBreads(['roll', 'roll'], ['roll', 'melon'])).toBe(false);
   });
 });
+
+describe('ブルミ', () => {
+  const B = BALANCE.burumi;
+
+  it('来ないモードでは来ない', () => {
+    const w = new World(stage(), 1);
+    for (let i = 0; i < 60 * 60; i++) w.step(DT);
+    expect(w.burumi.state).toBe('absent');
+    expect(w.tapBurumi()).toBe(false);
+  });
+
+  it('ときどき窓に張り付き、タップすると売上に入る。タップしないとそのまま帰る', () => {
+    const w = new World(stage({ burumi: true }), 1);
+    const until = (state: string) => {
+      for (let i = 0; i < 60 * 60 && w.burumi.state !== state; i++) w.step(DT);
+      expect(w.burumi.state).toBe(state);
+    };
+    until('entering');
+    expect(w.time).toBeGreaterThanOrEqual(B.firstAt[0]);
+    expect(w.time).toBeLessThanOrEqual(B.firstAt[1] + DT);
+    expect(w.drainEvents().some((e) => e.type === 'burumiArrive')).toBe(true);
+    until('stuck');
+    const before = w.sales;
+    expect(w.tapBurumi()).toBe(true);
+    expect(w.tapBurumi()).toBe(false);
+    expect(w.sales).toBe(before + B.reward);
+    expect(w.ledger.burumi).toBe(B.reward);
+    expect(w.stats.burumi).toBe(1);
+    until('absent');
+    until('stuck');
+    for (let i = 0; i < Math.ceil((B.stay + 0.1) * 60); i++) w.step(DT);
+    expect(w.burumi.state).toBe('leaving');
+    expect(w.tapBurumi()).toBe(false);
+    expect(w.stats.burumi).toBe(1);
+  });
+
+  it('ブルミが来ても、客の注文の並びは変わらない', () => {
+    const orders = (burumi: boolean) => {
+      const w = new World(stage({ burumi }), 7);
+      for (let i = 0; i < 60 * 40; i++) w.step(DT);
+      return w.customers.map((c) => c.order.join());
+    };
+    expect(orders(true)).toEqual(orders(false));
+  });
+});

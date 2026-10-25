@@ -60,12 +60,25 @@ export interface Elfin {
   lastBread: BreadId | null;
 }
 
+/** ブルミ: entering = 飛んできて窓に張り付くところ / stuck = 張り付いている / leaving = はがれて帰る / caught = タップされた */
+export type BurumiState = 'absent' | 'entering' | 'stuck' | 'leaving' | 'caught';
+
+export interface Burumi {
+  state: BurumiState;
+  t: number;
+  /** 0 = 左の窓 / 1 = 右の窓 */
+  window: 0 | 1;
+  /** 来た回数（見た目の変化に使う） */
+  visits: number;
+}
+
 export interface Ledger {
   base: number;
   tip: number;
   combo: number;
   nell: number;
   tabCollected: number;
+  burumi: number;
 }
 
 export interface Stats {
@@ -86,6 +99,8 @@ export interface Stats {
   fevers: number;
   /** フィーバー中に会計した客 */
   feverServed: number;
+  /** タップしたブルミ */
+  burumi: number;
 }
 
 export type Phase = 'playing' | 'ended';
@@ -132,7 +147,7 @@ export class World {
   fever = 0;
   /** フィーバーまでの会計数（stage.feverServes で満タン。フィーバー中は増えない） */
   feverGauge = 0;
-  ledger: Ledger = { base: 0, tip: 0, combo: 0, nell: 0, tabCollected: 0 };
+  ledger: Ledger = { base: 0, tip: 0, combo: 0, nell: 0, tabCollected: 0, burumi: 0 };
   stats: Stats = {
     served: 0,
     angry: 0,
@@ -148,7 +163,9 @@ export class World {
     timeAdded: 0,
     fevers: 0,
     feverServed: 0,
+    burumi: 0,
   };
+  burumi: Burumi = { state: 'absent', t: 0, window: 0, visits: 0 };
   events: GameEvent[] = [];
 
   /** 予告済みでまだ座っていないネルの来店時刻 */
@@ -167,6 +184,9 @@ export class World {
   private warned = false;
   /** 直近の注文（BALANCE.orderBias の recentOrders と maxRun の多いほうの件数） */
   private recentOrders: BreadId[][] = [];
+  /** ブルミ専用の乱数（ブルミが来ても客の注文などの並びは変わらない） */
+  private burumiRng: Rng;
+  private nextBurumiAt: number;
 
   constructor(stage: StageDef, seed: number) {
     this.stage = stage;
@@ -178,6 +198,8 @@ export class World {
     this.ovens = Array.from({ length: stage.ovens }, () => ({ state: 'idle', bread: null, t: 0 }));
     this.seatFreeAt = Array.from({ length: stage.seats }, () => 0);
     this.nextElfinAt = stage.elfin?.firstAt ?? Infinity;
+    this.burumiRng = new Rng(seed ^ 0x5bd1e995);
+    this.nextBurumiAt = stage.burumi ? this.burumiRng.range(...BALANCE.burumi.firstAt) : Infinity;
     this.nellQueue = [...stage.nellVisits].sort((a, b) => a - b);
     this.guests = [
       ...stage.komi.map((at) => ({ kind: 'komi' as const, at })),
@@ -187,7 +209,7 @@ export class World {
 
   get sales(): number {
     const l = this.ledger;
-    return l.base + l.tip + l.combo + l.nell + l.tabCollected;
+    return l.base + l.tip + l.combo + l.nell + l.tabCollected + l.burumi;
   }
 
   get remaining(): number {
@@ -384,6 +406,19 @@ export class World {
 
   // ------------------------------------------------------------------- step
 
+  /** 窓に張り付いたブルミをタップした */
+  tapBurumi(): boolean {
+    const b = this.burumi;
+    if (b.state !== 'entering' && b.state !== 'stuck') return false;
+    const reward = BALANCE.burumi.reward;
+    b.state = 'caught';
+    b.t = 0;
+    this.ledger.burumi += reward;
+    this.stats.burumi++;
+    this.emit({ type: 'burumiCatch', window: b.window, reward });
+    return true;
+  }
+
   step(dt: number): void {
     if (this.phase !== 'playing') return;
 
@@ -410,6 +445,7 @@ export class World {
     this.updateElfin(dt);
     this.updateButter(dt);
     this.updateBuff(dt);
+    this.updateBurumi(dt);
 
     if (!this.warned && this.remaining <= BALANCE.warningTime) {
       this.warned = true;
@@ -887,6 +923,44 @@ export class World {
         break;
       case 'launched':
         if (e.t >= b.launchTime) this.elfinGone(this.rng.range(cfg.intervalMin, cfg.intervalMax));
+        break;
+    }
+  }
+
+  private updateBurumi(dt: number): void {
+    const b = this.burumi;
+    const cfg = BALANCE.burumi;
+    b.t += dt;
+    switch (b.state) {
+      case 'absent':
+        if (this.time >= this.nextBurumiAt && this.fever <= 0 && (this.stage.endless || this.remaining > BALANCE.closingTime + 1)) {
+          b.state = 'entering';
+          b.t = 0;
+          b.window = this.burumiRng.int(2) as 0 | 1;
+          b.visits++;
+          this.emit({ type: 'burumiArrive', window: b.window });
+        }
+        break;
+      case 'entering':
+        if (b.t >= cfg.enterTime) {
+          b.state = 'stuck';
+          b.t = 0;
+        }
+        break;
+      case 'stuck':
+        if (b.t >= cfg.stay) {
+          b.state = 'leaving';
+          b.t = 0;
+          this.emit({ type: 'burumiLeave', window: b.window });
+        }
+        break;
+      case 'leaving':
+      case 'caught':
+        if (b.t >= cfg.leaveTime) {
+          b.state = 'absent';
+          b.t = 0;
+          this.nextBurumiAt = this.time + this.burumiRng.range(...cfg.interval);
+        }
         break;
     }
   }

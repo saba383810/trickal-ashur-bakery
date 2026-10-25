@@ -83,6 +83,8 @@ export interface StageDef {
    * ★1 ≒ 初心者×0.6 / ★2 ≒ ふつう×0.7 / ★3 ≒ 上手い×0.8 を目安に置く（人間はボットより遅い前提）
    */
   stars: [number, number, number];
+  /** 窓にブルミが来る（BALANCE.burumi） */
+  burumi?: boolean;
   /** 会計この回数でフィーバータイム（BALANCE.fever）。省略 = 自動では起きない（チュートリアルは手順の中で起こす） */
   feverServes?: number;
   endless?: EndlessDef;
@@ -134,6 +136,7 @@ export const STAGES: StageDef[] = [
     nellItems: 2,
     komi: [14],
     butter: [44],
+    burumi: true,
     guestItems: { komi: 1, butter: 2 },
     // 来店ペースで売上が頭打ち（ボットは腕前によらず約 4,100）になるので、★はその約 45% / 65% / 83% に置く
     stars: [2800, 4000, 5500],
@@ -157,6 +160,7 @@ export const STAGES: StageDef[] = [
     nellItems: 2,
     komi: [15, 48],
     butter: [40],
+    burumi: true,
     guestItems: { komi: 2, butter: 2 },
     // 微辛と同じく来店ペースで頭打ち（ふつう・上手いボットは約 7,400）。★はその約 46% / 67% / 86%
     stars: [3700, 6500, 9500],
@@ -180,6 +184,7 @@ export const STAGES: StageDef[] = [
     nellItems: 3,
     komi: [18, 58],
     butter: [46],
+    burumi: true,
     stars: [4300, 7900, 12000],
     feverServes: 10,
   },
@@ -200,6 +205,7 @@ export const STAGES: StageDef[] = [
     nellItems: 4,
     komi: [18, 60, 100],
     butter: [48, 92],
+    burumi: true,
     stars: [6500, 11500, 19800],
     feverServes: 10,
   },
@@ -221,6 +227,7 @@ export const STAGES: StageDef[] = [
     nellItems: 3,
     komi: [15],
     butter: [28],
+    burumi: true,
     stars: [4500, 13500, 43000],
     feverServes: 9,
     endless: {

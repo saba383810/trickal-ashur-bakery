@@ -349,6 +349,19 @@ export class Sound {
   }
 
   /** エンドレスのレベルアップ: 上がっていく 3 音 */
+  /** ブルミが窓にぺたっと張り付く */
+  burumiArrive(): void {
+    this.tone(520, 0.12, { type: 'sine', to: 300, vol: 0.18 });
+    this.noise(0.06, { type: 'lowpass', freq: 700, vol: 0.08 });
+    this.bell(1760, 0.1, 0.07, 0.3);
+  }
+  burumiCatch(): void {
+    [1318, 1568, 2093].forEach((f, i) => this.bell(f, i * 0.06, 0.12, 0.4));
+    this.tone(2637, 0.25, { type: 'triangle', vol: 0.08, at: 0.18 });
+  }
+  burumiLeave(): void {
+    this.tone(640, 0.18, { type: 'sine', to: 420, vol: 0.07 });
+  }
   levelUp(): void {
     [659, 880, 1175].forEach((f, i) => this.tone(f, 0.16, { type: 'square', vol: 0.08, at: i * 0.09 }));
   }

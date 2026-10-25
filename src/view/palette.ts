@@ -27,6 +27,7 @@ export const C = {
   nell: '#8ea3b8',
   komi: '#c79bb5',
   butter: '#e0a83c',
+  burumi: '#e8b928',
   shadow: 'rgba(90, 58, 34, 0.18)',
 } as const;
 
