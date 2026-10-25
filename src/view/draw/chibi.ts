@@ -1913,17 +1913,13 @@ function cheekBlush(ctx: CanvasRenderingContext2D, s: ChibiSpec, x: number, y: n
   else blush(ctx, x, y, sc);
 }
 
-/** モブの頬: にじんだ大きな丸と白いつや */
+/** モブの頬: 名前のある子と同じ平たいピンクの丸を少し大きく描き、白いつやを 1 つ足す（にじませると絵柄が浮く） */
 function mobBlush(ctx: CanvasRenderingContext2D, x: number, y: number, sc: number): void {
-  const g = ctx.createRadialGradient(x, y, 1, x, y, 15 * sc);
-  g.addColorStop(0, 'rgba(242, 120, 128, 0.9)');
-  g.addColorStop(0.62, 'rgba(246, 146, 150, 0.72)');
-  g.addColorStop(1, 'rgba(250, 172, 172, 0)');
-  ctx.fillStyle = g;
+  ctx.fillStyle = BLUSH;
   ctx.beginPath();
-  ctx.ellipse(x, y, 15 * sc, 13 * sc, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, y, 13.5 * sc, 12 * sc, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
   ctx.beginPath();
   ctx.ellipse(x - 3.5 * sc, y - 4.5 * sc, 2.8 * sc, 2.2 * sc, -0.4, 0, Math.PI * 2);
   ctx.fill();
