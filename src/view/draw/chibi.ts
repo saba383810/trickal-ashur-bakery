@@ -1293,23 +1293,75 @@ function komiBody(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
 
 /** バター: 白いブラウスに胸ポケットの黄色いベスト、金の鈴の首輪、斜め掛けの犬の顔のポーチ、薄ピンクの短パン */
 function butterBody(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
-  shorts(ctx, '#fed4d3', '#eab3b6');
-  loosePath(ctx, 27);
-  fillStroke(ctx, sideShade(ctx, -27, 27, s.outfit, s.outfitShade));
+  // 裾からのぞくピンクのフリル
+  ctx.beginPath();
+  ctx.moveTo(-37, 84);
+  ctx.lineTo(37, 84);
+  ctx.lineTo(37.5, 92);
+  for (let i = 0; i < 8; i++) {
+    const x0 = 37.5 - (75 / 8) * i;
+    const x1 = x0 - 75 / 8;
+    ctx.quadraticCurveTo((x0 + x1) / 2, 99, x1, 92);
+  }
+  ctx.closePath();
+  fillStroke(ctx, sideShade(ctx, -38, 38, '#fed4d3', '#eab3b6'), 2);
+  // 黄色いワンピース（肩から裾まで一続き。腰から少し広がる）
+  ctx.beginPath();
+  ctx.moveTo(-17, 43);
+  ctx.quadraticCurveTo(-24, 56, -22, 66);
+  ctx.quadraticCurveTo(-32, 77, -37, 89);
+  ctx.quadraticCurveTo(0, 95, 37, 89);
+  ctx.quadraticCurveTo(32, 77, 22, 66);
+  ctx.quadraticCurveTo(24, 56, 17, 43);
+  ctx.closePath();
+  fillStroke(ctx, sideShade(ctx, -37, 37, '#fed588', '#e3ac6c', 0.66));
+  // 腰の切り替えと、スカートのひだ・裾の白いライン
+  ctx.strokeStyle = '#d99a5c';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(-22, 66);
+  ctx.quadraticCurveTo(0, 70, 22, 66);
+  ctx.moveTo(-9, 70);
+  ctx.quadraticCurveTo(-12, 80, -15, 91);
+  ctx.moveTo(9, 70);
+  ctx.quadraticCurveTo(12, 80, 15, 91);
+  ctx.stroke();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.moveTo(-34, 85.5);
+  ctx.quadraticCurveTo(0, 91.5, 34, 85.5);
+  ctx.stroke();
+  // スカートのポケット
+  ctx.beginPath();
+  ctx.roundRect(13, 73, 10, 8, [1, 1, 3, 3]);
+  fillStroke(ctx, '#fbc96e', 1.6);
+  // 白いブラウスのふくらんだ半袖と丸い襟
+  for (const side of [-1, 1]) {
+    arm(ctx, s, side, side * 31, 76, s.skin);
+    ctx.beginPath();
+    ctx.ellipse(side * 23, 53, 9.5, 8.5, side * -0.5, 0, Math.PI * 2);
+    fillStroke(ctx, sideShade(ctx, side * 14, side * 32, s.outfit, s.outfitShade), 2.2);
+  }
   for (const side of [-1, 1]) {
     ctx.beginPath();
-    ctx.moveTo(side * 7, 52);
-    ctx.lineTo(side * 19, 44);
-    ctx.quadraticCurveTo(side * 26, 62, side * 27, 84);
-    ctx.quadraticCurveTo(side * 16, 88, side * 5, 87);
-    ctx.quadraticCurveTo(side * 3, 68, side * 7, 52);
+    ctx.moveTo(0, 46);
+    ctx.quadraticCurveTo(side * 20, 41, side * 20, 51);
+    ctx.quadraticCurveTo(side * 11, 57, 0, 50);
     ctx.closePath();
-    fillStroke(ctx, sideShade(ctx, -27, 27, '#fed588', '#dda46e', 0.7), 2.2);
+    fillStroke(ctx, s.collar, 2);
   }
-  ctx.beginPath();
-  ctx.roundRect(10, 64, 11, 9, 2);
-  fillStroke(ctx, '#fbc96e', 1.6);
-  for (const side of [-1, 1]) arm(ctx, s, side, side * 31, 76, s.outfit, s.outfitShade);
+  // 胸のリボン
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(0, 60);
+    ctx.quadraticCurveTo(side * 6, 53, side * 10, 56);
+    ctx.quadraticCurveTo(side * 11, 62, side * 9, 65);
+    ctx.quadraticCurveTo(side * 5, 64, 0, 60);
+    ctx.closePath();
+    fillStroke(ctx, '#fbc35a', 1.8);
+  }
+  dot(ctx, 0, 60, 2.8, '#f5b041', 1.6);
   // 首輪と鈴
   ctx.beginPath();
   ctx.roundRect(-14, 42, 28, 5.5, 2.5);
