@@ -122,6 +122,15 @@ export function drawBurumi(ctx: CanvasRenderingContext2D, win: Rect, b: Burumi, 
   ctx.restore();
 }
 
+/** メニュー用: 中心 (x, y)・半径 r のブルミ（ガラスに張り付いていない、ふつうの顔） */
+export function drawBurumiIcon(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(r / 50, r / 50);
+  body(ctx, 'look');
+  ctx.restore();
+}
+
 /** 頭の単位（半径 50）で描くブルミ。体は頭ひとつのまんまる */
 function body(ctx: CanvasRenderingContext2D, face: Face): void {
   const ink = crayon(ctx, LINE);

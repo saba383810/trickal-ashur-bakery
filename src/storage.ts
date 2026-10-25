@@ -17,6 +17,8 @@ export interface SaveData {
   bgmVolume: number;
   muted: boolean;
   keyHints: boolean;
+  /** 遊ぶ言語。null = まだ選んでいない（ブラウザの言語から決める） */
+  lang: string | null;
 }
 
 function defaults(): SaveData {
@@ -29,6 +31,7 @@ function defaults(): SaveData {
     bgmVolume: 0.5,
     muted: false,
     keyHints: true,
+    lang: null,
   };
 }
 

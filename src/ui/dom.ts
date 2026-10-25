@@ -1,7 +1,9 @@
 import type { Sound } from '../audio/sound';
 import type { BreadId } from '../config/breads';
+import { num } from '../i18n';
 import { MochiBody } from '../mochi/body';
 import { drawBread } from '../view/draw/breads';
+import { drawBurumiIcon } from '../view/draw/burumi';
 import { drawChibi, feetR, type ChibiPose, type ChibiSpec, type Expr } from '../view/draw/chibi';
 import { renderRatio } from '../view/screen';
 
@@ -213,6 +215,21 @@ export function breadCanvas(id: BreadId, size: number): HTMLCanvasElement {
   return cv;
 }
 
+/** メニューに出すブルミ（ガラスに張り付いていない顔） */
+export function burumiCanvas(size: number): HTMLCanvasElement {
+  const cv = document.createElement('canvas');
+  const k = dpr();
+  cv.width = Math.ceil(size * k);
+  cv.height = Math.ceil(size * k);
+  cv.style.width = `${size}px`;
+  cv.style.height = `${size}px`;
+  cv.className = 'chibi';
+  const c = cv.getContext('2d')!;
+  c.scale(k, k);
+  drawBurumiIcon(c, size / 2, size * 0.54, size * 0.4);
+  return cv;
+}
+
 export function starsText(n: number, max = 3): HTMLElement {
   const wrap = h('span', { class: 'stars', 'aria-label': `★${n}` });
   for (let i = 0; i < max; i++) wrap.append(h('span', { class: i < n ? 'star on' : 'star' }, '★'));
@@ -220,8 +237,6 @@ export function starsText(n: number, max = 3): HTMLElement {
 }
 
 export function yen(n: number): string {
-  return `${Math.round(n).toLocaleString('ja-JP')} G`;
+  return `${num(n)} G`;
 }
 
-export const DISCLAIMER =
-  '本作は『トリッカル・もちもちほっぺ大作戦』の非公式ファンゲームです。公式とは関係ありません。原作に関する権利は各権利者に帰属します。';

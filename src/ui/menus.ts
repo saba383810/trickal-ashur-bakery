@@ -4,9 +4,10 @@ import { BREADS } from '../config/breads';
 import { PLAY_STAGES, STAGES, type StageDef } from '../config/stages';
 import type { World } from '../sim/world';
 import type { SaveData } from '../storage';
+import { breadName, lang, LANGS, langName, stageBlurb, stageTitle, T, type Lang } from '../i18n';
 import { BUTTER, ELFIN, ESHUR, KOMI, NELL, SPEAKI, villager } from '../view/draw/characters';
 import type { ChibiSpec, Expr } from '../view/draw/chibi';
-import { DISCLAIMER, breadCanvas, h, mochiChibi, starsText, yen } from './dom';
+import { breadCanvas, burumiCanvas, h, mochiChibi, starsText, yen } from './dom';
 
 export interface MenuHost {
   save: SaveData;
@@ -38,7 +39,51 @@ function chara(host: MenuHost, spec: ChibiSpec, expr: Expr, size: number, opts: 
 
 // =================================================================== タイトル
 
-export function titleScreen(host: MenuHost, on: { start: () => void; howTo: () => void; settings: () => void }): HTMLElement {
+/** タイトル右上の言語ボタン。押すと 日本語 / 한국어 / English を選べる */
+function langPicker(host: MenuHost, onPick: (l: Lang) => void): HTMLElement {
+  const menu = h('div', { class: 'lang-menu hidden', role: 'menu' });
+  const toggle = h(
+    'button',
+    {
+      class: 'lang-btn',
+      type: 'button',
+      'aria-haspopup': 'true',
+      'aria-label': T.common.language,
+      onclick: () => {
+        host.sound.click();
+        menu.classList.toggle('hidden');
+      },
+    },
+    h('span', { class: 'lang-icon', 'aria-hidden': 'true' }),
+    langName(lang),
+  );
+  for (const l of LANGS) {
+    menu.append(
+      h(
+        'button',
+        {
+          class: l === lang ? 'lang-item on' : 'lang-item',
+          type: 'button',
+          role: 'menuitemradio',
+          'aria-checked': String(l === lang),
+          lang: l,
+          onclick: () => {
+            host.sound.click();
+            menu.classList.add('hidden');
+            if (l !== lang) onPick(l);
+          },
+        },
+        langName(l),
+      ),
+    );
+  }
+  return h('div', { class: 'lang' }, toggle, menu);
+}
+
+export function titleScreen(
+  host: MenuHost,
+  on: { start: () => void; howTo: () => void; settings: () => void; lang: (l: Lang) => void },
+): HTMLElement {
   const stars = PLAY_STAGES.reduce((n, s) => n + (host.save.stars[s.id] ?? 0), 0);
   const cast = h(
     'div',
@@ -48,7 +93,7 @@ export function titleScreen(host: MenuHost, on: { start: () => void; howTo: () =
     h(
       'div',
       { class: 'cast main' },
-      h('div', { class: 'say' }, 'パン屋じゃなくて、大魔法使いの店よ！'),
+      h('div', { class: 'say' }, T.title.say),
       chara(host, ESHUR, 'smile', 50),
       // スピキはエシュールとネルの足もとにしゃがむ
       h('div', { class: 'cast pet' }, chara(host, SPEAKI, 'happy', 26, { flip: true })),
@@ -59,14 +104,15 @@ export function titleScreen(host: MenuHost, on: { start: () => void; howTo: () =
   return h(
     'div',
     { class: 'screen title' },
-    h('p', { class: 'logo-sub' }, 'トリッカル・もちもちほっぺ大作戦 ファンゲーム'),
-    h('h1', { class: 'logo' }, h('span', { 'data-t': 'エシュールの' }, 'エシュールの'), h('span', { class: 'big', 'data-t': 'パン屋さん' }, 'パン屋さん')),
+    langPicker(host, on.lang),
+    h('p', { class: 'logo-sub' }, T.title.sub),
+    h('h1', { class: 'logo' }, h('span', { 'data-t': T.title.logo1 }, T.title.logo1), h('span', { class: 'big', 'data-t': T.title.logo2 }, T.title.logo2)),
     cast,
-    h('p', { class: 'hint' }, 'みんなのほっぺは、つまんで引っぱれます'),
-    button('はじめる', on.start, 'btn primary big', host),
-    h('div', { class: 'row' }, button('あそびかた', on.howTo, 'btn sub', host), button('設定', on.settings, 'btn sub', host)),
-    stars > 0 ? h('p', { class: 'total-stars' }, `あつめた★ ${stars} / ${PLAY_STAGES.length * 3}`) : null,
-    h('p', { class: 'disclaimer' }, DISCLAIMER),
+    h('p', { class: 'hint' }, T.title.hint),
+    button(T.title.start, on.start, 'btn primary big', host),
+    h('div', { class: 'row' }, button(T.common.howTo, on.howTo, 'btn sub', host), button(T.common.settings, on.settings, 'btn sub', host)),
+    stars > 0 ? h('p', { class: 'total-stars' }, T.title.stars(stars, PLAY_STAGES.length * 3)) : null,
+    h('p', { class: 'disclaimer' }, T.disclaimer),
   );
 }
 
@@ -84,7 +130,7 @@ const MODE_FACE: Record<string, [ChibiSpec, Expr]> = {
 
 /** 辛さ 1〜4 は唐辛子の数、5（エンドレス）は ∞ */
 function chilis(heat: number): HTMLElement {
-  const el = h('span', { class: 'chilis', 'aria-label': heat > 4 ? '辛さ∞' : `辛さ${heat}` });
+  const el = h('span', { class: 'chilis', 'aria-label': T.modes.heat(heat) });
   if (heat > 4) el.append(h('span', { class: 'chili' }), h('span', { class: 'chili-inf' }, '∞'));
   else for (let i = 0; i < heat; i++) el.append(h('span', { class: 'chili' }));
   return el;
@@ -96,16 +142,16 @@ export function formatTime(sec: number): string {
 }
 
 function modeMeta(s: StageDef): string {
-  if (s.tutorial) return 'エルフィン・ネル・コミー・バターの相手まで、ひととおり';
-  if (s.endless) return `はじめ${s.duration}秒 ・ パン${s.breads.length}種`;
-  return `${s.duration}秒 ・ パン${s.breads.length}種 ・ 客席${s.seats}`;
+  if (s.tutorial) return T.modes.metaTutorial;
+  if (s.endless) return T.modes.metaEndless(s.duration, s.breads.length);
+  return T.modes.meta(s.duration, s.breads.length, s.seats);
 }
 
 function modeRecord(host: MenuHost, s: StageDef): HTMLElement | null {
   const save = host.save;
-  if (s.tutorial) return h('p', { class: 'mode-rec' }, save.tutorialDone ? 'クリア済み' : 'はじめての方へおすすめ');
+  if (s.tutorial) return h('p', { class: 'mode-rec' }, save.tutorialDone ? T.modes.cleared : T.modes.recommend);
   const best = save.best[s.id] ?? 0;
-  if (best <= 0) return h('p', { class: 'mode-rec none' }, 'まだ記録なし');
+  if (best <= 0) return h('p', { class: 'mode-rec none' }, T.modes.noRecord);
   const time = s.endless && save.bestTime[s.id] ? ` ・ ${formatTime(save.bestTime[s.id])}` : '';
   return h('p', { class: 'mode-rec' }, starsText(save.stars[s.id] ?? 0), ` ${yen(best)}${time}`);
 }
@@ -130,7 +176,7 @@ export function modeSelect(host: MenuHost, on: { pick: (s: StageDef) => void; ba
         h(
           'span',
           { class: 'mode-body' },
-          h('span', { class: 'mode-head' }, h('span', { class: 'mode-name' }, s.title), s.heat > 0 ? chilis(s.heat) : null),
+          h('span', { class: 'mode-head' }, h('span', { class: 'mode-name' }, stageTitle(s)), s.heat > 0 ? chilis(s.heat) : null),
           h('span', { class: 'mode-meta' }, modeMeta(s)),
           modeRecord(host, s),
         ),
@@ -139,9 +185,9 @@ export function modeSelect(host: MenuHost, on: { pick: (s: StageDef) => void; ba
   }
   return panel(
     'modes-panel',
-    h('h2', {}, 'モードをえらぶ'),
+    h('h2', {}, T.modes.heading),
     list,
-    h('div', { class: 'row' }, button('もどる', on.back, 'btn sub', host)),
+    h('div', { class: 'row' }, button(T.common.back, on.back, 'btn sub', host)),
   );
 }
 
@@ -152,44 +198,45 @@ export function stageIntro(host: MenuHost, s: StageDef, on: { start: () => void;
   const e = s.endless;
   const breads = h('div', { class: 'intro-breads' });
   for (const b of s.breads) {
-    breads.append(h('div', { class: 'intro-bread' }, breadCanvas(b, 46), h('span', {}, BREADS[b].name), h('span', { class: 'price' }, `${BREADS[b].price}G`)));
+    breads.append(h('div', { class: 'intro-bread' }, breadCanvas(b, 46), h('span', {}, breadName(b)), h('span', { class: 'price' }, `${BREADS[b].price}G`)));
   }
   const goals = h('div', { class: 'goals' });
   s.stars.forEach((v, i) => goals.append(h('div', { class: 'goal' }, starsText(i + 1), h('span', {}, yen(v)))));
   const tip = (spec: ChibiSpec, expr: Expr, title: string, text: string) =>
     h('div', { class: 'tip' }, h('div', { class: 'tip-face' }, chara(host, spec, expr, 26)), h('div', {}, h('h3', {}, title), h('p', {}, text)));
+  const burumiTip = (title: string, text: string) =>
+    h('div', { class: 'tip' }, h('div', { class: 'tip-face' }, burumiCanvas(64)), h('div', {}, h('h3', {}, title), h('p', {}, text)));
   const tips = h(
     'div',
     { class: 'tips' },
-    tip(ELFIN, 'munch', 'エルフィン', 'パンを勝手に食べてツケに。ほっぺを強く引っぱって離すと追い払えます。'),
-    tip(NELL, 'smile', 'ネル', `注文は最初の${n.revealTime}秒だけ。覚えてぴったり渡すと、ツケ回収＋${n.buffDuration}秒間 売上×${n.buffRate}。`),
-    tip(KOMI, 'sleep', 'コミー', '居眠りしていて注文してくれません。ほっぺを引っぱると起きます。'),
-    tip(BUTTER, 'happy', 'バター', '座っている間、エルフィンをパチンコで追い払ってくれます。'),
-    s.feverServes
-      ? tip(SPEAKI, 'happy', 'フィーバータイム', `会計${s.feverServes}回でゲージ満タン。${BALANCE.fever.duration}秒間パンが減らず、1個だけほしいお客さんが次々来ます。`)
-      : null,
+    tip(ELFIN, 'munch', T.intro.elfin, T.intro.elfinTip),
+    tip(NELL, 'smile', T.intro.nell, T.intro.nellTip(n.revealTime, n.buffDuration, n.buffRate)),
+    tip(KOMI, 'sleep', T.intro.komi, T.intro.komiTip),
+    tip(BUTTER, 'happy', T.intro.butter, T.intro.butterTip),
+    s.feverServes ? tip(SPEAKI, 'happy', T.intro.fever, T.intro.feverTip(s.feverServes, BALANCE.fever.duration)) : null,
+    s.burumi ? burumiTip(T.intro.burumi, T.intro.burumiTip(BALANCE.burumi.reward)) : null,
   );
   return panel(
     'intro',
-    h('h2', {}, s.title),
-    h('div', { class: 'comment' }, h('div', { class: 'comment-face' }, chara(host, ESHUR, 'happy', 28, { body: false })), h('p', {}, s.blurb)),
-    h('p', { class: 'muted' }, e ? `はじめの残り時間 ${s.duration}秒 ・ オーブン${s.ovens}台 ・ 客席${s.seats}つ` : `制限時間 ${s.duration}秒 ・ オーブン${s.ovens}台 ・ 客席${s.seats}つ`),
+    h('h2', {}, stageTitle(s)),
+    h('div', { class: 'comment' }, h('div', { class: 'comment-face' }, chara(host, ESHUR, 'happy', 28, { body: false })), h('p', {}, stageBlurb(s))),
+    h('p', { class: 'muted' }, (e ? T.intro.endlessInfo : T.intro.timedInfo)(s.duration, s.ovens, s.seats)),
     breads,
     e
       ? h(
           'ul',
           { class: 'endless-rules' },
-          h('li', {}, `会計で時間が延びる：${e.timeBase}秒＋コンボ×${e.timePerCombo}秒（残りは最大${e.maxRemaining}秒）。ネル成功で＋${e.nellTime}秒。`),
-          h('li', {}, `${e.levelTime}秒ごとにレベルアップ。お客さんが増え、注文が多く、気が短くなっていく。`),
-          h('li', {}, 'フィーバータイムの間は、残り時間が減らない（会計でも延びない）。'),
-          s.burnTime !== null ? h('li', {}, `レベル${e.burnLevel}から、焼けたパンが${s.burnTime}秒で焦げるように。`) : null,
+          h('li', {}, T.intro.ruleExtend(e.timeBase, e.timePerCombo, e.maxRemaining, e.nellTime)),
+          h('li', {}, T.intro.ruleLevel(e.levelTime)),
+          h('li', {}, T.intro.ruleFever),
+          s.burnTime !== null ? h('li', {}, T.intro.ruleBurn(e.burnLevel, s.burnTime)) : null,
         )
       : null,
     tips,
-    h('p', { class: 'muted small' }, 'お客さんを押したままずらすと、ほっぺを引っぱってごきげんに（1人1回）。'),
-    h('h3', { class: 'goals-title' }, '目標売上'),
+    h('p', { class: 'muted small' }, T.intro.mochiHint),
+    h('h3', { class: 'goals-title' }, T.intro.goals),
     goals,
-    h('div', { class: 'row' }, button('もどる', on.back, 'btn sub', host), button('開店する', on.start, 'btn primary', host)),
+    h('div', { class: 'row' }, button(T.common.back, on.back, 'btn sub', host), button(T.intro.open, on.start, 'btn primary', host)),
   );
 }
 
@@ -198,14 +245,14 @@ export function stageIntro(host: MenuHost, s: StageDef, on: { start: () => void;
 export function tutorialDonePanel(host: MenuHost, first: StageDef, on: { play: () => void; select: () => void }): HTMLElement {
   return panel(
     'tutorial-done',
-    h('h2', {}, 'チュートリアル完了！'),
+    h('h2', {}, T.tutorialDone.heading),
     h(
       'div',
       { class: 'comment' },
       h('div', { class: 'comment-face' }, chara(host, ESHUR, 'happy', 28, { body: false })),
-      h('p', {}, `これで教主も一人前の店員ね！ まずは${first.title}で、本番の営業をやってみましょう。`),
+      h('p', {}, T.tutorialDone.text(stageTitle(first))),
     ),
-    h('div', { class: 'row' }, button('モードえらび', on.select, 'btn sub', host), button(`${first.title}であそぶ`, on.play, 'btn primary', host)),
+    h('div', { class: 'row' }, button(T.common.modeSelect, on.select, 'btn sub', host), button(T.tutorialDone.play(stageTitle(first)), on.play, 'btn primary', host)),
   );
 }
 
@@ -236,145 +283,87 @@ export function settingsPanel(host: MenuHost, on: { close: () => void }): HTMLEl
   };
   return panel(
     'settings',
-    h('h2', {}, '設定'),
-    slider('効果音', s.sfxVolume, (v) => {
+    h('h2', {}, T.common.settings),
+    slider(T.settings.sfx, s.sfxVolume, (v) => {
       s.sfxVolume = v;
       host.sound.sfxVolume = v;
     }),
-    slider('BGM', s.bgmVolume, (v) => {
+    slider(T.settings.bgm, s.bgmVolume, (v) => {
       s.bgmVolume = v;
       host.sound.bgmVolume = v;
     }),
-    toggle('ミュート', s.muted, (v) => {
+    toggle(T.common.mute, s.muted, (v) => {
       s.muted = v;
       host.sound.muted = v;
     }),
-    toggle('キーボード操作のヒントを出す', s.keyHints, (v) => (s.keyHints = v)),
-    h('p', { class: 'muted small' }, 'チュートリアルは「はじめる」のモード選択から、いつでも遊べます。'),
-    h('div', { class: 'row' }, button('とじる', on.close, 'btn primary', host)),
+    toggle(T.settings.keyHints, s.keyHints, (v) => (s.keyHints = v)),
+    h('p', { class: 'muted small' }, T.settings.tutorialNote),
+    h('div', { class: 'row' }, button(T.common.close, on.close, 'btn primary', host)),
   );
 }
 
 // =============================================================== あそびかた
 
-/** 例: 「微辛・中辛では焦げません。辛口は10秒、激辛・エンドレス（レベル3から）は8秒で焦げてしまいます。」 */
+/** 焦げる時間の説明（例: 「微辛・中辛では焦げません。辛口は10秒、激辛・エンドレス（レベル3から）は8秒で焦げてしまいます。」） */
 function burnText(): string {
-  const label = (s: StageDef) => (s.endless ? `${s.title}（レベル${s.endless.burnLevel}から）` : s.title);
-  const names = (pick: (s: StageDef) => boolean) => PLAY_STAGES.filter(pick).map(label).join('・');
-  const safe = names((s) => s.burnTime === null);
+  const label = (s: StageDef) => (s.endless ? T.howTo.burnFrom(stageTitle(s), s.endless.burnLevel) : stageTitle(s));
+  const names = (pick: (s: StageDef) => boolean) => T.howTo.burnNames(PLAY_STAGES.filter(pick).map(label));
+  const safe = PLAY_STAGES.some((s) => s.burnTime === null) ? names((s) => s.burnTime === null) : '';
   const times = [...new Set(PLAY_STAGES.map((s) => s.burnTime).filter((t): t is number => t !== null))].sort((a, b) => b - a);
-  const burn = times.map((t) => `${names((s) => s.burnTime === t)}は${t}秒`).join('、');
-  return `${safe ? `${safe}では焦げません。` : ''}${burn}で焦げてしまいます。`;
+  return T.howTo.burnText(safe, times.map((t) => T.howTo.burnAt(names((s) => s.burnTime === t), t)));
 }
 
 export function howToPanel(host: MenuHost, on: { close: () => void }): HTMLElement {
   const n = BALANCE.nell;
+  const H = T.howTo;
   const timed = PLAY_STAGES.filter((s) => !s.endless);
-  const pages: { title: string; art: () => HTMLElement; text: string[] }[] = [
+  const pct = (v: number) => Math.round(v * 100);
+  const pages: { page: { title: string; text: string[] }; art: () => HTMLElement }[] = [
     {
-      title: 'お店の流れ',
-      art: () => h('div', { class: 'art' }, breadCanvas('croissant', 56), h('span', { class: 'arrow' }, '→'), h('span', { class: 'tray-icon' }, 'トレー'), h('span', { class: 'arrow' }, '→'), chara(host, ESHUR, 'happy', 24)),
-      text: [
-        '制限時間のうちに、どれだけ稼げるか。売上で★が決まります。',
-        'ショーケースのパンをタップすると、トレーにのります（4個まで）。',
-        'お客さんをタップすると、トレーから注文のパンだけを渡します。',
-        'まちがえてのせたパンは、トレーのパンをタップで戻せます。',
-      ],
+      page: H.flow,
+      art: () => h('div', { class: 'art' }, breadCanvas('croissant', 56), h('span', { class: 'arrow' }, '→'), h('span', { class: 'tray-icon' }, H.tray), h('span', { class: 'arrow' }, '→'), chara(host, ESHUR, 'happy', 24)),
     },
     {
-      title: 'ほっぺを引っぱる',
-      art: () => h('div', { class: 'art' }, chara(host, villager(7), 'worried', 30), h('span', { class: 'arrow' }, '→'), h('span', { class: 'big-num' }, 'ごきげん！')),
-      text: [
-        'お客さんを押したまま指をずらすと、ほっぺを引っぱります（タップは接客）。',
-        '引っぱって離すと、待ち時間が満タンに戻ります。1人1回まで。',
-        'タイトルやこの画面のキャラも、ほっぺを引っぱれます。',
-      ],
+      page: H.cheek,
+      art: () => h('div', { class: 'art' }, chara(host, villager(7), 'worried', 30), h('span', { class: 'arrow' }, '→'), h('span', { class: 'big-num' }, H.happy)),
     },
     {
-      title: 'お会計',
-      art: () => h('div', { class: 'art' }, h('span', { class: 'big-num' }, '+20%'), h('span', { class: 'big-num' }, 'コンボ')),
-      text: [
-        `早く渡すほどチップが増えます（最大+${Math.round(BALANCE.tip.high * 100)}%）。`,
-        `怒らせずに会計を続けるとコンボ。1人ごとに+${Math.round(BALANCE.combo.step * 100)}%（最大+${Math.round(BALANCE.combo.step * BALANCE.combo.maxSteps * 100)}%）。`,
-        '待たせすぎると怒って帰り、コンボがとぎれます。',
-      ],
+      page: H.pay(pct(BALANCE.tip.high), pct(BALANCE.combo.step), pct(BALANCE.combo.step * BALANCE.combo.maxSteps)),
+      art: () => h('div', { class: 'art' }, h('span', { class: 'big-num' }, '+20%'), h('span', { class: 'big-num' }, H.combo)),
     },
     {
-      title: 'オーブン',
-      art: () => h('div', { class: 'art' }, h('span', { class: 'oven-icon' }, 'やく'), h('span', { class: 'arrow' }, '→'), h('span', { class: 'oven-icon ready' }, 'やけた！')),
-      text: [
-        '空いているオーブンをタップして、焼くパンを選びます。',
-        '焼けたらタップで取り出し。ショーケースに並びます。',
-        burnText(),
-      ],
+      page: H.oven(burnText()),
+      art: () => h('div', { class: 'art' }, h('span', { class: 'oven-icon' }, H.bake), h('span', { class: 'arrow' }, '→'), h('span', { class: 'oven-icon ready' }, H.baked)),
     },
+    { page: H.elfin, art: () => h('div', { class: 'art' }, chara(host, ELFIN, 'munch', 30)) },
     {
-      title: 'エルフィン',
-      art: () => h('div', { class: 'art' }, chara(host, ELFIN, 'munch', 30)),
-      text: [
-        'ショーケースのパンを勝手に食べて、ツケにしてしまいます。ツケは売上に入りません。',
-        'ほっぺをつまんで引っぱり、離すと追い払えます。引っぱりが弱いとひるむだけ。',
-        'つまんでいる間は食べられません。もう片方の手で接客もできます。',
-      ],
-    },
-    {
-      title: 'ネルの記憶接客',
+      page: H.nell(n.announceLead, n.revealTime, n.buffDuration, n.buffRate, n.peekCost),
       art: () => h('div', { class: 'art' }, chara(host, NELL, 'smile', 30)),
-      text: [
-        `来店の${BALANCE.nell.announceLead}秒前に予告。注文は最初の${n.revealTime}秒だけ見えます。`,
-        '覚えたパンをトレーにそろえて、1回で渡します。多すぎても少なすぎてもダメ（順番は自由）。',
-        `成功：ツケを全額回収＋${n.buffDuration}秒間 売上×${n.buffRate}。失敗：ツケはそのまま。`,
-        `トレーが空のときにタップするか、ほっぺを引っぱると、もう一度見せてもらえます（${n.peekCost}秒待たせます）。`,
-      ],
     },
     {
-      title: 'フィーバータイム',
+      page: H.fever(BALANCE.fever.duration),
       art: () => h('div', { class: 'art' }, chara(host, SPEAKI, 'happy', 26), h('span', { class: 'big-num' }, '∞')),
-      text: [
-        '会計するたびに、右上のスピキのゲージがたまります。満タンでフィーバータイム！',
-        `${BALANCE.fever.duration}秒間、ショーケースのパンが減らなくなり、パンを1個だけほしいお客さんが次々来ます。`,
-        'フィーバー中は誰も待ちくたびれず、焼けたパンも焦げません。女王様たちは終わるまで来ません。',
-        'フィーバー中に時間切れになっても、閉店はフィーバーが終わってから。最後まで渡しきろう。',
-      ],
     },
     {
-      title: 'コミーとバター',
+      page: H.guests(BALANCE.butter.shotInterval),
       art: () => h('div', { class: 'art' }, chara(host, KOMI, 'sleep', 28), chara(host, BUTTER, 'happy', 28, { flip: true })),
-      text: [
-        'コミーは席で居眠りしていて、注文してくれません。ほっぺを引っぱると起きます。',
-        '起きたあとも待たせすぎると、また寝てしまいます。',
-        `バターは座っている間、エルフィンを${BALANCE.butter.shotInterval}秒ごとにパチンコで追い払ってくれます。`,
-      ],
     },
+    { page: H.burumi(BALANCE.burumi.reward), art: () => h('div', { class: 'art' }, burumiCanvas(72)) },
     {
-      title: 'モード',
-      art: () => h('div', { class: 'art' }, ...PLAY_STAGES.map((s) => h('span', { class: 'mode-chip' }, s.title))),
-      text: [
-        `${timed.map((s) => s.title).join('・')}：${timed.map((s) => `${s.duration}秒`).join(' / ')}。辛いほどパンもお客さんも増えます。`,
-        'エンドレス：会計するたびに時間が延び、コンボが続くほど長く延びます。時間がたつほどお客さんが増えていきます。',
-        'チュートリアルはモード選択からいつでも。途中でスキップもできます。',
-      ],
+      page: H.modes(timed.map(stageTitle), timed.map((s) => s.duration)),
+      art: () => h('div', { class: 'art' }, ...PLAY_STAGES.map((s) => h('span', { class: 'mode-chip' }, stageTitle(s)))),
     },
-    {
-      title: 'キーボード',
-      art: () => h('div', { class: 'art keys' }, ...['1', '2', 'A', 'Shift', 'Z', 'Space'].map((k) => h('kbd', {}, k))),
-      text: [
-        '1〜4：パンをトレーへ（焼くパンを選ぶときも）',
-        'A S D F：左からお客さんに渡す　Shift＋A S D F：ほっぺを引っぱる',
-        'Z X：オーブン　Backspace：トレーの最後を戻す',
-        'Space長押し→離す：エルフィンを追い払う　Esc / P：ポーズ',
-      ],
-    },
+    { page: H.keys, art: () => h('div', { class: 'art keys' }, ...['1', '2', 'A', 'Shift', 'Z', 'Space', 'B'].map((k) => h('kbd', {}, k))) },
   ];
   let page = 0;
   const body = h('div', { class: 'howto-body' });
   const dots = h('div', { class: 'dots' });
-  const prev = button('まえ', () => go(page - 1), 'btn sub small', host);
-  const next = button('つぎ', () => go(page + 1), 'btn sub small', host);
+  const prev = button(H.prev, () => go(page - 1), 'btn sub small', host);
+  const next = button(H.next, () => go(page + 1), 'btn sub small', host);
   const go = (i: number) => {
     page = Math.max(0, Math.min(pages.length - 1, i));
     const p = pages[page];
-    body.replaceChildren(h('h3', {}, p.title), p.art(), h('ul', {}, ...p.text.map((t) => h('li', {}, t))));
+    body.replaceChildren(h('h3', {}, p.page.title), p.art(), h('ul', {}, ...p.page.text.map((t) => h('li', {}, t))));
     dots.replaceChildren(...pages.map((_, j) => h('span', { class: j === page ? 'dot on' : 'dot' })));
     prev.disabled = page === 0;
     next.disabled = page === pages.length - 1;
@@ -382,11 +371,11 @@ export function howToPanel(host: MenuHost, on: { close: () => void }): HTMLEleme
   go(0);
   return panel(
     'howto',
-    h('h2', {}, 'あそびかた'),
+    h('h2', {}, T.common.howTo),
     body,
     h('div', { class: 'row pager' }, prev, dots, next),
-    h('p', { class: 'disclaimer' }, DISCLAIMER),
-    h('div', { class: 'row' }, button('とじる', on.close, 'btn primary', host)),
+    h('p', { class: 'disclaimer' }, T.disclaimer),
+    h('div', { class: 'row' }, button(T.common.close, on.close, 'btn primary', host)),
   );
 }
 
@@ -406,17 +395,17 @@ export function pausePanel(
   });
   return panel(
     'pause',
-    h('h2', {}, 'ポーズ'),
+    h('h2', {}, T.pause.heading),
     h(
       'div',
       { class: 'col' },
-      button('つづける', on.resume, 'btn primary', host),
-      on.skip ? button('チュートリアルをスキップ', on.skip, 'btn sub', host) : null,
-      button('あそびかた', on.howTo, 'btn sub', host),
-      button('はじめからやり直す', on.retry, 'btn sub', host),
-      button('モードえらびにもどる', on.quit, 'btn sub', host),
+      button(T.pause.resume, on.resume, 'btn primary', host),
+      on.skip ? button(T.pause.skipTutorial, on.skip, 'btn sub', host) : null,
+      button(T.common.howTo, on.howTo, 'btn sub', host),
+      button(T.pause.restart, on.retry, 'btn sub', host),
+      button(T.pause.quit, on.quit, 'btn sub', host),
     ),
-    h('label', { class: 'setting toggle' }, h('span', {}, 'ミュート'), mute),
+    h('label', { class: 'setting toggle' }, h('span', {}, T.common.mute), mute),
   );
 }
 
@@ -434,16 +423,17 @@ export interface ResultInfo {
 
 function eshurComment(r: ResultInfo): { text: string; expr: 'happy' | 'smile' | 'worried' | 'sulk' } {
   const w = r.world;
-  if (r.stars >= 3) return { text: 'すごいじゃない！ これで魔法の研究費もばっちりね！', expr: 'happy' };
-  if (w.ledger.tabCollected > 0 && r.stars >= 1) return { text: 'ネルのおかげで女王様のツケが返ってきたわ。助かったわね！', expr: 'smile' };
-  if (r.stars === 2) return { text: 'なかなかやるわね。さすが私の助手よ！', expr: 'smile' };
+  const R = T.result;
+  if (r.stars >= 3) return { text: R.comment3, expr: 'happy' };
+  if (w.ledger.tabCollected > 0 && r.stars >= 1) return { text: R.commentTab, expr: 'smile' };
+  if (r.stars === 2) return { text: R.comment2, expr: 'smile' };
   if (r.stars === 1) {
-    if (w.tab > 0) return { text: 'まあまあね。……女王様のツケ、また増えちゃったけど。', expr: 'worried' };
-    return { text: 'まあまあね。次はもっと稼ぐわよ、教主！', expr: 'smile' };
+    if (w.tab > 0) return { text: R.comment1Tab, expr: 'worried' };
+    return { text: R.comment1, expr: 'smile' };
   }
-  if (w.stats.burnt >= 3) return { text: 'パンが焦げてる……！ 焼けたらすぐ取り出すのよ！', expr: 'sulk' };
-  if (w.stats.angry >= 4) return { text: 'お客さんを待たせすぎよ！ トレーにまとめてのせると速いわ。', expr: 'sulk' };
-  return { text: 'うう、今日も赤字……。大魔法使いの店なのに！', expr: 'sulk' };
+  if (w.stats.burnt >= 3) return { text: R.commentBurnt, expr: 'sulk' };
+  if (w.stats.angry >= 4) return { text: R.commentAngry, expr: 'sulk' };
+  return { text: R.comment0, expr: 'sulk' };
 }
 
 export function resultPanel(
@@ -461,49 +451,50 @@ export function resultPanel(
   const starEls = [0, 1, 2].map(() => h('span', { class: 'star' }, '★'));
   starsEl.append(...starEls);
 
-  const line = (label: string, v: number, cls = '') => h('div', { class: `line ${cls}` }, h('span', {}, label), h('span', {}, v ? `${v >= 0 ? '+' : ''}${Math.round(v).toLocaleString('ja-JP')} G` : '—'));
+  const R = T.result;
+  const line = (label: string, v: number, cls = '') => h('div', { class: `line ${cls}` }, h('span', {}, label), h('span', {}, v ? `${v >= 0 ? '+' : ''}${yen(v)}` : '—'));
   const breakdown = h(
     'div',
     { class: 'breakdown' },
-    line('パン代', l.base),
-    line('早さチップ', l.tip),
-    line('コンボ', l.combo),
-    line(`ネルの祝福 ×${BALANCE.nell.buffRate}`, l.nell, 'nell'),
-    line('ツケ回収', l.tabCollected, 'nell'),
-    w.stage.burumi ? line('ブルミ', l.burumi, 'burumi') : null,
-    w.stage.elfin ? h('div', { class: 'line bad' }, h('span', {}, '未回収のツケ（売上外）'), h('span', {}, w.tab ? `${w.tab.toLocaleString('ja-JP')} G` : 'なし')) : null,
+    line(R.base, l.base),
+    line(R.tip, l.tip),
+    line(R.combo, l.combo),
+    line(R.nell(BALANCE.nell.buffRate), l.nell, 'nell'),
+    line(R.tab, l.tabCollected, 'nell'),
+    w.stage.burumi ? line(R.burumi, l.burumi, 'burumi') : null,
+    w.stage.elfin ? h('div', { class: 'line bad' }, h('span', {}, R.unpaid), h('span', {}, w.tab ? yen(w.tab) : R.none)) : null,
   );
   const st = w.stats;
   const stats = h(
     'div',
     { class: 'stats' },
-    endless ? h('span', { class: 'wide' }, `営業 ${formatTime(w.time)}（のびた ${Math.round(st.timeAdded)}秒）`) : null,
-    endless ? h('span', {}, `レベル ${w.level}`) : null,
-    h('span', {}, `接客 ${st.served}人`),
-    h('span', {}, `最大コンボ ${st.bestCombo}`),
-    h('span', {}, `怒らせた ${st.angry}人`),
-    h('span', {}, `焦がした ${st.burnt}回`),
-    w.stage.elfin ? h('span', {}, `追い払った ${st.repelled}回`) : null,
-    h('span', {}, `ネル接客 ${st.nellSuccess}/${st.nellSuccess + st.nellFail}`),
-    st.fevers > 0 ? h('span', {}, `フィーバー ${st.fevers}回（${st.feverServed}人）`) : null,
-    h('span', {}, `ほっぺ ${st.mochi}回`),
-    h('span', {}, `バターの援護 ${st.butterShots}回`),
-    w.stage.burumi ? h('span', {}, `ブルミ ${st.burumi}回`) : null,
+    endless ? h('span', { class: 'wide' }, R.endlessTime(formatTime(w.time), Math.round(st.timeAdded))) : null,
+    endless ? h('span', {}, R.level(w.level)) : null,
+    h('span', {}, R.served(st.served)),
+    h('span', {}, R.bestCombo(st.bestCombo)),
+    h('span', {}, R.angry(st.angry)),
+    h('span', {}, R.burnt(st.burnt)),
+    w.stage.elfin ? h('span', {}, R.repelled(st.repelled)) : null,
+    h('span', {}, R.nellServed(st.nellSuccess, st.nellSuccess + st.nellFail)),
+    st.fevers > 0 ? h('span', {}, R.fever(st.fevers, st.feverServed)) : null,
+    h('span', {}, R.mochi(st.mochi)),
+    h('span', {}, R.butter(st.butterShots)),
+    w.stage.burumi ? h('span', {}, R.burumiTimes(st.burumi)) : null,
   );
   const c = eshurComment(r);
   const comment = h('div', { class: 'comment' }, h('div', { class: 'comment-face' }, chara(host, ESHUR, c.expr, 28, { body: false })), h('p', {}, c.text));
-  const badge = h('div', { class: 'badge hidden' }, endless && w.time > r.prevTime && !(sales > r.prevBest) ? '最長営業！' : 'ベスト更新！');
+  const badge = h('div', { class: 'badge hidden' }, endless && w.time > r.prevTime && !(sales > r.prevBest) ? R.longest : R.best);
   const newTime = endless && r.prevTime > 0 && w.time > r.prevTime;
 
-  const buttons = h('div', { class: 'row' }, button('モードえらび', on.select, 'btn sub', host), button('もう一度', on.retry, 'btn primary', host));
+  const buttons = h('div', { class: 'row' }, button(T.common.modeSelect, on.select, 'btn sub', host), button(T.common.retry, on.retry, 'btn primary', host));
 
   const el = panel(
     'result',
     h(
       'div',
       { class: 'result-main' },
-      h('p', { class: 'stage-label' }, r.stage.title),
-      h('h2', {}, '本日の売上'),
+      h('p', { class: 'stage-label' }, stageTitle(r.stage)),
+      h('h2', {}, R.heading),
       total,
       badge,
       starsEl,

@@ -1,6 +1,7 @@
 import { Bgm } from './audio/bgm';
 import { Sound } from './audio/sound';
 import { PLAY_STAGES, type StageDef } from './config/stages';
+import { detectLang, isLang, setLang, T, type Lang } from './i18n';
 import { World, starsFor } from './sim/world';
 import { loadSave, writeSave, type SaveData } from './storage';
 import { h } from './ui/dom';
@@ -46,6 +47,7 @@ export class App implements MenuHost {
     this.sound.sfxVolume = this.save.sfxVolume;
     this.sound.bgmVolume = this.save.bgmVolume;
     this.sound.muted = this.save.muted;
+    setLang(isLang(this.save.lang) ? this.save.lang : detectLang());
     this.bindInput(canvas);
     this.watchFonts();
     this.goTitle();
@@ -65,10 +67,32 @@ export class App implements MenuHost {
       this.drawnVersion = -1;
     };
     fonts.addEventListener('loadingdone', refresh);
-    const sample = 'エシュールのベーカリーロールパンクロワッサンメロンあんカレーチョココロネ食パン0123456789G';
+    this.loadFonts(refresh);
+  }
+
+  /** いまの言語で背景に焼く文字（看板・パンの名前）のフォントを読み込む（韓国語は別のフォント） */
+  private loadFonts(done: () => void): void {
+    const fonts = document.fonts;
+    if (!fonts) return;
+    const sample = [T.game.sign, ...Object.values(T.breads), T.title.logo1, T.title.logo2, '0123456789G'].join('');
     void Promise.all([fonts.load(font(20, 800), sample), fonts.load(font(20, 700), sample)])
-      .then(refresh)
+      .then(done)
       .catch(() => {});
+  }
+
+  /** 言語を切り替えて、保存し、タイトルを出し直す */
+  private changeLang(l: Lang): void {
+    setLang(l);
+    this.save.lang = l;
+    this.persist();
+    const refresh = () => {
+      this.backdrop.invalidate();
+      this.view?.invalidateScene();
+      this.drawnVersion = -1;
+    };
+    refresh();
+    this.loadFonts(refresh);
+    this.goTitle();
   }
 
   persist(): void {
@@ -104,6 +128,7 @@ export class App implements MenuHost {
         start: () => this.goSelect(),
         howTo: () => this.showHowTo(() => this.goTitle()),
         settings: () => this.showSettings(() => this.goTitle()),
+        lang: (l) => this.changeLang(l),
       }),
     );
   }
@@ -388,7 +413,7 @@ export class App implements MenuHost {
         if (this.timer <= 0) {
           this.mode = 'playing';
           view!.inputEnabled = true;
-          view!.banner('開店！', undefined, C.eshur, 1.1, undefined, true);
+          view!.banner(T.game.open, undefined, C.eshur, 1.1, undefined, true);
           this.sound.countdown(true);
           this.bgm.mode = 'normal';
           this.startBgm();

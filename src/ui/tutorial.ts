@@ -1,4 +1,5 @@
 import type { BreadId } from '../config/breads';
+import { T } from '../i18n';
 import type { World } from '../sim/world';
 import { ESHUR } from '../view/draw/characters';
 import type { Expr } from '../view/draw/chibi';
@@ -63,11 +64,11 @@ export class Tutorial {
       {
         kind: 'tap',
         expr: 'happy',
-        text: '最強の妖精、大魔法使いエシュールの店へようこそ！ 今日は教主に手伝ってもらうわよ。（右上の「スキップ」で、いつでも飛ばせます）',
+        text: T.tutorial.welcome,
       },
       {
         kind: 'act',
-        text: 'お客さんよ！ ほしいパンは吹き出しに出るわ。ショーケースのクロワッサンをタップして、トレーにのせて。',
+        text: T.tutorial.pick,
         enter: () => {
           this.servedId = w.spawnCustomer(['croissant'], 1)?.id ?? -1;
         },
@@ -77,7 +78,7 @@ export class Tutorial {
       },
       {
         kind: 'act',
-        text: 'のったわね。お客さんをタップして渡してあげて！',
+        text: T.tutorial.serve,
         allow: isServe,
         advance: isServe,
         target: () => [cust(), view.L.tray],
@@ -85,11 +86,11 @@ export class Tutorial {
       {
         kind: 'tap',
         expr: 'smile',
-        text: 'その調子！ 早く渡すほどチップが増えて、続けて接客するとコンボでもっと増えるわ。',
+        text: T.tutorial.tips,
       },
       {
         kind: 'wait',
-        text: '注文が2つなら、両方トレーにのせてまとめて渡すと早いわ。まちがえたパンは、トレーでタップすると戻せるわよ。',
+        text: T.tutorial.two,
         enter: () => {
           this.servedId = w.spawnCustomer(['roll', 'melon'], 0)?.id ?? -1;
         },
@@ -100,7 +101,7 @@ export class Tutorial {
       {
         kind: 'act',
         expr: 'smile',
-        text: '待たせすぎるとお客さんは怒って帰っちゃうわ。そんなときは、お客さんを押したまま指をずらして、ほっぺを引っぱってあげて！ ごきげんが満タンに戻るわ（1人1回よ）。',
+        text: T.tutorial.mochi,
         enter: () => {
           this.servedId = w.spawnCustomer(['curry'], 2)?.id ?? -1;
         },
@@ -111,14 +112,14 @@ export class Tutorial {
       {
         kind: 'wait',
         expr: 'happy',
-        text: 'ごきげんになったわね。カレーパンも渡してあげて。',
+        text: T.tutorial.mochiDone,
         allow: (a) => shop(a) || isServe(a),
         done: servedLeft,
         target: () => [shopArea()],
       },
       {
         kind: 'act',
-        text: 'パンは売れると減っていくわ。空いているオーブンをタップして、焼くパンを選んで！',
+        text: T.tutorial.bake,
         allow: (a) => a.type === 'ovenOpen' || a.type === 'bake',
         advance: (a) => {
           if (a.type !== 'bake') return false;
@@ -129,7 +130,7 @@ export class Tutorial {
       },
       {
         kind: 'wait',
-        text: '焼けるまで少し待ってね。',
+        text: T.tutorial.baking,
         allow: () => false,
         done: () => w.ovens[this.ovenIndex]?.state === 'ready',
         target: () => [view.L.ovens[this.ovenIndex]],
@@ -137,7 +138,7 @@ export class Tutorial {
       {
         kind: 'act',
         expr: 'surprised',
-        text: '焼けたわ！ タップして取り出して。微辛と中辛では焦げないけど、辛口からは放っておくと焦げちゃうから気をつけるのよ！',
+        text: T.tutorial.takeOut,
         allow: (a) => a.type === 'ovenTap' && a.oven === this.ovenIndex,
         advance: (a) => a.type === 'ovenTap',
         target: () => [view.L.ovens[this.ovenIndex]],
@@ -146,7 +147,7 @@ export class Tutorial {
       {
         kind: 'wait',
         expr: 'surprised',
-        text: 'あっ、女王様（エルフィン）！ ショーケースのパンを勝手に食べて、ツケにしちゃうの。ツケは売上に入らないのよ……！',
+        text: T.tutorial.elfin,
         enter: () => w.summonElfin(),
         allow: () => false,
         done: () => w.elfin.eaten >= 1 && this.t > 1.5,
@@ -155,7 +156,7 @@ export class Tutorial {
       {
         kind: 'act',
         expr: 'sulk',
-        text: 'ほっぺをつまんで、強く引っぱって離すと追い払えるわ！ 引っぱりが弱いと、ひるむだけよ。',
+        text: T.tutorial.elfinPull,
         allow: (a) => a.type === 'elfinGrab',
         done: () => w.stats.repelled >= 1,
         tick: () => {
@@ -166,7 +167,7 @@ export class Tutorial {
       // ---- コミー
       {
         kind: 'act',
-        text: 'コミーが来たわ。席で居眠りしてて、注文してくれないの。ほっぺを引っぱって起こしてあげて！',
+        text: T.tutorial.komi,
         enter: () => guest('komi', ['roll', 'croissant'], 0),
         allow: isPinch,
         done: () => target()?.asleep === false,
@@ -175,7 +176,7 @@ export class Tutorial {
       {
         kind: 'wait',
         expr: 'smile',
-        text: '起きたわね！ 注文のパンを渡してあげて。待たせすぎると、また寝ちゃうから気をつけて。',
+        text: T.tutorial.komiAwake,
         allow: (a) => shop(a) || isServe(a),
         done: servedLeft,
         target: () => [shopArea()],
@@ -184,7 +185,7 @@ export class Tutorial {
       {
         kind: 'wait',
         expr: 'happy',
-        text: 'バターよ。座っているあいだは、つまみ食いに来たエルフィンをパチンコで追い払ってくれるの！',
+        text: T.tutorial.butter,
         enter: () => {
           guest('butter', ['melon', 'roll'], 2);
           w.summonElfin();
@@ -195,7 +196,7 @@ export class Tutorial {
       },
       {
         kind: 'wait',
-        text: 'バターにもパンを渡して。渡すと帰っちゃうから、そのあとはエルフィンを自分で追い払ってね。',
+        text: T.tutorial.butterServe,
         allow: (a) => shop(a) || isServe(a) || a.type === 'elfinGrab',
         done: () => servedLeft() && elfinGone(),
         target: () => [union(view.L.showcase, view.L.tray, cust(), view.elfinRect())],
@@ -204,11 +205,11 @@ export class Tutorial {
       {
         kind: 'tap',
         expr: 'smile',
-        text: 'さいごはネル。注文は最初の3秒しか見えないから、よーく覚えてね！ ぴったり渡せば、女王様のツケを全部払ってくれるわ。',
+        text: T.tutorial.nell,
       },
       {
         kind: 'wait',
-        text: '覚えたパンをトレーにそろえて、1回で渡すのよ。忘れたら、ほっぺを引っぱるともう一度見せてくれるわ。',
+        text: T.tutorial.nellHow,
         enter: () => guest('nell', ['croissant', 'melon'], 1),
         allow: (a) => shop(a) || isServe(a) || isPinch(a),
         done: servedLeft,
@@ -218,11 +219,11 @@ export class Tutorial {
       {
         kind: 'tap',
         expr: 'happy',
-        text: 'さいごに、ごほうびの時間！ 接客を続けるとスピキのゲージがたまって、満タンになるとフィーバータイムよ！',
+        text: T.tutorial.fever,
       },
       {
         kind: 'wait',
-        text: 'フィーバー中はパンが減らないし、パンを1個だけほしいお客さんが次々来るわ。どんどん渡して！',
+        text: T.tutorial.feverHow,
         enter: () => w.startFever(),
         allow: (a) => shop(a) || a.type === 'serve' || a.type === 'pinch',
         done: () => w.fever <= 0,
@@ -231,7 +232,7 @@ export class Tutorial {
       {
         kind: 'tap',
         expr: 'happy',
-        text: 'これで全員の相手はばっちりね！ まずは微辛から。慣れたら少しずつ辛くして、エンドレスにも挑戦してみて！',
+        text: T.tutorial.done,
       },
     ];
 
@@ -371,7 +372,7 @@ export class Tutorial {
       c.font = font(16, 800);
       c.fillStyle = C.inkSoft;
       c.textAlign = 'right';
-      c.fillText('タップでつぎへ ▶', bx + bw - 24 + bob, by + bh - 20);
+      c.fillText(T.tutorial.next, bx + bw - 24 + bob, by + bh - 20);
     }
     c.restore();
   }
@@ -392,7 +393,7 @@ export class Tutorial {
     c.fillStyle = C.ink;
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.fillText('スキップ ▶▶', r.x + r.w / 2, r.y + r.h / 2 + 1);
+    c.fillText(T.tutorial.skip, r.x + r.w / 2, r.y + r.h / 2 + 1);
     c.restore();
   }
 
@@ -429,22 +430,40 @@ function union(...rects: (Rect | null)[]): Rect {
   return { x, y, w: x1 - x, h: y1 - y };
 }
 
-/** 日本語向けの 1 文字単位の折り返し（句読点は行頭に来ないようにする） */
+/**
+ * 折り返し。日本語は 1 文字単位（句読点は行頭に来ないようにする）、韓国語・英語は単語単位
+ * （1 語が 1 行に入らなければ、その語だけ文字単位で切る）
+ */
 function wrap(c: CanvasRenderingContext2D, text: string, maxW: number): string[] {
   const out: string[] = [];
   let line = '';
-  for (const ch of text) {
-    const test = line + ch;
-    if (c.measureText(test).width > maxW && line) {
-      if ('、。！？）」'.includes(ch)) {
-        out.push(test);
-        line = '';
-        continue;
+  const units = T.wrapByChar ? [...text] : text.split(/(?<=\s)/);
+  for (const unit of units) {
+    const test = line + unit;
+    if (c.measureText(test.trimEnd()).width <= maxW || !line) {
+      line = test;
+      if (!T.wrapByChar && c.measureText(line.trimEnd()).width > maxW) {
+        // 1 語だけで幅を超える: 入るところで切る
+        let part = '';
+        for (const ch of line) {
+          if (c.measureText(part + ch).width > maxW && part) {
+            out.push(part);
+            part = '';
+          }
+          part += ch;
+        }
+        line = part;
       }
-      out.push(line);
-      line = ch === ' ' ? '' : ch;
-    } else line = test;
+      continue;
+    }
+    if (T.wrapByChar && '、。！？）」'.includes(unit)) {
+      out.push(test);
+      line = '';
+      continue;
+    }
+    out.push(line.trimEnd());
+    line = unit === ' ' ? '' : unit;
   }
-  if (line) out.push(line);
+  if (line.trim()) out.push(line.trimEnd());
   return out;
 }

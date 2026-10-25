@@ -24,7 +24,7 @@
   --leaf-deep: #3f7f22;
   --lime: #ccf338;
   --lime-deep: #559919;
-  --font: 'M PLUS Rounded 1c', 'Hiragino Maru Gothic ProN', 'Hiragino Sans', system-ui, sans-serif;
+  --font: 'M PLUS Rounded 1c', 'Jua', 'Hiragino Maru Gothic ProN', 'Hiragino Sans', 'Apple SD Gothic Neo', system-ui, sans-serif;
 }
 
 * {
@@ -286,6 +286,102 @@ canvas.bread {
   gap: min(1.6vmin, 14px);
   align-items: center;
   text-align: center;
+}
+
+/* タイトル右上の言語ボタン */
+.lang {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.lang-btn,
+.lang-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--line-ink);
+  cursor: pointer;
+  background: var(--paper);
+  border: 3px solid var(--line-ink);
+  border-radius: 999px;
+}
+
+.lang-btn {
+  box-shadow: 0 3px 0 var(--line-ink);
+  transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
+}
+
+.lang-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--line-ink);
+}
+
+.lang-btn:hover,
+.lang-item:hover {
+  background: #fff3df;
+}
+
+.lang-btn:focus-visible,
+.lang-item:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 3px;
+}
+
+/* 地球の丸い線画 */
+.lang-icon {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border: 2.5px solid currentColor;
+  border-radius: 50%;
+  background:
+    linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat;
+}
+
+.lang-icon::before {
+  position: absolute;
+  inset: -2.5px 3px;
+  content: '';
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+
+.lang-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--cream);
+  border: 3px solid var(--line-ink);
+  border-radius: 18px;
+  box-shadow: 0 4px 0 var(--line-ink);
+  animation: pop 0.14s ease-out;
+}
+
+.lang-menu.hidden {
+  display: none;
+}
+
+.lang-item {
+  justify-content: center;
+  min-width: 120px;
+}
+
+.lang-item.on {
+  color: #2f5212;
+  background: linear-gradient(#e2fb7c, var(--lime) 55%, #b4e02a);
+  border-color: var(--lime-deep);
 }
 
 .logo-sub {

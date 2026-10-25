@@ -1,5 +1,6 @@
 import { BREADS } from '../../config/breads';
 import type { StageDef } from '../../config/stages';
+import { breadName, T } from '../../i18n';
 import type { Layout, Rect } from '../layout';
 import { C, font } from '../palette';
 import { roundRect } from './ui';
@@ -83,7 +84,7 @@ function drawBack(c: CanvasRenderingContext2D, L: Layout): void {
   c.font = font(L.portrait ? 21 : 22);
   c.textAlign = 'center';
   c.textBaseline = 'middle';
-  c.fillText('エシュールのベーカリー', L.w / 2, sy + 23);
+  c.fillText(T.game.sign, L.w / 2, sy + 23);
 
   // 腰板
   const wy = L.counter.y - 46;
@@ -262,7 +263,7 @@ function drawShowcaseFrame(c: CanvasRenderingContext2D, L: Layout, stage: StageD
     c.font = font(r.w < 150 ? 12 : 13, 700);
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.fillText(`${BREADS[id].name}  ${BREADS[id].price}G`, r.x + r.w / 2, r.y + r.h - tagH / 2 - 4, r.w - 20);
+    c.fillText(`${breadName(id)}  ${BREADS[id].price}G`, r.x + r.w / 2, r.y + r.h - tagH / 2 - 4, r.w - 20);
   });
 }
 

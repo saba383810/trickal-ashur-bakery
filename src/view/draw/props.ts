@@ -1,4 +1,5 @@
 import { BREADS, type BreadId } from '../../config/breads';
+import { T } from '../../i18n';
 import type { Oven } from '../../sim/world';
 import type { Rect } from '../layout';
 import { C, font } from '../palette';
@@ -34,7 +35,7 @@ export function drawSlot(c: CanvasRenderingContext2D, r: Rect, bread: BreadId, s
     c.globalAlpha = 0.25;
     drawBread(c, bread, cx, cy, size, pr);
     c.restore();
-    outlined(c, '売り切れ', cx, cy, Math.min(20, r.w * 0.15), '#ffffff', C.bad);
+    outlined(c, T.game.soldOut, cx, cy, Math.min(20, r.w * 0.15), '#ffffff', C.bad);
   } else {
     const s = 1 + look.pop * 0.18;
     const pile = Math.min(stock, 3);
@@ -162,7 +163,7 @@ export function drawOven(c: CanvasRenderingContext2D, r: Rect, oven: Oven, pr: n
       archPath(c, door);
       c.fill();
     }
-    outlined(c, 'やく', cx, door.y + door.h * 0.5, 22, '#ffffff', '#7d3a26');
+    outlined(c, T.game.ovenBake, cx, door.y + door.h * 0.5, 22, '#ffffff', '#7d3a26');
   } else if (oven.state === 'baking' && oven.bread) {
     const p = oven.t / BREADS[oven.bread].bakeTime;
     gauge(c, cx, top + 14, r.w * 0.36, p, '#ffd36e');
@@ -174,9 +175,9 @@ export function drawOven(c: CanvasRenderingContext2D, r: Rect, oven: Oven, pr: n
       gauge(c, cx, top + 14, r.w * 0.36, rest, rest < 0.35 ? C.bad : C.good);
     }
     const bob = Math.sin(look.t * 10) * 4;
-    outlined(c, 'やけた！', cx, door.y - 2 + bob, 22, '#fff4a8', '#a0461e');
+    outlined(c, T.game.ovenReady, cx, door.y - 2 + bob, 22, '#fff4a8', '#a0461e');
   } else if (oven.state === 'burnt') {
-    outlined(c, 'こげた…', cx, door.y - 2, 20, '#ffffff', '#3b2418');
+    outlined(c, T.game.ovenBurnt, cx, door.y - 2, 20, '#ffffff', '#3b2418');
   }
 }
 

@@ -31,7 +31,8 @@ export const C = {
   shadow: 'rgba(90, 58, 34, 0.18)',
 } as const;
 
-export const FONT = "'M PLUS Rounded 1c', 'Hiragino Maru Gothic ProN', 'Hiragino Sans', system-ui, sans-serif";
+/** 韓国語の文字は M PLUS Rounded 1c に無いので、丸い Jua で描く */
+export const FONT = "'M PLUS Rounded 1c', 'Jua', 'Hiragino Maru Gothic ProN', 'Hiragino Sans', 'Apple SD Gothic Neo', system-ui, sans-serif";
 
 export function font(size: number, weight = 800): string {
   return `${weight} ${size}px ${FONT}`;

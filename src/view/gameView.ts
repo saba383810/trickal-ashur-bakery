@@ -2,6 +2,7 @@ import type { Bgm } from '../audio/bgm';
 import type { Sound } from '../audio/sound';
 import { BALANCE } from '../config/balance';
 import { BREADS, type BreadId } from '../config/breads';
+import { num, T } from '../i18n';
 import type { GameEvent } from '../sim/events';
 import { enterTimeOf, leaveTimeOf, type Customer, type World } from '../sim/world';
 import { drawBread } from './draw/breads';
@@ -821,8 +822,8 @@ export class GameView {
         this.fx.float(`+${ev.payment.total}`, h.x, h.y - 60, w.buff > 0 ? '#bfe3ff' : C.gold, 34);
         if (w.fever > 0) this.fx.burst(h.x, h.y - 20, 'star', 5, `hsl(${(this.time * 300) % 360}, 90%, 65%)`);
         else this.feverBump = 1;
-        if (ev.payment.tipRate >= BALANCE.tip.high) this.fx.float('はやい！', h.x, h.y - 100, '#ffffff', 22, C.good);
-        if (ev.combo >= 2) this.fx.float(`${ev.combo} コンボ`, h.x + 60, h.y - 20, '#ffe08a', 22, '#a0461e');
+        if (ev.payment.tipRate >= BALANCE.tip.high) this.fx.float(T.game.fast, h.x, h.y - 100, '#ffffff', 22, C.good);
+        if (ev.combo >= 2) this.fx.float(T.game.combo(ev.combo), h.x + 60, h.y - 20, '#ffe08a', 22, '#a0461e');
         this.lastCombo = ev.combo;
         break;
       }
@@ -833,34 +834,34 @@ export class GameView {
           v.bump = 1;
           const h = this.custHead(c);
           this.fx.burst(h.x, h.y - 20, 'heart', 6, '#f7808c', 150);
-          this.fx.float('ごきげん！', h.x, h.y - 80, '#ffffff', 24, C.good);
+          this.fx.float(T.game.happy, h.x, h.y - 80, '#ffffff', 24, C.good);
         }
         break;
       }
       case 'komiArrive':
         s.arrive();
-        this.say(`cust:${ev.customerId}`, 'ふわぁ……ちょっとだけ寝るにゃ。', () => this.custSayPos(ev.customerId), C.komi, 2.2);
-        this.firstTime('komi', 'コミーが居眠り中！', 'ほっぺを引っぱって起こそう', C.komi);
+        this.say(`cust:${ev.customerId}`, T.game.komiArrive, () => this.custSayPos(ev.customerId), C.komi, 2.2);
+        this.firstTime('komi', T.game.komiTitle, T.game.komiHint, C.komi);
         break;
       case 'komiSleep':
-        this.say(`cust:${ev.customerId}`, ev.again ? 'すやぁ……' : 'むにゃ……', () => this.custSayPos(ev.customerId), C.komi, 1.4);
+        this.say(`cust:${ev.customerId}`, ev.again ? T.game.komiSleepAgain : T.game.komiSleep, () => this.custSayPos(ev.customerId), C.komi, 1.4);
         if (!ev.again) {
           s.wrong();
           const c = cust(ev.customerId);
-          if (c) this.fx.float('ほっぺを引っぱって起こそう', this.custHead(c).x, this.custHead(c).y - 90, '#ffffff', 20, C.komi);
+          if (c) this.fx.float(T.game.komiHint, this.custHead(c).x, this.custHead(c).y - 90, '#ffffff', 20, C.komi);
         }
         break;
       case 'komiWake': {
         s.partial();
-        this.say(`cust:${ev.customerId}`, 'にゃっ！？ ……じゃあ、これとこれ。', () => this.custSayPos(ev.customerId), C.komi, 1.8);
+        this.say(`cust:${ev.customerId}`, T.game.komiWake, () => this.custSayPos(ev.customerId), C.komi, 1.8);
         const c = cust(ev.customerId);
         if (c) this.jiggle(c, 120);
         break;
       }
       case 'butterArrive':
         s.arrive();
-        this.say(`cust:${ev.customerId}`, 'こんにちは！ 見張りはまかせてください！', () => this.custSayPos(ev.customerId), C.butter, 2.2);
-        this.firstTime('butter', 'バターが見張り番！', '座っている間、エルフィンをパチンコで追い払う', C.butter);
+        this.say(`cust:${ev.customerId}`, T.game.butterArrive, () => this.custSayPos(ev.customerId), C.butter, 2.2);
+        this.firstTime('butter', T.game.butterTitle, T.game.butterHint, C.butter);
         break;
       case 'butterShot': {
         const c = cust(ev.customerId);
@@ -868,7 +869,7 @@ export class GameView {
         const h = this.custHead(c);
         this.shots.push({ from: { x: h.x, y: h.y + this.L.headR * 0.9 }, t: 0 });
         s.click();
-        this.say(`cust:${ev.customerId}`, 'えいっ！', () => this.custSayPos(ev.customerId), C.butter, 0.8);
+        this.say(`cust:${ev.customerId}`, T.game.butterShot, () => this.custSayPos(ev.customerId), C.butter, 0.8);
         break;
       }
       case 'customerAngry': {
@@ -877,7 +878,7 @@ export class GameView {
         if (c) {
           const h = this.custHead(c);
           this.fx.burst(h.x, h.y - 30, 'smoke', 6, 'rgba(120,110,110,0.8)', 80);
-          if (this.lastCombo >= 2) this.fx.float('コンボがとぎれた…', h.x, h.y - 80, '#ffffff', 20, C.bad);
+          if (this.lastCombo >= 2) this.fx.float(T.game.comboBroken, h.x, h.y - 80, '#ffffff', 20, C.bad);
         }
         this.lastCombo = 0;
         break;
@@ -915,14 +916,14 @@ export class GameView {
       case 'elfinEnter':
         s.elfinEnter();
         this.elfin.x = L.elfinDoor.x;
-        this.say('elfin', 'おやつ〜！', () => this.elfinSayPos(), C.elfin, 1.6);
-        this.firstTime('elfin', 'エルフィンが来た！', 'ほっぺを強く引っぱって、離して追い払おう', C.elfin);
+        this.say('elfin', T.game.elfinEnter, () => this.elfinSayPos(), C.elfin, 1.6);
+        this.firstTime('elfin', T.game.elfinTitle, T.game.elfinHint, C.elfin);
         break;
       case 'elfinEat': {
         s.munch();
         const h = this.elfinHead();
         this.fx.burst(h.x, h.y + 20, 'crumb', 8, '#e7b072', 150);
-        this.fx.float(`ツケ +${ev.price}`, h.x, h.y - 70, '#ffd6d6', 22, C.tab);
+        this.fx.float(T.game.elfinEat(ev.price), h.x, h.y - 70, '#ffd6d6', 22, C.tab);
         this.tabBump = 1;
         break;
       }
@@ -936,31 +937,31 @@ export class GameView {
         s.launch();
         const h = this.elfinHead();
         this.fx.burst(h.x, h.y, 'star', 14, C.gold, 300);
-        this.fx.float('ぷるんっ！', h.x, h.y - 40, '#ffffff', 34, C.elfin);
+        this.fx.float(T.game.elfinLaunched, h.x, h.y - 40, '#ffffff', 34, C.elfin);
         this.fx.addShake(0.5);
         break;
       }
       case 'elfinLeave':
-        if (ev.full) this.say('elfin', 'ツケといて！', () => this.elfinSayPos(), C.elfin, 1.4);
+        if (ev.full) this.say('elfin', T.game.elfinFull, () => this.elfinSayPos(), C.elfin, 1.4);
         break;
       case 'elfinFlee':
         this.sound.stretch(null);
-        this.say('elfin', ev.reason === 'nell' ? 'ネ、ネル…！？' : 'な、なにこの光…！？', () => this.elfinSayPos(), C.elfin, 1.4);
+        this.say('elfin', ev.reason === 'nell' ? T.game.elfinFleeNell : T.game.elfinFleeFever, () => this.elfinSayPos(), C.elfin, 1.4);
         break;
       case 'nellAnnounce':
         s.nellAnnounce();
-        this.banner('ネルが来店します！', '注文が見えるのは最初の3秒だけ', C.nell, 3, 'nell');
+        this.banner(T.game.nellAnnounce, T.game.nellAnnounceSub(BALANCE.nell.revealTime), C.nell, 3, 'nell');
         break;
       case 'nellArrive':
-        this.say(`cust:${ev.customerId}`, w.tab > 0 ? '女王様のツケを、清算しに参りました。' : '本日は、おつかいに参りました。', () => this.custSayPos(ev.customerId), C.nell, 2.6);
+        this.say(`cust:${ev.customerId}`, w.tab > 0 ? T.game.nellArriveTab : T.game.nellArrive, () => this.custSayPos(ev.customerId), C.nell, 2.6);
         break;
       case 'nellPeek':
         s.nellPeek();
-        this.say(`cust:${ev.customerId}`, 'もう一度だけですよ。', () => this.custSayPos(ev.customerId), C.nell, 1.6);
+        this.say(`cust:${ev.customerId}`, T.game.nellPeek, () => this.custSayPos(ev.customerId), C.nell, 1.6);
         break;
       case 'nellWrong':
         s.nellWrong();
-        this.say(`cust:${ev.customerId}`, 'ちがいますよ？', () => this.custSayPos(ev.customerId), C.nell, 1.6);
+        this.say(`cust:${ev.customerId}`, T.game.nellWrong, () => this.custSayPos(ev.customerId), C.nell, 1.6);
         break;
       case 'nellSuccess': {
         s.nellSuccess();
@@ -969,9 +970,9 @@ export class GameView {
         this.fx.burst(h.x, h.y, 'star', 20, '#bfe3ff', 320);
         this.fx.coinFly(h, this.hudSalesPos(), 6, () => (this.salesBump = 1));
         this.fx.float(`+${ev.payment.total}`, h.x, h.y - 60, C.gold, 34);
-        if (ev.tabPaid > 0) this.fx.float(`ツケ回収 +${ev.tabPaid}`, h.x, h.y - 110, '#ffffff', 28, C.tab);
-        this.say(`cust:${ev.customerId}`, ev.tabPaid > 0 ? '完璧です。ツケはこちらで。' : '完璧です。ありがとうございます。', () => this.custSayPos(ev.customerId), C.nell, 2);
-        this.banner('ネルの祝福！', `${BALANCE.nell.buffDuration}秒間 売上 ×${BALANCE.nell.buffRate}`, C.nell, 2.4, 'nell');
+        if (ev.tabPaid > 0) this.fx.float(T.game.tabPaid(ev.tabPaid), h.x, h.y - 110, '#ffffff', 28, C.tab);
+        this.say(`cust:${ev.customerId}`, ev.tabPaid > 0 ? T.game.nellSuccessTab : T.game.nellSuccess, () => this.custSayPos(ev.customerId), C.nell, 2);
+        this.banner(T.game.nellBlessing, T.game.nellBlessingSub(BALANCE.nell.buffDuration, BALANCE.nell.buffRate), C.nell, 2.4, 'nell');
         this.feverBump = 1;
         this.refreshBgm();
         break;
@@ -979,8 +980,8 @@ export class GameView {
       case 'nellFail':
         s.fail2();
         this.lastCombo = 0;
-        this.say(`cust:${ev.customerId}`, '……また来ますね。', () => this.custSayPos(ev.customerId), C.nell, 1.8);
-        this.banner('ネルが帰ってしまった…', 'ツケは回収できませんでした', '#9aa5b1', 2.2);
+        this.say(`cust:${ev.customerId}`, T.game.nellBye, () => this.custSayPos(ev.customerId), C.nell, 1.8);
+        this.banner(T.game.nellFail, T.game.nellFailSub, '#9aa5b1', 2.2);
         break;
       case 'buffEnd':
         s.buffEnd();
@@ -991,7 +992,7 @@ export class GameView {
         // 初めて来た時だけ、窓の上に遊び方を出す（真ん中のお知らせは窓と客にかぶる）
         if (!this.seen.has('burumi')) {
           this.seen.add('burumi');
-          this.say('burumi', `タップで +${BALANCE.burumi.reward} G`, () => this.burumiSayPos(ev.window), C.burumi, BALANCE.burumi.stay);
+          this.say('burumi', T.game.burumiHint(BALANCE.burumi.reward), () => this.burumiSayPos(ev.window), C.burumi, BALANCE.burumi.stay);
         }
         break;
       case 'burumiCatch': {
@@ -1000,7 +1001,7 @@ export class GameView {
         this.fx.burst(p.x, p.y, 'star', 12, C.burumi, 220);
         this.fx.coinFly(p, this.hudSalesPos(), 2, () => (this.salesBump = 1));
         this.fx.float(`+${ev.reward}`, p.x, p.y + 10, C.gold, 30);
-        this.say('burumi', 'えへへ、みつかっちゃった', () => this.burumiSayPos(ev.window), C.burumi, 1.6);
+        this.say('burumi', T.game.burumiCaught, () => this.burumiSayPos(ev.window), C.burumi, 1.6);
         break;
       }
       case 'burumiLeave':
@@ -1009,38 +1010,38 @@ export class GameView {
       case 'feverStart':
         s.feverStart();
         this.rainbow.start(L);
-        this.banner('フィーバータイム！', 'パンが減らない！ 1個ずつ、どんどん渡して', '#e0569b', 2.2, 'speaki');
+        this.banner(T.game.feverStart, T.game.feverStartSub, '#e0569b', 2.2, 'speaki');
         this.refreshBgm();
         break;
       case 'feverEnd':
         // 時間切れのあとのフィーバーが終わったら、そのまま閉店の知らせだけ出す
         if (this.world.phase === 'playing') {
           s.feverEnd();
-          this.fx.float('フィーバーおしまい', L.banner.x, L.banner.y - 40, '#ffffff', 26, '#e0569b');
+          this.fx.float(T.game.feverEnd, L.banner.x, L.banner.y - 40, '#ffffff', 26, '#e0569b');
         }
         this.refreshBgm();
         break;
       case 'timeWarning':
-        this.banner(`のこり${BALANCE.warningTime}秒！`, undefined, C.bad, 1.6);
+        this.banner(T.game.timeLeft(BALANCE.warningTime), undefined, C.bad, 1.6);
         this.refreshBgm();
         break;
       case 'timeExtend': {
         const cy = L.portrait ? 36 : 32;
         // 時計の下のレベル札の右に出す
-        this.fx.float(`+${ev.seconds.toFixed(1)}秒`, 160, cy + 46, '#e9ffd0', 24, C.good);
+        this.fx.float(T.game.timeExtend(ev.seconds.toFixed(1)), 160, cy + 46, '#e9ffd0', 24, C.good);
         this.refreshBgm();
         break;
       }
       case 'levelUp':
         this.levelBump = 1;
         s.levelUp();
-        this.banner(`レベル${ev.level}！`, this.levelLine(ev.level), C.eshur, 1.8);
+        this.banner(T.game.levelUp(ev.level), this.levelLine(ev.level), C.eshur, 1.8);
         break;
       case 'timeUp':
         s.timeUp();
         this.cancelGrab();
         this.picker = null;
-        this.banner('閉店！', undefined, C.eshur, 2.2, undefined, true);
+        this.banner(T.game.closed, undefined, C.eshur, 2.2, undefined, true);
         break;
     }
   }
@@ -1064,7 +1065,7 @@ export class GameView {
   }
 
   private flashTrayFull(): void {
-    this.fx.float('トレーがいっぱい', this.L.tray.x + this.L.tray.w / 2, this.L.tray.y - 6, '#ffffff', 20, C.bad);
+    this.fx.float(T.game.trayFull, this.L.tray.x + this.L.tray.w / 2, this.L.tray.y - 6, '#ffffff', 20, C.bad);
   }
 
   /** ブルミの吹き出しは窓の上のほうに出す（窓の下には客の注文の吹き出しがある） */
@@ -1093,8 +1094,8 @@ export class GameView {
   /** エンドレスのレベルアップでエシュールがかける一言 */
   private levelLine(level: number): string {
     const e = this.world.stage.endless;
-    if (e && level === e.burnLevel) return `ここからパンが焦げるわよ！ 焼けたら${this.world.burnTime}秒以内に取り出して`;
-    return level === 2 ? 'お客さんが増えてきた。どんどん忙しくなるわよ' : 'もっと忙しくなってきた！';
+    if (e && level === e.burnLevel) return T.game.levelBurn(this.world.burnTime ?? 0);
+    return level === 2 ? T.game.level2 : T.game.levelMore;
   }
 
   banner(text: string, sub: string | undefined, color: string, dur: number, face?: Face, big = false): void {
@@ -1262,7 +1263,7 @@ export class GameView {
     c.restore();
     if (nell && cu.reveal <= 0 && this.world.tray.length === 0 && cu.stateTime > 1) {
       const b = v.bubble;
-      outlined(c, 'タップでもう一度', seat.x, b.y - 14, 15, '#ffffff', C.nell);
+      outlined(c, T.game.nellTapAgain, seat.x, b.y - 14, 15, '#ffffff', C.nell);
     }
   }
 
@@ -1333,11 +1334,11 @@ export class GameView {
 
     if (grabbed && ready && g) {
       const tip = MochiBody.toScreen({ x: g.anchor.x + g.pull.x, y: g.anchor.y + g.pull.y }, e.x, e.y, r);
-      outlined(c, 'はなす！', tip.x, tip.y - 40 - Math.sin(this.time * 14) * 4, 22, '#fff4a8', C.elfin);
+      outlined(c, T.game.letGo, tip.x, tip.y - 40 - Math.sin(this.time * 14) * 4, 22, '#fff4a8', C.elfin);
     } else if (this.elfinActive() && !grabbed && this.world.stats.repelled === 0) {
       // まだ一度も追い払っていない時だけ、つまめることを示す
       // 頭の上は「ツケ +」の数字が出るので、足もとに出す
-      outlined(c, 'つまんで引っぱる', e.x, e.y + r * FEET_R + 14, 16, '#ffffff', C.elfin);
+      outlined(c, T.game.pinchHint, e.x, e.y + r * FEET_R + 14, 16, '#ffffff', C.elfin);
     }
   }
 
@@ -1398,7 +1399,7 @@ export class GameView {
     const overtime = w.remaining <= 0 && w.fever > 0;
     const hurry = w.remaining <= BALANCE.warningTime && w.phase === 'playing' && !overtime;
     const sec = Math.ceil(w.remaining);
-    const label = overtime ? '延長！' : `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+    const label = overtime ? T.game.overtime : `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
     const pulse = hurry ? 1 + Math.max(0, Math.sin(this.time * 10)) * 0.12 : 1;
     const timeSize = portrait ? 28 : 30;
     hudPill(c, 8, cy, 66 + measure(c, label, timeSize) + 14 - 8);
@@ -1422,7 +1423,7 @@ export class GameView {
     c.scale(bump, bump);
     outlined(c, salesText, 0, 1, salesSize, w.buff > 0 ? '#2f7fc0' : HUD_INK, '#ffffff', 'left');
     c.restore();
-    if (w.combo >= 2 && !portrait) outlined(c, `${w.combo}コンボ`, 450, cy, 18, '#ffe08a', '#7c4721');
+    if (w.combo >= 2 && !portrait) outlined(c, T.game.hudCombo(w.combo), 450, cy, 18, '#ffe08a', '#7c4721');
 
     // ★の目標バー（チュートリアルは★がない）
     if (!w.stage.tutorial) this.drawStarBar(c);
@@ -1430,7 +1431,7 @@ export class GameView {
     // ツケ
     if (w.stage.elfin) {
       const tp = this.hudTabPos();
-      const tabText = `ツケ ${w.tab.toLocaleString('ja-JP')}`;
+      const tabText = T.game.hudTab(num(w.tab));
       const tabSize = portrait ? 21 : 24;
       hudPill(c, tp.x - 22, cy, 48 + measure(c, tabText, tabSize) + 14);
       this.drawFace(c, 'hud-tab', ELFIN, tp.x, tp.y - 2, 13, { expr: w.tab > 0 ? 'happy' : 'normal', t: this.time, body: false });
@@ -1460,7 +1461,7 @@ export class GameView {
       const left = Math.max(0, Math.ceil(w.nellPendingAt - w.time));
       hudPill(c, nx - 120, ny, 240);
       this.drawFace(c, 'hud-nell', NELL, nx - 95, ny + 2, 15, { expr: 'smile', t: this.time, body: false });
-      outlined(c, left > 0 ? `ネル来店まで ${left}` : 'ネル来店！', nx + 10, ny + 1, 20, '#3f5f86', '#ffffff');
+      outlined(c, left > 0 ? T.game.hudNellIn(left) : T.game.hudNellNow, nx + 10, ny + 1, 20, '#3f5f86', '#ffffff');
     }
 
     this.drawFeverGauge(c);
@@ -1531,7 +1532,7 @@ export class GameView {
     c.lineWidth = 2;
     roundRect(c, bx, by, bw, bh, bh / 2);
     c.stroke();
-    if (on) outlined(c, 'フィーバー！', bx + bw / 2, g.cy + 1, 17, '#ffffff', HUD_INK);
+    if (on) outlined(c, T.game.hudFever, bx + bw / 2, g.cy + 1, 17, '#ffffff', HUD_INK);
     this.drawFace(c, 'hud-fever', SPEAKI, g.x + 24, g.cy + 3, 14, { expr: on ? 'happy' : 'normal', t: this.time, body: false });
     c.restore();
   }
@@ -1618,7 +1619,7 @@ export class GameView {
     c.font = font(18);
     c.textAlign = 'center';
     c.textBaseline = 'middle';
-    c.fillText('なにを焼く？', r.x + r.w / 2, r.y + 24);
+    c.fillText(T.game.bakeWhat, r.x + r.w / 2, r.y + 24);
     p.items.forEach((it, i) => {
       const b = it.rect;
       const hov = !!this.hover && inside(b, this.hover);
@@ -1631,7 +1632,7 @@ export class GameView {
       drawBread(c, it.bread, b.x + b.w / 2, b.y + b.h * 0.4, b.w * 0.6, pr);
       c.fillStyle = C.inkSoft;
       c.font = font(13, 700);
-      c.fillText(`${BREADS[it.bread].bakeTime}秒・${BREADS[it.bread].batch}個`, b.x + b.w / 2, b.y + b.h - 14);
+      c.fillText(T.game.bakeInfo(BREADS[it.bread].bakeTime, BREADS[it.bread].batch), b.x + b.w / 2, b.y + b.h - 14);
       if (this.keyMode) keycap(c, String(i + 1), b.x + 14, b.y + 14);
     });
     c.restore();
@@ -1669,7 +1670,8 @@ export class GameView {
       // 客の顔と吹き出しを隠さない場所（L.banner）に、幅 L.bannerW まで。収まらない文字は縮める
       const cx = L.banner.x;
       const y = L.banner.y + (1 - ease) * -30;
-      const pad = b.face ? 130 : 70;
+      // 顔つきは左 FACE_W を顔に空けて、文字は残りの幅の中央に置く（いちばん長い行でも髪にかからない）
+      const pad = b.face ? FACE_W + 28 : 70;
       const room = L.bannerW - pad;
       c.font = font(30);
       const size = Math.min(30, (30 * room) / c.measureText(b.text).width);
@@ -1693,7 +1695,7 @@ export class GameView {
       c.lineWidth = 3.5;
       roundRect(c, x + 6, y - h / 2 + 6, w - 12, h - 12, 18);
       c.stroke();
-      const tx = b.face ? x + 100 + (w - 100) / 2 - 20 : cx;
+      const tx = b.face ? x + FACE_W + (w - pad) / 2 : cx;
       if (b.face) {
         const key = bannerFaceKey(b);
         c.save();
@@ -1729,6 +1731,9 @@ function measure(c: CanvasRenderingContext2D, text: string, size: number): numbe
 }
 
 export { bubbleSize };
+
+/** お知らせの顔に空ける幅 */
+const FACE_W = 112;
 
 /** HUD の文字色（原作の線と同じ赤茶） */
 const HUD_INK = '#5a2d32';
