@@ -32,10 +32,13 @@ export const MOCHI = {
   settlePos: 0.15,
   settleVel: 1.5,
   /**
-   * 変形させない範囲（頭の単位）。もちほっぺメーカーで「ほっぺを塗る」マスクの代わり:
-   * 左右の目のまわり（楕円の 1〜1+fade 倍で重みが 0→1）と、首から下（neck の y で 1→0）は動かさない
+   * 伸びる範囲（頭の単位）。もちほっぺメーカーで「ほっぺを塗る」マスクの代わりで、伸びるのは目の下・口の外側のほっぺだけ。
+   * 左右の目のまわりと口のまわり（楕円の 1〜1+fade 倍で重みが 0→1）、前髪に隠れた額（top の y で 0→1）、
+   * 首から下（neck の y で 1→0）は動かさない。目と口がゆがまず、額の輪郭が前髪の下から引き出されない
    */
-  eye: { x: 25, y: 11, rx: 15, ry: 15, fade: 0.5 },
+  eye: { x: 19, y: 14, rx: 10, ry: 12.5, fade: 0.6 },
+  mouth: { y: 32, rx: 10, ry: 8, fade: 0.7 },
+  top: [-22, -6],
   neck: [42, 54],
   /** ほっぺは外側へだけ伸びる: 指のずれを、つまんだ側の真横から上下この角度（ラジアン）までに寄せる */
   outwardAngle: Math.PI / 3,
@@ -94,8 +97,15 @@ export function outward(dx: number, dy: number, side: -1 | 1): Vec {
 /** 変形の重み。シェーダと同じ式 */
 export function maskAt(x: number, y: number): number {
   const e = MOCHI.eye;
-  const d = Math.hypot((Math.abs(x) - e.x) / e.rx, (y - e.y) / e.ry);
-  return smoothstep(1, 1 + e.fade, d) * (1 - smoothstep(MOCHI.neck[0], MOCHI.neck[1], y));
+  const m = MOCHI.mouth;
+  const de = Math.hypot((Math.abs(x) - e.x) / e.rx, (y - e.y) / e.ry);
+  const dm = Math.hypot(x / m.rx, (y - m.y) / m.ry);
+  return (
+    smoothstep(1, 1 + e.fade, de) *
+    smoothstep(1, 1 + m.fade, dm) *
+    smoothstep(MOCHI.top[0], MOCHI.top[1], y) *
+    (1 - smoothstep(MOCHI.neck[0], MOCHI.neck[1], y))
+  );
 }
 
 export class Pinch {

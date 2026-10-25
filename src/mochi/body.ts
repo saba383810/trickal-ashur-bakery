@@ -19,6 +19,10 @@ const CHEEK_GRAB = { x: 40, y: 30, rx: 7, ry: 6 };
 /** 変形する顔の層を描くスプライトの範囲（頭の単位）。張り出したほっぺ・ふくれ顔・ぷるぷるも入る */
 const FACE_BOX = { x: 80, top: 66, bottom: 62 };
 
+/** 変形する顔を描く細かさ（画面の画素の何倍か）と、スプライトの幅の上限 px */
+const SUPERSAMPLE = 2;
+const SPRITE_MAX = 1400;
+
 /** 動きを減らす設定なら、髪は揺らさない */
 const still = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -113,7 +117,9 @@ export class MochiBody {
       return;
     }
     const m = ctx.getTransform();
-    const scale = Math.hypot(m.a, m.b) || 1;
+    // 伸びたほっぺは絵を引き伸ばすので、画面の画素の 2 倍の細かさで描いてから変形する（ぼやけ・線のかすれを抑える）
+    const base = Math.hypot(m.a, m.b) || 1;
+    const scale = base * Math.max(1, Math.min(SUPERSAMPLE, SPRITE_MAX / (FACE_BOX.x * 2 * (r / 50) * base)));
     const rp = r * scale;
     const k = rp / 50;
     const w = Math.ceil(FACE_BOX.x * 2 * k);

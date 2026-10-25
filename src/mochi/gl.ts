@@ -17,7 +17,9 @@ uniform vec4 uGrabA[${MOCHI.maxGrabs}];    // anchor.xy, radiusEff, strength
 uniform vec2 uGrabPull[${MOCHI.maxGrabs}];
 uniform float uBulge;
 uniform vec4 uEye;     // 動かさない目のまわり: 中心 x（左右対称）, y, rx, ry
-uniform vec3 uMask;    // 目のまわりのぼかし幅, 首の y（ここから 1→0）
+uniform float uEyeFade; // 目のまわりのぼかし幅
+uniform vec4 uMouth;   // 動かさない口のまわり: y, rx, ry, ぼかし幅
+uniform vec4 uBand;    // 額の y（ここから 0→1）2 つ, 首の y（ここから 1→0）2 つ
 
 out vec2 vUV;
 
@@ -48,7 +50,9 @@ void main() {
     wsum += w;
   }
   float de = length(vec2(abs(p.x) - uEye.x, p.y - uEye.y) / uEye.zw);
-  float m = smoothstep(1.0, 1.0 + uMask.x, de) * (1.0 - smoothstep(uMask.y, uMask.z, p.y));
+  float dm = length(vec2(p.x, p.y - uMouth.x) / uMouth.yz);
+  float m = smoothstep(1.0, 1.0 + uEyeFade, de) * smoothstep(1.0, 1.0 + uMouth.w, dm)
+    * smoothstep(uBand.x, uBand.y, p.y) * (1.0 - smoothstep(uBand.z, uBand.w, p.y));
   disp *= m / max(1.0, wsum);
   float lift = clamp(wsum, 0.0, 1.0) * m;
   vec2 outPx = (p + disp) * uK + uOrigin + uMargin;
@@ -76,7 +80,7 @@ void main() {
 }
 `;
 
-const UNIFORMS = ['uSprite', 'uOrigin', 'uK', 'uMargin', 'uOut', 'uGrabCount', 'uGrabA', 'uGrabPull', 'uBulge', 'uEye', 'uMask', 'uTex', 'uPass'] as const;
+const UNIFORMS = ['uSprite', 'uOrigin', 'uK', 'uMargin', 'uOut', 'uGrabCount', 'uGrabA', 'uGrabPull', 'uBulge', 'uEye', 'uEyeFade', 'uMouth', 'uBand', 'uTex', 'uPass'] as const;
 
 export interface MochiOutput {
   canvas: HTMLCanvasElement;
@@ -170,8 +174,11 @@ export class MochiRenderer {
     gl.uniform2fv(u.uGrabPull, f.pull);
     gl.uniform1f(u.uBulge, pinch.params.bulge);
     const e = MOCHI.eye;
+    const mo = MOCHI.mouth;
     gl.uniform4f(u.uEye, e.x, e.y, e.rx, e.ry);
-    gl.uniform3f(u.uMask, e.fade, MOCHI.neck[0], MOCHI.neck[1]);
+    gl.uniform1f(u.uEyeFade, e.fade);
+    gl.uniform4f(u.uMouth, mo.y, mo.rx, mo.ry, mo.fade);
+    gl.uniform4f(u.uBand, MOCHI.top[0], MOCHI.top[1], MOCHI.neck[0], MOCHI.neck[1]);
     gl.uniform1i(u.uTex, 0);
 
     gl.bindVertexArray(this.vao);
