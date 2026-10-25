@@ -4,7 +4,7 @@ import { BALANCE } from '../config/balance';
 import { BREADS, type BreadId } from '../config/breads';
 import { num, T } from '../i18n';
 import type { GameEvent } from '../sim/events';
-import { enterTimeOf, leaveTimeOf, type Customer, type World } from '../sim/world';
+import { enterTimeOf, leaveTimeOf, type Customer, type ElfinState, type World } from '../sim/world';
 import { drawBread } from './draw/breads';
 import { MochiBody } from '../mochi/body';
 import { BUTTER, ELFIN, KOMI, NELL, SPEAKI, villager } from './draw/characters';
@@ -27,7 +27,6 @@ export type Action =
   | { type: 'ovenOpen'; oven: number }
   | { type: 'bake'; oven: number; bread: BreadId }
   | { type: 'ovenTap'; oven: number }
-  | { type: 'elfinGrab' }
   | { type: 'pinch'; customerId: number }
   | { type: 'burumi' };
 
@@ -85,9 +84,7 @@ const SEAT_KEYS = ['A', 'S', 'D', 'F'];
 const OVEN_KEYS = ['Z', 'X', 'C'];
 /** 窓のブルミをタップするキー */
 const BURUMI_KEY = 'B';
-/** Space 長押しでこの秒数ためると追い払える */
-const KEY_PULL_TIME = 0.45;
-/** Space 長押しでつまむときの、仮の指の id */
+/** Shift + 席のキーでほっぺを引っぱるときの、仮の指の id */
 const KEY_POINTER = -1;
 /** 客を押してからこれ以上動かしたら、渡すのではなくほっぺを引っぱる */
 const DRAG_START = 14;
@@ -99,19 +96,24 @@ export class GameView {
   readonly fx = new Effects();
   private scene = new SceneCache();
   private custViews = new Map<number, CustView>();
+  /** エルフィンはつまめない（指は素通りして、下の客・ショーケース・トレーに届く）。body は髪の揺れだけに使う */
   private elfin = {
     x: -100,
     y: 0,
     dir: 1,
-    rot: 0,
-    vx: 0,
-    vy: 0,
     body: new MochiBody(),
-    side: 1 as -1 | 1,
-    pointerId: null as number | null,
-    keyHold: -1,
-    /** 追い払えない時につまんだ（ほっぺが伸びるだけ） */
-    free: false,
+    /** 跳ねていない時の頭の高さ（影はここに落とす） */
+    ground: 0,
+    /** 前のフレームの sim の状態（帰りはじめを見つける） */
+    state: 'absent' as ElfinState,
+    /** 帰りはじめた位置（ここから入口へ走る） */
+    leaveFrom: { x: 0, y: 0 } as Point,
+    /** 帰りはじめるまでその場で固まる秒数（バターの石が当たるまで） */
+    leaveDelay: 0,
+    /** バターの石がまだ当たっていない（当たった瞬間に音と台詞を出す） */
+    hitPending: false,
+    /** 帰るときの顔（パンを抱えて / むくれて / 撃たれて / 逃げ出して） */
+    leaveExpr: 'happy' as Expr,
     /** 前のフレームの横の速さ（描く向きに合わせた頭の単位 / 秒。髪の揺れに使う） */
     hairVx: 0,
   };
@@ -142,6 +144,8 @@ export class GameView {
   private shownSales = 0;
   private salesBump = 0;
   private tabBump = 0;
+  /** 最後に描いた HUD のツケの枠（チュートリアルの指さし用） */
+  private tabPill: Rect | null = null;
   private lastCombo = 0;
   /** フィーバーのゲージが進んだ直後のはずみ */
   private feverBump = 0;
@@ -207,9 +211,6 @@ export class GameView {
       case 'ovenTap':
         ok = w.tapOven(a.oven);
         break;
-      case 'elfinGrab':
-        ok = w.elfinGrab();
-        break;
       case 'pinch':
         ok = w.pinchCustomer(a.customerId) !== 'none';
         break;
@@ -236,17 +237,7 @@ export class GameView {
       return;
     }
 
-    const e = this.elfin;
-    if (this.elfinHit(p, true) && e.pointerId === null && e.keyHold < 0) {
-      // 追い払えない時（説明中・帰り際など）も、ほっぺだけは引っぱれる
-      e.free = !(this.elfinActive() && this.act({ type: 'elfinGrab' }));
-      const g = e.body.grab(id, this.elfinLocal(p));
-      e.pointerId = id;
-      e.side = g && g.anchor.x < 0 ? -1 : 1;
-      this.sound.mochiGrab();
-      return;
-    }
-
+    // エルフィンは調べない（駆け抜けるだけなので、重なっていても下のショーケースや客に届く）
     const L = this.L;
     const w = this.world;
     // 窓のブルミ（窓のどこを押してもよい）
@@ -276,7 +267,6 @@ export class GameView {
 
   pointerMove(id: number, p: Point): void {
     this.hover = p;
-    if (this.elfin.pointerId === id) this.elfin.body.pinch.move(id, this.elfinLocal(p));
     for (const f of this.faces.values()) {
       if (f.grab?.id !== id) continue;
       if (Math.hypot(p.x - f.grab.start.x, p.y - f.grab.start.y) > DRAG_START) f.grab.moved = true;
@@ -299,7 +289,6 @@ export class GameView {
   /** touch = マウス以外。指を離したらホバー表示を消す */
   pointerUp(id: number, touch: boolean): void {
     if (touch) this.hover = null;
-    if (this.elfin.pointerId === id) this.releaseElfin(false);
     if (this.press?.id === id) this.releasePress(false);
     this.releaseFace(id, false);
   }
@@ -307,7 +296,6 @@ export class GameView {
   /** OS のジェスチャー等で指が奪われた。引っぱりは無効にする */
   pointerCancel(id: number): void {
     this.hover = null;
-    if (this.elfin.pointerId === id) this.releaseElfin(true);
     if (this.press?.id === id) this.releasePress(true);
     this.releaseFace(id, true);
   }
@@ -434,63 +422,13 @@ export class GameView {
       this.act({ type: 'burumi' });
       return true;
     }
-    if (key === ' ') {
-      const el = this.elfin;
-      if (!e.repeat && el.pointerId === null && el.keyHold < 0 && this.act({ type: 'elfinGrab' })) {
-        el.keyHold = 0;
-        el.side = 1;
-        el.body.grab(KEY_POINTER, { x: 40, y: 30 });
-        this.sound.mochiGrab();
-      }
-      return true;
-    }
     return false;
   }
 
-  keyUp(e: KeyboardEvent): void {
-    if (e.key === ' ' && this.elfin.keyHold >= 0) this.releaseElfin(false);
-  }
-
-  /** ポーズした等で、つかみを強制的に離す（追い払いにはしない） */
+  /** ポーズした等で、つまんでいるほっぺを強制的に離す（ごきげんの回復にはしない） */
   cancelGrab(): void {
-    if (this.elfin.pointerId !== null || this.elfin.keyHold >= 0) this.releaseElfin(true);
     if (this.press) this.releasePress(true);
     for (const f of this.faces.values()) if (f.grab) this.releaseFace(f.grab.id, true);
-  }
-
-  private releaseElfin(cancel: boolean): void {
-    const e = this.elfin;
-    const id = e.pointerId ?? KEY_POINTER;
-    const pinch = e.body.pinch;
-    const g = pinch.find(id);
-    const stretch = g ? pinch.intensity(g) : 0;
-    pinch.release(id);
-    e.pointerId = null;
-    e.keyHold = -1;
-    this.sound.stretch(null);
-    if (stretch > 0.05) this.sound.mochiRelease(stretch, pinch.params.releaseFreq);
-    if (e.free) {
-      e.free = false;
-      return;
-    }
-    const launched = this.world.elfinRelease(cancel ? 0 : stretch / BALANCE.elfin.launchStretch);
-    if (launched && g) {
-      const len = Math.hypot(g.pull.x, g.pull.y) || 1;
-      e.vx = (g.pull.x / len) * 900;
-      e.vy = -650 + (g.pull.y / len) * 200;
-    }
-  }
-
-  /** 画面の点 → エルフィンの頭の単位（つかんでいる間は左右反転しない） */
-  private elfinLocal(p: Point): Point {
-    return MochiBody.toLocal(p, this.elfin.x, this.elfin.y, this.elfinR());
-  }
-
-  /** エルフィンのほっぺの伸び 0..1（つかんでいなければ 0） */
-  private elfinStretch(): number {
-    const e = this.elfin;
-    const g = e.body.pinch.find(e.pointerId ?? KEY_POINTER);
-    return g ? e.body.pinch.intensity(g) : 0;
   }
 
   private openPicker(oven: number): void {
@@ -527,11 +465,6 @@ export class GameView {
     return null;
   }
 
-  private elfinActive(): boolean {
-    const s = this.world.elfin.state;
-    return s === 'entering' || s === 'eating';
-  }
-
   private elfinR(): number {
     return this.L.headR * 0.85;
   }
@@ -540,17 +473,9 @@ export class GameView {
     return { x: this.elfin.x, y: this.elfin.y };
   }
 
-  /** leaving = 帰り際（追い払えない）も含める */
-  private elfinHit(p: Point, leaving = false): boolean {
-    if (!this.elfinActive() && !(leaving && this.world.elfin.state === 'leaving')) return false;
-    const h = this.elfinHead();
-    const r = this.elfinR();
-    return Math.hypot(p.x - h.x, p.y - h.y) < r * 1.3 || (Math.abs(p.x - h.x) < r * 0.9 && p.y > h.y && p.y < h.y + r * (FEET_R - 0.05));
-  }
-
   /** エルフィン（頭〜足）の範囲。店にいなければ null */
   elfinRect(): Rect | null {
-    if (!this.elfinActive()) return null;
+    if (this.world.elfin.state === 'absent') return null;
     const h = this.elfinHead();
     const r = this.elfinR();
     return { x: h.x - r * 1.3, y: h.y - r * 1.3, w: r * 2.6, h: r * (1.3 + FEET_R) };
@@ -576,6 +501,11 @@ export class GameView {
 
   pickerRect(): Rect | null {
     return this.picker?.rect ?? null;
+  }
+
+  /** HUD のツケの枠 */
+  tabRect(): Rect | null {
+    return this.tabPill;
   }
 
   hudSalesPos(): Point {
@@ -657,67 +587,60 @@ export class GameView {
   private updateElfin(dt: number): void {
     const e = this.elfin;
     const w = this.world;
-    const state = w.elfin.state;
+    const we = w.elfin;
+    const state = we.state;
     const target = this.elfinTargetPos();
     const door = { x: this.L.elfinDoor.x, y: target.y };
-
-    if (e.free) {
-      if (state === 'absent' || state === 'launched') this.releaseElfin(true);
-    } else if (e.pointerId !== null || e.keyHold >= 0) {
-      if (!w.elfin.grabbed) {
-        // ネルが来て逃げた等でつかみが外れた
-        e.body.pinch.release(e.pointerId ?? KEY_POINTER);
-        e.pointerId = null;
-        e.keyHold = -1;
-        this.sound.stretch(null);
-      } else {
-        if (e.keyHold >= 0) {
-          // Space 長押し: ためた分だけ右上へ引っぱる
-          e.keyHold += dt;
-          const d = Math.min(1.25, e.keyHold / KEY_PULL_TIME) * e.body.pinch.lmax * 1.3;
-          e.body.pinch.move(KEY_POINTER, { x: 40 + 0.92 * d, y: 30 - 0.39 * d });
-        }
-        this.sound.stretch(this.elfinStretch() / BALANCE.elfin.launchStretch);
-      }
+    if (state !== e.state) {
+      if (state === 'leaving') e.leaveFrom = { x: e.x, y: e.ground };
+      e.state = state;
     }
     e.body.update(dt);
 
     const prevX = e.x;
+    // 駆けている間は小刻みに跳ねる
+    const hop = (h: number) => Math.abs(Math.sin(this.time * 16)) * h;
     switch (state) {
       case 'absent':
         e.x = door.x;
-        e.y = door.y;
-        e.rot = 0;
+        e.ground = e.y = door.y;
         break;
       case 'entering': {
-        const p = w.elfin.enter;
-        const ease = p * p * (3 - 2 * p);
-        const tx = door.x + (target.x - door.x) * ease;
-        e.x += (tx - e.x) * Math.min(1, dt * 12);
-        e.y = target.y - Math.abs(Math.sin(this.time * 9)) * 8;
+        // 勢いよく駆けこんで、ショーケースの前でぴたっと止まる
+        const p = we.enter;
+        e.x = door.x + (target.x - door.x) * (1 - Math.pow(1 - p, 3));
+        e.ground = target.y;
+        e.y = e.ground - hop(12) * (1 - p * p);
         break;
       }
-      case 'eating':
-        e.x += (target.x - e.x) * Math.min(1, dt * 6);
-        e.y += (target.y - e.y) * Math.min(1, dt * 6);
+      case 'lingering':
+      case 'sulking':
+        // ほしいパンが売れて変わったら、その棚の前へ寄る
+        e.x += (target.x - e.x) * Math.min(1, dt * 10);
+        e.ground += (target.y - e.ground) * Math.min(1, dt * 10);
+        e.y = e.ground;
         break;
-      case 'leaving':
-        e.x -= 620 * dt;
-        e.y = target.y - Math.abs(Math.sin(this.time * 12)) * 10;
+      case 'leaving': {
+        // バターの石が当たるまではその場で固まり、当たったら入口へ駆けだす（だんだん速く）
+        if (e.hitPending && we.t >= e.leaveDelay) {
+          e.hitPending = false;
+          this.sound.stun();
+          this.fx.burst(e.x, e.y - 10, 'star', 8, C.gold, 220);
+          this.fx.addShake(0.2);
+          this.say('elfin', T.game.elfinShot, () => this.elfinSayPos(), C.elfin, 1);
+        }
+        const p = Math.max(0, Math.min(1, (we.t - e.leaveDelay) / (BALANCE.elfin.leaveTime - e.leaveDelay)));
+        e.x = e.leaveFrom.x + (door.x - e.leaveFrom.x) * Math.pow(p, 1.6);
+        e.ground = e.leaveFrom.y;
+        e.y = e.ground - (p > 0 ? hop(12) : 0);
         break;
-      case 'launched':
-        e.vy += 1500 * dt;
-        e.x += e.vx * dt;
-        e.y += e.vy * dt;
-        e.rot += dt * 12 * Math.sign(e.vx || 1);
-        break;
+      }
     }
     const vx = (e.x - prevX) / Math.max(dt, 1e-4);
-    if (Math.abs(vx) > 20 && state !== 'launched') e.dir = vx > 0 ? 1 : -1;
-    if (state === 'eating' && e.pointerId === null) e.dir = 1;
+    if (Math.abs(vx) > 20) e.dir = vx > 0 ? 1 : -1;
+    if (state === 'lingering' || state === 'sulking') e.dir = 1;
     // 走り出し・立ち止まりの反動で髪を揺らす（drawElfin の左右反転に合わせる）
-    const flip = !w.elfin.grabbed && !e.free && state !== 'eating' ? e.dir : 1;
-    const hairVx = state === 'launched' || state === 'absent' ? 0 : (vx * flip * 50) / this.elfinR();
+    const hairVx = state === 'absent' ? 0 : (vx * e.dir * 50) / this.elfinR();
     e.body.jolt(hairVx - e.hairVx);
     e.hairVx = hairVx;
   }
@@ -913,40 +836,45 @@ export class GameView {
       case 'ovenClear':
         s.click();
         break;
-      case 'elfinEnter':
+      case 'elfinEnter': {
         s.elfinEnter();
-        this.elfin.x = L.elfinDoor.x;
-        this.say('elfin', T.game.elfinEnter, () => this.elfinSayPos(), C.elfin, 1.6);
+        const e = this.elfin;
+        e.x = L.elfinDoor.x;
+        e.leaveDelay = 0;
+        e.hitPending = false;
+        e.leaveExpr = 'happy';
+        this.say('elfin', T.game.elfinEnter, () => this.elfinSayPos(), C.elfin, 1.4);
         this.firstTime('elfin', T.game.elfinTitle, T.game.elfinHint, C.elfin);
         break;
+      }
       case 'elfinEat': {
+        // 1 個さっと取って、そのまま抱えて走って帰る
         s.munch();
         const h = this.elfinHead();
-        this.fx.burst(h.x, h.y + 20, 'crumb', 8, '#e7b072', 150);
+        const i = w.stage.breads.indexOf(ev.bread);
+        this.slotPop[i] = 1;
+        this.fx.burst(h.x, h.y + this.elfinR() * 1.3, 'crumb', 6, '#e7b072', 150);
         this.fx.float(T.game.elfinEat(ev.price), h.x, h.y - 70, '#ffd6d6', 22, C.tab);
         this.tabBump = 1;
         break;
       }
-      case 'elfinGrab':
-        s.grab();
+      case 'elfinSulk':
+        this.say('elfin', T.game.elfinSulk, () => this.elfinSayPos(), C.elfin, BALANCE.elfin.sulkTime + 0.4);
         break;
-      case 'elfinStun':
-        s.stun();
-        break;
-      case 'elfinLaunched': {
-        s.launch();
-        const h = this.elfinHead();
-        this.fx.burst(h.x, h.y, 'star', 14, C.gold, 300);
-        this.fx.float(T.game.elfinLaunched, h.x, h.y - 40, '#ffffff', 34, C.elfin);
-        this.fx.addShake(0.5);
-        break;
-      }
       case 'elfinLeave':
-        if (ev.full) this.say('elfin', T.game.elfinFull, () => this.elfinSayPos(), C.elfin, 1.4);
+        this.elfin.leaveExpr = ev.took ? 'happy' : 'sulk';
+        if (ev.took) this.say('elfin', T.game.elfinTook, () => this.elfinSayPos(), C.elfin, 1.2);
         break;
       case 'elfinFlee':
-        this.sound.stretch(null);
-        this.say('elfin', ev.reason === 'nell' ? T.game.elfinFleeNell : T.game.elfinFleeFever, () => this.elfinSayPos(), C.elfin, 1.4);
+        if (ev.reason === 'butter') {
+          // 石が届くまで固まり、当たったら目を回して逃げる（当たった瞬間の音と台詞は updateElfin で出す）
+          this.elfin.leaveDelay = SHOT_TIME;
+          this.elfin.hitPending = true;
+          this.elfin.leaveExpr = 'dizzy';
+          break;
+        }
+        this.elfin.leaveExpr = 'surprised';
+        this.say('elfin', ev.reason === 'nell' ? T.game.elfinFleeNell : T.game.elfinFleeFever, () => this.elfinSayPos(), C.elfin, 1.2);
         break;
       case 'nellAnnounce':
         s.nellAnnounce();
@@ -1080,9 +1008,9 @@ export class GameView {
     return st === 'entering' || st === 'stuck';
   }
 
-  private elfinSayPos(): Point | null {
-    if (this.world.elfin.state === 'absent') return null;
-    return { x: Math.max(120, this.elfin.x), y: this.elfin.y - this.elfinR() * 1.5 };
+  /** 走って帰ったあとも、言い残した台詞は画面の左端に少し残す */
+  private elfinSayPos(): Point {
+    return { x: Math.max(120, this.elfin.x), y: this.elfin.ground - this.elfinR() * 1.5 };
   }
 
   private custSayPos(id: number): Point | null {
@@ -1172,7 +1100,7 @@ export class GameView {
       drawOven(c, r, oven, pr, { hover: !!this.hover && inside(r, this.hover), t: this.time, burnTime: this.world.burnTime });
     });
 
-    this.drawElfin(c);
+    this.drawElfin(c, pr);
     this.drawShots(c);
 
     for (const cu of sorted) this.drawCustomerBubble(c, cu, pr);
@@ -1288,59 +1216,41 @@ export class GameView {
     c.restore();
   }
 
-  private drawElfin(c: CanvasRenderingContext2D): void {
-    const state = this.world.elfin.state;
+  private drawElfin(c: CanvasRenderingContext2D, pr: number): void {
+    const we = this.world.elfin;
+    const state = we.state;
     if (state === 'absent') return;
     const e = this.elfin;
-    const we = this.world.elfin;
-    const grabbed = we.grabbed;
-    let expr: Expr = 'normal';
-    if (state === 'entering') expr = 'happy';
-    if (state === 'eating') expr = we.eaten > 0 && we.eatTimer < 1.2 ? 'munch' : 'happy';
-    if (we.stun > 0) expr = 'worried';
-    const stretch = this.elfinStretch();
-    const ready = stretch >= BALANCE.elfin.launchStretch;
-    if (grabbed) expr = ready ? 'pinched' : 'worried';
-    if (state === 'leaving') expr = we.eaten > 0 ? 'happy' : 'worried';
-    if (state === 'launched') expr = 'dizzy';
-    if (e.free) expr = 'surprised';
-    const g = e.body.pinch.find(e.pointerId ?? KEY_POINTER);
     const r = this.elfinR();
+    const running = state === 'leaving' && we.t >= e.leaveDelay;
+    const dash = state === 'entering' || running;
+    let expr: Expr = 'happy';
+    if (state === 'sulking') expr = 'sulk';
+    if (running) expr = e.leaveExpr;
 
     c.save();
-    if (state === 'launched') {
-      c.translate(e.x, e.y);
-      c.rotate(e.rot);
-      c.translate(-e.x, -e.y);
-    }
-    // 影
-    if (state !== 'launched') {
-      c.fillStyle = C.shadow;
-      c.beginPath();
-      c.ellipse(e.x, e.y + r * FEET_R, r * 0.8, r * 0.16, 0, 0, Math.PI * 2);
-      c.fill();
-    }
-    // つまんでいる間は左右反転しない（elfinLocal と合わせる）
-    const flip = !grabbed && !e.free && state !== 'eating' ? e.dir : 1;
+    // 影（跳ねた分だけ小さく）
+    const lift = Math.min(1, (e.ground - e.y) / 30);
+    c.fillStyle = C.shadow;
+    c.beginPath();
+    c.ellipse(e.x, e.ground + r * FEET_R, r * 0.8 * (1 - lift * 0.3), r * 0.16, 0, 0, Math.PI * 2);
+    c.fill();
+    // 進む向きへ左右反転し、駆けている間は前のめりに
     c.translate(e.x, e.y);
-    c.scale(flip, 1);
+    c.scale(e.dir, 1);
     e.body.draw(c, ELFIN, 0, 0, r, {
       expr,
       t: this.time,
-      squash: grabbed ? 1 + stretch * 0.05 : 1 + Math.sin(this.time * 8) * 0.02,
-      tilt: grabbed && g ? g.pull.x * 0.0012 : Math.sin(this.time * 6) * 0.04,
-      turn: (e.side * flip) as -1 | 1,
+      squash: dash ? 1 + Math.sin(this.time * 32) * 0.04 : 1 + Math.sin(this.time * 8) * 0.02,
+      tilt: dash ? 0.14 : Math.sin(this.time * 6) * 0.04,
+      turn: 1,
     });
-    c.restore();
-
-    if (grabbed && ready && g) {
-      const tip = MochiBody.toScreen({ x: g.anchor.x + g.pull.x, y: g.anchor.y + g.pull.y }, e.x, e.y, r);
-      outlined(c, T.game.letGo, tip.x, tip.y - 40 - Math.sin(this.time * 14) * 4, 22, '#fff4a8', C.elfin);
-    } else if (this.elfinActive() && !grabbed && this.world.stats.repelled === 0) {
-      // まだ一度も追い払っていない時だけ、つまめることを示す
-      // 頭の上は「ツケ +」の数字が出るので、足もとに出す
-      outlined(c, T.game.pinchHint, e.x, e.y + r * FEET_R + 14, 16, '#ffffff', C.elfin);
+    // 取ったパンは胸に抱えて持って帰る（取った瞬間はぽんと大きく）
+    if (state === 'leaving' && we.bread) {
+      const pop = 1 + Math.max(0, 0.2 - we.t) * 1.5;
+      drawBread(c, we.bread, r * 0.32, r * 1.3, r * 0.95 * pop, pr);
     }
+    c.restore();
   }
 
   /** バターのパチンコの石。席からエルフィンへ山なりに飛ぶ */
@@ -1434,7 +1344,9 @@ export class GameView {
       const tp = this.hudTabPos();
       const tabText = T.game.hudTab(num(w.tab));
       const tabSize = portrait ? 21 : 24;
-      hudPill(c, tp.x - 22, cy, 48 + measure(c, tabText, tabSize) + 14);
+      const tabW = 48 + measure(c, tabText, tabSize) + 14;
+      hudPill(c, tp.x - 22, cy, tabW);
+      this.tabPill = { x: tp.x - 22, y: cy - 21, w: tabW, h: 42 };
       this.drawFace(c, 'hud-tab', ELFIN, tp.x, tp.y - 2, 13, { expr: w.tab > 0 ? 'happy' : 'normal', t: this.time, body: false });
       const tb = 1 + this.tabBump * 0.2;
       c.save();
@@ -1645,7 +1557,6 @@ export class GameView {
     L.seats.forEach((s, i) => keycap(c, SEAT_KEYS[i], s.x - L.headR - 8, s.y + 20));
     L.ovens.forEach((r, i) => keycap(c, OVEN_KEYS[i], r.x + 16, r.y + r.h - 34));
     keycap(c, 'BS', L.tray.x + L.tray.w + 22, L.tray.y + L.tray.h / 2);
-    if (this.elfinActive()) keycap(c, 'Space', this.elfin.x, this.elfin.y + this.elfinR() * (FEET_R + 0.25));
     if (this.burumiTappable()) {
       const r = L.windows[this.world.burumi.window];
       keycap(c, BURUMI_KEY, r.x + r.w - 14, r.y + r.h - 14);

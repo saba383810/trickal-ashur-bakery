@@ -342,7 +342,6 @@ export class App implements MenuHost {
         this.pause();
       }
     });
-    window.addEventListener('keyup', (e) => this.view?.keyUp(e));
 
     const onResize = () => {
       this.screen.resize();

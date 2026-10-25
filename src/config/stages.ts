@@ -21,7 +21,7 @@ export interface EndlessDef {
   /** レベルが 1 上がるごとに待ち時間に掛ける倍率と、その下限（倍率） */
   patienceRate: number;
   patienceMin: number;
-  /** レベルが 1 上がるごとにエルフィンの来る間隔・食べる間隔に掛ける倍率 */
+  /** レベルが 1 上がるごとにエルフィンの来る間隔に掛ける倍率（下限は BALANCE.elfin.endlessMin） */
   elfinRate: number;
   /** レベルごとの注文個数の重み（足りないレベルは最後のものを使う） */
   itemWeights: number[][];
@@ -61,13 +61,12 @@ export interface StageDef {
     patienceBase: number;
     patiencePerItem: number;
   };
+  /** エルフィン（1 回来るたびにパンを 1 個持っていく。動きの秒数は BALANCE.elfin） */
   elfin: null | {
     firstAt: number;
-    /** 退店してから次に来るまで */
+    /** 帰ってから次に来るまで */
     intervalMin: number;
     intervalMax: number;
-    eatInterval: number;
-    maxEat: number;
   };
   /** ネルの来店時刻（秒） */
   nellVisits: number[];
@@ -108,8 +107,8 @@ export const STAGES: StageDef[] = [
     initialStock: 5,
     burnTime: null,
     customer: { intervalStart: 6, intervalEnd: 6, jitter: 0, itemWeights: [1], patienceBase: 16, patiencePerItem: 5 },
-    // 手順の中で呼ぶ。追い払う前に帰ってしまわないよう、たくさん食べる
-    elfin: { firstAt: Infinity, intervalMin: 2, intervalMax: 2, eatInterval: 2.4, maxEat: 9 },
+    // 手順の中で呼ぶ（自分からは来ない）
+    elfin: { firstAt: Infinity, intervalMin: 2, intervalMax: 2 },
     nellVisits: [],
     nellItems: 2,
     komi: [],
@@ -124,22 +123,22 @@ export const STAGES: StageDef[] = [
     blurb: 'のんびり営業よ。パンは2種類、注文もひとつずつ。焼けたパンは焦げないから、あわてなくて大丈夫！',
     duration: 60,
     // はじめの一歩: 見分けやすい 2 種だけ。注文は通常客 1 個・コミー 1 個・ネルとバター 2 個。焦げない。
-    // 4 人とも来るが、エルフィンは遅れて来て、ゆっくり少しだけ食べる（追い払う前に食べ尽くされない）
+    // 4 人とも来る。エルフィンは止められないので、ネル（32 秒）までにツケが 2〜3 個分貯まる間隔で来る
     breads: ['roll', 'melon'],
     ovens: 2,
     seats: 3,
     initialStock: 3,
     burnTime: null,
     customer: { intervalStart: 5, intervalEnd: 3.8, jitter: 0.25, itemWeights: [1], patienceBase: 16, patiencePerItem: 5 },
-    elfin: { firstAt: 12, intervalMin: 12, intervalMax: 16, eatInterval: 2.6, maxEat: 2 },
+    elfin: { firstAt: 5, intervalMin: 6, intervalMax: 8 },
     nellVisits: [32],
     nellItems: 2,
     komi: [14],
     butter: [44],
     burumi: true,
     guestItems: { komi: 1, butter: 2 },
-    // 来店ペースで売上が頭打ち（ボットは腕前によらず約 4,100）になるので、★はその約 45% / 65% / 83% に置く
-    stars: [2800, 4000, 5500],
+    // 来店ペースで売上が頭打ちになり、腕前の差が出にくい。★はボット中央値（初心者 約 5,150 / ふつう 約 7,000 / 上手い 約 8,250）の約 58% / 62% / 73%
+    stars: [3000, 4300, 6000],
     feverServes: 8,
   },
   {
@@ -155,15 +154,15 @@ export const STAGES: StageDef[] = [
     initialStock: 3,
     burnTime: null,
     customer: { intervalStart: 4.9, intervalEnd: 3.7, jitter: 0.25, itemWeights: [3, 1], patienceBase: 16, patiencePerItem: 5 },
-    elfin: { firstAt: 11, intervalMin: 12, intervalMax: 16, eatInterval: 2.3, maxEat: 2 },
+    elfin: { firstAt: 5, intervalMin: 5, intervalMax: 7 },
     nellVisits: [30, 58],
     nellItems: 2,
     komi: [15, 48],
     butter: [40],
     burumi: true,
     guestItems: { komi: 2, butter: 2 },
-    // 微辛と同じく来店ペースで頭打ち（ふつう・上手いボットは約 7,400）。★はその約 46% / 67% / 86%
-    stars: [3700, 6500, 9500],
+    // 微辛と同じく来店ペースで頭打ちぎみ。★はボット中央値（約 6,450 / 9,800 / 11,850）の約 61% / 69% / 84%
+    stars: [3900, 6800, 10000],
     feverServes: 9,
   },
   {
@@ -179,13 +178,13 @@ export const STAGES: StageDef[] = [
     initialStock: 3,
     burnTime: 10,
     customer: { intervalStart: 4.8, intervalEnd: 3.6, jitter: 0.25, itemWeights: [5, 4, 1], patienceBase: 16, patiencePerItem: 5 },
-    elfin: { firstAt: 10, intervalMin: 11, intervalMax: 15, eatInterval: 2.1, maxEat: 3 },
+    elfin: { firstAt: 5, intervalMin: 6, intervalMax: 8 },
     nellVisits: [35, 70],
     nellItems: 3,
     komi: [18, 58],
     butter: [46],
     burumi: true,
-    stars: [4300, 7900, 12000],
+    stars: [4400, 8100, 12400],
     feverServes: 10,
   },
   {
@@ -200,13 +199,13 @@ export const STAGES: StageDef[] = [
     initialStock: 3,
     burnTime: 8,
     customer: { intervalStart: 4.2, intervalEnd: 3, jitter: 0.25, itemWeights: [4, 4, 3, 1], patienceBase: 15, patiencePerItem: 5 },
-    elfin: { firstAt: 8, intervalMin: 8, intervalMax: 12, eatInterval: 1.6, maxEat: 4 },
+    elfin: { firstAt: 5, intervalMin: 5, intervalMax: 8 },
     nellVisits: [38, 85],
     nellItems: 4,
     komi: [18, 60, 100],
     butter: [48, 92],
     burumi: true,
-    stars: [6500, 11500, 19800],
+    stars: [6700, 12000, 19600],
     feverServes: 10,
   },
   {
@@ -222,13 +221,13 @@ export const STAGES: StageDef[] = [
     // 焦げるのは endless.burnLevel から
     burnTime: 8,
     customer: { intervalStart: 4.6, intervalEnd: 4.6, jitter: 0.25, itemWeights: [5, 4, 1], patienceBase: 15, patiencePerItem: 5 },
-    elfin: { firstAt: 10, intervalMin: 11, intervalMax: 16, eatInterval: 1.8, maxEat: 4 },
+    elfin: { firstAt: 6, intervalMin: 7, intervalMax: 10 },
     nellVisits: [40],
     nellItems: 3,
     komi: [15],
     butter: [28],
     burumi: true,
-    stars: [4500, 13500, 43000],
+    stars: [4700, 13500, 41000],
     feverServes: 9,
     endless: {
       levelTime: 20,
@@ -242,7 +241,7 @@ export const STAGES: StageDef[] = [
       intervalMin: 1.9,
       patienceRate: 0.94,
       patienceMin: 0.5,
-      elfinRate: 0.93,
+      elfinRate: 0.95,
       itemWeights: [
         [5, 4, 1],
         [4, 4, 2],

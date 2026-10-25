@@ -6,7 +6,7 @@ import { Rng } from './rng';
 
 export type CustomerState = 'entering' | 'waiting' | 'leaving';
 
-/** nell = 記憶接客 / komi = 席で居眠りする / butter = 座っている間エルフィンを追い払う */
+/** nell = 記憶接客 / komi = 席で居眠りする / butter = 座っている間エルフィンを追い返す */
 export type CustomerKind = 'normal' | 'nell' | 'komi' | 'butter';
 
 export interface Customer {
@@ -44,20 +44,19 @@ export interface Oven {
   t: number;
 }
 
-export type ElfinState = 'absent' | 'entering' | 'eating' | 'leaving' | 'launched';
+/**
+ * entering = 「おやつ〜」と駆けこんでくる / lingering = ショーケースの前でちょびっと立ち止まる /
+ * sulking = 取れるパンが無くてむくれる / leaving = 走って帰る（パンを取れていれば抱えて）
+ */
+export type ElfinState = 'absent' | 'entering' | 'lingering' | 'sulking' | 'leaving';
 
 export interface Elfin {
   state: ElfinState;
   t: number;
   /** 入口 → ショーケースの進み具合 0..1 */
   enter: number;
-  eaten: number;
-  eatTimer: number;
-  grabbed: boolean;
-  stun: number;
-  sulk: number;
-  /** 直前に食べたパン（view の口元表示用） */
-  lastBread: BreadId | null;
+  /** 持って帰るパン（取れなかった・追い返された時は null） */
+  bread: BreadId | null;
 }
 
 /** ブルミ: entering = 飛んできて窓に張り付くところ / stuck = 張り付いている / leaving = はがれて帰る / caught = タップされた */
@@ -84,15 +83,16 @@ export interface Ledger {
 export interface Stats {
   served: number;
   angry: number;
-  repelled: number;
   baked: number;
   burnt: number;
+  /** エルフィンに持っていかれたパン */
   elfinAte: number;
   bestCombo: number;
   nellSuccess: number;
   nellFail: number;
   /** ほっぺを引っぱって機嫌を直した客 */
   mochi: number;
+  /** バターがエルフィンを追い返した回数 */
   butterShots: number;
   /** エンドレスで延びた秒数の合計 */
   timeAdded: number;
@@ -122,17 +122,7 @@ export class World {
   tray: BreadId[] = [];
   customers: Customer[] = [];
   ovens: Oven[];
-  elfin: Elfin = {
-    state: 'absent',
-    t: 0,
-    enter: 0,
-    eaten: 0,
-    eatTimer: 0,
-    grabbed: false,
-    stun: 0,
-    sulk: 0,
-    lastBread: null,
-  };
+  elfin: Elfin = { state: 'absent', t: 0, enter: 0, bread: null };
 
   /** この時刻で閉店。エンドレスは会計で延びる */
   timeLimit: number;
@@ -151,7 +141,6 @@ export class World {
   stats: Stats = {
     served: 0,
     angry: 0,
-    repelled: 0,
     baked: 0,
     burnt: 0,
     elfinAte: 0,
@@ -173,7 +162,8 @@ export class World {
   private nellQueue: number[];
   /** コミーとバターの来店予定 */
   private guests: { kind: 'komi' | 'butter'; at: number }[];
-  private butterCooldown = 0;
+  /** バターがエルフィンに気づいてから撃つまでの残り秒数 */
+  private butterAim = 0;
   private nextId = 1;
   private nextSpawnAt = 1;
   private nextElfinAt: number;
@@ -222,18 +212,17 @@ export class World {
     return e ? Math.max(e.patienceMin, Math.pow(e.patienceRate, this.level - 1)) : 1;
   }
 
-  /** いまのエルフィンの設定（エンドレスはレベルで間隔が縮み、たくさん食べる） */
+  /** いまのエルフィンの設定（エンドレスはレベルで来る間隔が縮む） */
   private get elfinCfg(): StageDef['elfin'] {
     const cfg = this.stage.elfin;
     const e = this.stage.endless;
     if (!cfg || !e) return cfg;
     const k = Math.pow(e.elfinRate, this.level - 1);
+    const min = BALANCE.elfin.endlessMin;
     return {
       ...cfg,
-      intervalMin: Math.max(3, cfg.intervalMin * k),
-      intervalMax: Math.max(5, cfg.intervalMax * k),
-      eatInterval: Math.max(1.1, cfg.eatInterval * Math.sqrt(k)),
-      maxEat: Math.min(7, cfg.maxEat + Math.floor((this.level - 1) / 3)),
+      intervalMin: Math.max(min[0], cfg.intervalMin * k),
+      intervalMax: Math.max(min[1], cfg.intervalMax * k),
     };
   }
 
@@ -320,7 +309,7 @@ export class World {
 
   /**
    * フィーバータイムを始める（ゲージ満タンで自動。チュートリアルは直接呼ぶ）。
-   * 来ていたエルフィンは逃げ出す
+   * パンを取る前のエルフィンは手ぶらで逃げ出す
    */
   startFever(): void {
     if (this.phase !== 'playing' || this.fever > 0) return;
@@ -330,8 +319,7 @@ export class World {
     this.feverSpawnAt = this.clock;
     this.stats.fevers++;
     this.emit({ type: 'feverStart', duration: d });
-    const e = this.elfin;
-    if (e.state === 'entering' || e.state === 'eating') this.elfinFlee('fever');
+    if (this.elfinInShop) this.elfinFlee('fever');
   }
 
   /** チュートリアル用: エルフィンをすぐ呼ぶ */
@@ -345,7 +333,7 @@ export class World {
     if (s === null) return null;
     const cfg = BALANCE[kind];
     const c = this.addCustomer(kind, s, order, cfg.patienceBase + cfg.patiencePerItem * order.length);
-    if (kind === 'butter') this.butterCooldown = BALANCE.butter.firstShot;
+    if (kind === 'butter') this.butterAim = BALANCE.butter.aim;
     return c;
   }
 
@@ -379,33 +367,6 @@ export class World {
     return false;
   }
 
-  elfinGrab(): boolean {
-    const e = this.elfin;
-    if (this.phase !== 'playing' || (e.state !== 'entering' && e.state !== 'eating')) return false;
-    e.grabbed = true;
-    this.emit({ type: 'elfinGrab' });
-    return true;
-  }
-
-  /** power: 引っぱった距離 / 必要な距離。1 以上で追い払える */
-  elfinRelease(power: number): boolean {
-    const e = this.elfin;
-    if (!e.grabbed) return false;
-    e.grabbed = false;
-    if (e.state !== 'entering' && e.state !== 'eating') return false;
-    if (power >= 1) {
-      this.setElfin('launched');
-      this.stats.repelled++;
-      this.emit({ type: 'elfinLaunched' });
-      return true;
-    }
-    e.stun = BALANCE.elfin.stunTime;
-    this.emit({ type: 'elfinStun' });
-    return false;
-  }
-
-  // ------------------------------------------------------------------- step
-
   /** 窓に張り付いたブルミをタップした */
   tapBurumi(): boolean {
     const b = this.burumi;
@@ -418,6 +379,8 @@ export class World {
     this.emit({ type: 'burumiCatch', window: b.window, reward });
     return true;
   }
+
+  // ------------------------------------------------------------------- step
 
   step(dt: number): void {
     if (this.phase !== 'playing') return;
@@ -457,7 +420,6 @@ export class World {
     // フィーバー中に時間が切れても、閉店はフィーバーが終わってから
     if (this.time >= this.timeLimit && this.fever <= 0) {
       this.phase = 'ended';
-      this.elfin.grabbed = false;
       this.emit({ type: 'timeUp' });
     }
   }
@@ -745,7 +707,7 @@ export class World {
     const cfg = BALANCE[g.kind];
     const order = this.randomBreads(this.stage.guestItems?.[g.kind] ?? cfg.items);
     this.addCustomer(g.kind, seat, order, (cfg.patienceBase + cfg.patiencePerItem * order.length) * this.patienceScale);
-    if (g.kind === 'butter') this.butterCooldown = BALANCE.butter.firstShot;
+    if (g.kind === 'butter') this.butterAim = BALANCE.butter.aim;
     this.scheduleNext(g.kind);
   }
 
@@ -875,8 +837,8 @@ export class World {
     const e = this.elfin;
     const b = BALANCE.elfin;
     e.t += dt;
-    e.stun = Math.max(0, e.stun - dt);
-    const held = e.grabbed || e.stun > 0;
+    // ネルの予告〜退店のあいだは、パンを取る前なら手ぶらで逃げ出す
+    if (this.elfinInShop && this.nellInShop) return this.elfinFlee('nell');
 
     switch (e.state) {
       case 'absent':
@@ -890,39 +852,32 @@ export class World {
         }
         break;
       case 'entering':
-        if (this.nellInShop) return this.elfinFlee('nell');
-        if (!held) e.enter = Math.min(1, e.enter + dt / b.enterTime);
-        if (e.enter >= 1) this.setElfin('eating');
+        e.enter = Math.min(1, e.enter + dt / b.enterTime);
+        if (e.enter >= 1) this.setElfin('lingering');
         break;
-      case 'eating':
-        if (this.nellInShop) return this.elfinFlee('nell');
-        if (held) break;
-        e.eatTimer += dt;
-        if (e.eatTimer < cfg.eatInterval) break;
-        {
-          const bread = this.elfinTarget();
-          if (!bread) {
-            e.sulk += dt;
-            if (e.sulk >= b.sulkTime) this.elfinLeave(false);
-            break;
-          }
-          e.eatTimer = 0;
-          e.sulk = 0;
-          const price = BREADS[bread].price;
-          this.stock[bread]--;
-          this.tab += price;
-          e.eaten++;
-          e.lastBread = bread;
-          this.stats.elfinAte++;
-          this.emit({ type: 'elfinEat', bread, price });
-          if (e.eaten >= cfg.maxEat) this.elfinLeave(true);
+      case 'lingering': {
+        if (e.t < b.lingerTime) break;
+        const bread = this.elfinTarget();
+        if (!bread) {
+          this.setElfin('sulking');
+          this.emit({ type: 'elfinSulk' });
+          break;
         }
+        // 1 個だけ取って、そのまま抱えて走って帰る。代金はツケに
+        const price = BREADS[bread].price;
+        this.stock[bread]--;
+        this.tab += price;
+        e.bread = bread;
+        this.stats.elfinAte++;
+        this.emit({ type: 'elfinEat', bread, price });
+        this.elfinLeave(true);
+        break;
+      }
+      case 'sulking':
+        if (e.t >= b.sulkTime) this.elfinLeave(false);
         break;
       case 'leaving':
         if (e.t >= b.leaveTime) this.elfinGone(this.rng.range(cfg.intervalMin, cfg.intervalMax));
-        break;
-      case 'launched':
-        if (e.t >= b.launchTime) this.elfinGone(this.rng.range(cfg.intervalMin, cfg.intervalMax));
         break;
     }
   }
@@ -965,22 +920,27 @@ export class World {
     }
   }
 
-  /** バターが座って待っている間、ショーケースのエルフィンをパチンコで撃って追い払う */
+  /**
+   * バターが座って待っている間、パンを取る前のエルフィンをパチンコで撃ち、手ぶらで追い返す。
+   * エルフィンが来てから（バターが後から座ったならそこから）aim 秒で撃つ
+   */
   private updateButter(dt: number): void {
     const butter = this.customers.find((c) => c.kind === 'butter' && c.state === 'waiting');
-    if (!butter) return;
-    this.butterCooldown = Math.max(0, this.butterCooldown - dt);
-    const e = this.elfin;
-    if (this.butterCooldown > 0 || e.grabbed || (e.state !== 'entering' && e.state !== 'eating')) return;
-    const cfg = BALANCE.butter;
-    this.butterCooldown = cfg.shotInterval;
-    e.stun = cfg.shotStun;
-    e.eatTimer = 0;
+    if (!butter || !this.elfinInShop) return;
+    this.butterAim = Math.max(0, this.butterAim - dt);
+    if (this.butterAim > 0) return;
     this.stats.butterShots++;
     this.emit({ type: 'butterShot', customerId: butter.id });
+    this.elfinFlee('butter');
   }
 
-  /** エルフィンが次に食べるパン（在庫のあるパンのうち一番高いもの） */
+  /** エルフィンが駆けこんできてからパンを取るまで（バター・ネル・フィーバーで追い返せる間） */
+  get elfinInShop(): boolean {
+    const s = this.elfin.state;
+    return s === 'entering' || s === 'lingering' || s === 'sulking';
+  }
+
+  /** エルフィンが次に取るパン（在庫のあるパンのうち一番高いもの） */
   elfinTarget(): BreadId | null {
     let best: BreadId | null = null;
     for (const id of this.stage.breads) {
@@ -993,33 +953,33 @@ export class World {
     const e = this.elfin;
     this.setElfin('entering');
     e.enter = 0;
-    e.eaten = 0;
-    e.eatTimer = 0;
-    e.sulk = 0;
-    e.lastBread = null;
+    e.bread = null;
+    this.butterAim = BALANCE.butter.aim;
     this.emit({ type: 'elfinEnter' });
   }
 
-  private elfinLeave(full: boolean): void {
+  /** took = パンを抱えて帰る / false = むくれて手ぶらで帰る */
+  private elfinLeave(took: boolean): void {
     this.setElfin('leaving');
-    this.emit({ type: 'elfinLeave', full });
+    this.emit({ type: 'elfinLeave', took });
   }
 
-  private elfinFlee(reason: 'nell' | 'fever'): void {
+  /** ネルが来る / フィーバーが始まった / バターに撃たれた（どれもパンを取る前なので手ぶら） */
+  private elfinFlee(reason: 'nell' | 'fever' | 'butter'): void {
     this.setElfin('leaving');
+    this.elfin.bread = null;
     this.emit({ type: 'elfinFlee', reason });
   }
 
   private elfinGone(cooldown: number): void {
     this.setElfin('absent');
+    this.elfin.bread = null;
     this.nextElfinAt = this.time + cooldown;
   }
 
   private setElfin(state: ElfinState): void {
     this.elfin.state = state;
     this.elfin.t = 0;
-    this.elfin.grabbed = false;
-    this.elfin.stun = 0;
   }
 
   private emit(e: GameEvent): void {

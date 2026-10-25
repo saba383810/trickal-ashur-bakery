@@ -164,39 +164,68 @@ describe('オーブン', () => {
   });
 });
 
-const ELFIN = { firstAt: 1, intervalMin: 10, intervalMax: 10, eatInterval: 2, maxEat: 2 };
+const ELFIN = { firstAt: 1, intervalMin: 10, intervalMax: 10 };
+const EB = BALANCE.elfin;
 
 describe('エルフィン', () => {
-  it('高いパンから食べてツケが貯まり、満腹で帰る', () => {
+  it('駆けこんで少し立ち止まり、一番高いパンを 1 個だけツケで持って帰る', () => {
     const w = quiet({ elfin: ELFIN });
-    run(w, 1 + BALANCE.elfin.enterTime + 2.1);
-    expect(w.elfin.state).toBe('eating');
+    run(w, 1.05);
+    expect(w.elfin.state).toBe('entering');
+    run(w, EB.enterTime);
+    expect(w.elfin.state).toBe('lingering');
+    expect(w.tab).toBe(0);
+    run(w, EB.lingerTime);
+    expect(w.elfin.state).toBe('leaving');
+    expect(w.elfin.bread).toBe('melon');
     expect(w.stock.melon).toBe(2);
     expect(w.tab).toBe(BREADS.melon.price);
-    run(w, 2);
-    expect(w.tab).toBe(BREADS.melon.price * 2);
-    expect(w.elfin.state).toBe('leaving');
+    expect(w.stats.elfinAte).toBe(1);
     expect(w.sales).toBe(0);
+    const types = w.drainEvents().map((e) => e.type);
+    expect(types).toEqual(['elfinEnter', 'elfinEat', 'elfinLeave']);
+    run(w, EB.leaveTime);
+    expect(w.elfin.state).toBe('absent');
+    expect(w.tab).toBe(BREADS.melon.price);
   });
 
-  it('引っぱって離すと追い払える。足りないとひるむだけ', () => {
-    const w = quiet({ elfin: ELFIN });
-    run(w, 2);
-    expect(w.elfinGrab()).toBe(true);
-    expect(w.elfinRelease(0.5)).toBe(false);
-    expect(w.elfin.stun).toBeGreaterThan(0);
-    w.elfinGrab();
-    expect(w.elfinRelease(1.2)).toBe(true);
-    expect(w.elfin.state).toBe('launched');
-    expect(w.stats.repelled).toBe(1);
-  });
-
-  it('つかんでいる間は食べない', () => {
-    const w = quiet({ elfin: ELFIN });
-    run(w, 1 + BALANCE.elfin.enterTime + 0.1);
-    w.elfinGrab();
-    run(w, 10);
+  it('取れるパンが無ければ、少しむくれて手ぶらで帰る', () => {
+    const w = quiet({ elfin: ELFIN, initialStock: 0 });
+    run(w, 1 + EB.enterTime + EB.lingerTime + 0.05);
+    expect(w.elfin.state).toBe('sulking');
+    expect(w.drainEvents().map((e) => e.type)).toContain('elfinSulk');
+    run(w, EB.sulkTime);
+    expect(w.elfin.state).toBe('leaving');
+    expect(w.elfin.bread).toBeNull();
     expect(w.tab).toBe(0);
+    expect(w.stats.elfinAte).toBe(0);
+  });
+
+  it('むくれている間にパンが焼けても、取らずに帰る', () => {
+    const w = quiet({ elfin: ELFIN, initialStock: 0 });
+    run(w, 1 + EB.enterTime + EB.lingerTime + 0.05);
+    w.stock.roll = 3;
+    run(w, EB.sulkTime);
+    expect(w.elfin.state).toBe('leaving');
+    expect(w.stock.roll).toBe(3);
+    expect(w.tab).toBe(0);
+  });
+
+  it('帰ったら間隔をあけて、また来る', () => {
+    const w = quiet({ elfin: ELFIN, initialStock: 9 });
+    run(w, 1 + EB.enterTime + EB.lingerTime + EB.leaveTime + 0.1);
+    expect(w.elfin.state).toBe('absent');
+    run(w, ELFIN.intervalMin - 0.2);
+    expect(w.elfin.state).toBe('absent');
+    run(w, 0.3);
+    expect(w.elfin.state).toBe('entering');
+  });
+
+  it('閉店間際には来ない', () => {
+    const w = quiet({ duration: 20, elfin: { firstAt: 20 - BALANCE.closingTime - 0.5, intervalMin: 1, intervalMax: 1 } });
+    run(w, 20);
+    expect(w.stats.elfinAte).toBe(0);
+    expect(w.elfin.state).toBe('absent');
   });
 });
 
@@ -208,16 +237,42 @@ describe('ネル', () => {
     return w.customers.find((c) => c.kind === 'nell')!;
   }
 
-  it('予告が来るとエルフィンが逃げ、予告中は新しい客が 1 席空けて座る', () => {
-    const hungry = { ...ELFIN, firstAt: 5, maxEat: 99 };
-    const w = new World(stage({ ...nellStage, elfin: hungry, initialStock: 9 }), 3);
+  it('予告が来るとエルフィンが手ぶらで逃げ、予告中は新しい客が 1 席空けて座る', () => {
+    const early = { ...ELFIN, firstAt: 20 - BALANCE.nell.announceLead - 0.3 };
+    const w = new World(stage({ ...nellStage, elfin: early, initialStock: 9 }), 3);
     run(w, 20 - BALANCE.nell.announceLead - 0.1);
-    expect(w.elfin.state).toBe('eating');
+    expect(w.elfin.state).toBe('entering');
     run(w, 0.2);
     expect(w.nellPendingAt).toBe(20);
     expect(w.elfin.state).toBe('leaving');
+    expect(w.elfin.bread).toBeNull();
+    expect(w.drainEvents()).toContainEqual({ type: 'elfinFlee', reason: 'nell' });
     run(w, BALANCE.nell.announceLead - 0.5);
     expect(w.customers.filter((c) => c.state !== 'leaving').length).toBeLessThanOrEqual(1);
+  });
+
+  it('ネルが店にいる間はエルフィンが来ず、帰ってから afterNell 秒で戻ってくる', () => {
+    const w = quiet({ nellVisits: [8], seats: 2, elfin: { firstAt: 1, intervalMin: 0.5, intervalMax: 0.5 }, initialStock: 9 });
+    run(w, 1.2);
+    expect(w.elfin.state).toBe('entering');
+    // 予告からネルが席に着いて待つまで、一度も入ってこず、ツケも増えない
+    let came = false;
+    let tabAtAnnounce: number | null = null;
+    const waitingNell = () => w.customers.find((c) => c.kind === 'nell' && c.state === 'waiting');
+    for (let i = 0; i < 1200 && !waitingNell(); i++) {
+      w.step(DT);
+      if (w.nellInShop) tabAtAnnounce ??= w.tab;
+      if (w.nellInShop && w.elfinInShop) came = true;
+    }
+    expect(came).toBe(false);
+    expect(w.tab).toBe(tabAtAnnounce);
+    const nell = waitingNell()!;
+    for (const b of nell.order) w.pickBread(b);
+    expect(w.serve(nell.id)).toBe('complete');
+    run(w, EB.afterNell - 0.2);
+    expect(w.elfin.state).toBe('absent');
+    run(w, 0.4);
+    expect(w.elfin.state).toBe('entering');
   });
 
   it('注文は最初の数秒だけ見え、空トレーでタップするともう一度見せてくれる', () => {
@@ -326,23 +381,44 @@ describe('コミー', () => {
 });
 
 describe('バター', () => {
-  it('座っている間はエルフィンをパチンコで撃ち、つまみ食いさせない', () => {
-    const w = quiet({ elfin: { ...ELFIN, firstAt: 1, maxEat: 99 }, butter: [0.5], initialStock: 9 });
-    run(w, 12);
+  it('座っている間は、パンを取る前のエルフィンをパチンコで撃って手ぶらで追い返す', () => {
+    const w = quiet({ elfin: { ...ELFIN, firstAt: 2 }, butter: [0.5], initialStock: 9 });
+    run(w, 2 + BALANCE.butter.aim + 0.05);
     const butter = w.customers.find((c) => c.kind === 'butter')!;
     expect(butter.state).toBe('waiting');
     expect(butter.order).toHaveLength(BALANCE.butter.items);
-    expect(w.stats.butterShots).toBeGreaterThan(0);
+    expect(w.stats.butterShots).toBe(1);
+    expect(w.elfin.state).toBe('leaving');
+    expect(w.elfin.bread).toBeNull();
+    const types = w.drainEvents().map((e) => e.type);
+    expect(types).toContain('butterShot');
+    expect(types).toContain('elfinFlee');
+    // 座っている間は、来るたびに追い返す
+    run(w, 23);
+    expect(w.stats.butterShots).toBe(3);
+    expect(w.tab).toBe(0);
+    expect(w.stats.elfinAte).toBe(0);
+  });
+
+  it('エルフィンが先に来ていても、パンを取られる前に撃つ', () => {
+    const w = quiet({ elfin: ELFIN, butter: [0.6], initialStock: 9 });
+    run(w, 1 + EB.enterTime + EB.lingerTime + 0.1);
+    expect(w.stats.butterShots).toBe(1);
     expect(w.tab).toBe(0);
   });
 
-  it('バターが帰るとエルフィンはまた食べはじめる', () => {
-    const w = quiet({ elfin: { ...ELFIN, firstAt: 1, maxEat: 99 }, butter: [0.5], initialStock: 9 });
-    run(w, 3);
+  it('座っていれば必ず間に合う（エルフィンがパンを取るより早く撃つ）', () => {
+    expect(BALANCE.butter.aim).toBeLessThan(EB.enterTime + EB.lingerTime);
+  });
+
+  it('バターが帰るとエルフィンはまたパンを持っていく', () => {
+    const w = quiet({ elfin: { ...ELFIN, firstAt: 3 }, butter: [0.5], initialStock: 9 });
+    run(w, 2);
     const butter = w.customers.find((c) => c.kind === 'butter')!;
     for (const b of butter.order) w.pickBread(b);
     expect(w.serve(butter.id)).toBe('complete');
-    run(w, 5);
+    run(w, 3);
+    expect(w.stats.butterShots).toBe(0);
     expect(w.tab).toBeGreaterThan(0);
   });
 });
@@ -439,18 +515,25 @@ describe('エンドレス', () => {
 });
 
 describe('チュートリアル用の操作', () => {
-  it('時計を止めたまま、呼んだエルフィンは入ってきて食べ、バターは撃つ', () => {
-    const w = quiet({ elfin: { ...ELFIN, firstAt: Infinity, maxEat: 9 }, initialStock: 5 });
+  it('時計を止めたまま、呼んだエルフィンはパンを持って帰り、座ったバターは撃つ', () => {
+    const w = quiet({ elfin: { ...ELFIN, firstAt: Infinity }, initialStock: 5 });
     w.frozen = true;
     w.summonElfin();
-    run(w, BALANCE.elfin.enterTime + ELFIN.eatInterval + 0.2);
+    run(w, EB.enterTime + EB.lingerTime + 0.1);
     expect(w.time).toBe(0);
-    expect(w.elfin.state).toBe('eating');
-    expect(w.tab).toBeGreaterThan(0);
+    expect(w.elfin.state).toBe('leaving');
+    expect(w.tab).toBe(BREADS.melon.price);
+    // 時計が止まっている間は、自分からはまた来ない
+    run(w, EB.leaveTime + 12);
+    expect(w.elfin.state).toBe('absent');
     const butter = w.spawnGuest('butter', ['roll', 'melon'], 0)!;
-    run(w, 3);
+    run(w, BALANCE.customer.enterTime + 0.1);
+    w.summonElfin();
+    run(w, BALANCE.butter.aim + 0.1);
     expect(butter.order).toEqual(['roll', 'melon']);
-    expect(w.stats.butterShots).toBeGreaterThan(0);
+    expect(w.stats.butterShots).toBe(1);
+    expect(w.elfin.bread).toBeNull();
+    expect(w.tab).toBe(BREADS.melon.price);
   });
 });
 
@@ -536,9 +619,9 @@ describe('フィーバータイム', () => {
     expect(w.ovens[0].state).toBe('burnt');
   });
 
-  it('来ていたエルフィンは逃げ出し、終わるまで来ない。ネル・コミー・バターも終わってから来る', () => {
+  it('来ていたエルフィンは手ぶらで逃げ出し、終わるまで来ない。ネル・コミー・バターも終わってから来る', () => {
     const w = quiet({
-      elfin: { firstAt: 1, intervalMin: 1, intervalMax: 1, eatInterval: 1, maxEat: 9 },
+      elfin: { firstAt: 1, intervalMin: 1, intervalMax: 1 },
       komi: [2],
       nellVisits: [8],
       seats: 4,
@@ -546,9 +629,11 @@ describe('フィーバータイム', () => {
     run(w, 1.1);
     expect(w.elfin.state).toBe('entering');
     w.startFever();
-    expect(w.drainEvents().map((e) => e.type)).toContain('elfinFlee');
+    expect(w.drainEvents()).toContainEqual({ type: 'elfinFlee', reason: 'fever' });
+    expect(w.elfin.bread).toBeNull();
     run(w, F.duration - 0.2);
     expect(['leaving', 'absent']).toContain(w.elfin.state);
+    expect(w.tab).toBe(0);
     expect(w.customers.some((c) => c.kind === 'komi' || c.kind === 'nell')).toBe(false);
     expect(w.nellPendingAt).toBeNull();
     // 終わったらコミーが来て、ネルの予告が出る（席はフィーバーの客が帰ってから）

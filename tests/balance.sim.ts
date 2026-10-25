@@ -7,6 +7,7 @@ import { Bot, SKILLS } from './bot';
 
 // `npm run sim` で各モードをボットに遊ばせ、★の目標売上が妥当かを見る。
 // エンドレスは営業できた時間とレベルも出す（MAX_TIME で打ち切り）。
+// 食 = エルフィンに持っていかれたパン、撃 = バターが追い返した回数、回収 = ネルで回収したツケ（いずれも 1 回あたりの平均）。
 // 不足 = 注文が入った時点で手持ち（在庫・トレー・オーブン）では足りなかったパンの割合、連続 = 同じパンが続けて注文に入った最長件数の平均。
 // NO_FEVER=1 でフィーバーなしの売上と比べられる。
 const RUNS = 200;
@@ -25,7 +26,7 @@ it('balance report', () => {
     lines.push(`\n■ ${stage.title}（${stage.id}）  ★ ${stage.stars.join(' / ')}`);
     for (const skill of SKILLS) {
       const sales: number[] = [];
-      const extra = { angry: 0, burnt: 0, tabLeft: 0, ate: 0, nellOk: 0, nellNg: 0, items: 0, short: 0, streak: 0, fevers: 0, feverSales: 0, noFever: 0, served: 0 };
+      const extra = { angry: 0, burnt: 0, tabLeft: 0, tabPaid: 0, ate: 0, shots: 0, nellOk: 0, nellNg: 0, items: 0, short: 0, streak: 0, fevers: 0, feverSales: 0, noFever: 0, served: 0 };
       const starCount = [0, 0, 0, 0];
       const times: number[] = [];
       let level = 0;
@@ -66,7 +67,9 @@ it('balance report', () => {
         extra.angry += w.stats.angry;
         extra.burnt += w.stats.burnt;
         extra.tabLeft += w.tab;
+        extra.tabPaid += w.ledger.tabCollected;
         extra.ate += w.stats.elfinAte;
+        extra.shots += w.stats.butterShots;
         extra.nellOk += w.stats.nellSuccess;
         extra.nellNg += w.stats.nellFail;
         extra.fevers += w.stats.fevers;
@@ -79,7 +82,7 @@ it('balance report', () => {
       lines.push(
         `  ${skill.name.padEnd(4, '　')} p25 ${pct(sales, 0.25)}  中央 ${pct(sales, 0.5)}  p75 ${pct(sales, 0.75)}` +
           `  | ★0-3 ${starCount.join('/')}` +
-          `  | 怒 ${avg(extra.angry)} 焦 ${avg(extra.burnt)} 食 ${avg(extra.ate)} 残ツケ ${avg(extra.tabLeft)}` +
+          `  | 怒 ${avg(extra.angry)} 焦 ${avg(extra.burnt)} 食 ${avg(extra.ate)} 撃 ${avg(extra.shots)} 回収 ${avg(extra.tabPaid)} 残ツケ ${avg(extra.tabLeft)}` +
           `  ネル ${extra.nellOk}/${extra.nellOk + extra.nellNg}` +
           `  | 不足 ${((extra.short / extra.items) * 100).toFixed(1)}% 連続 ${avg(extra.streak)}` +
           `  | 会計 ${avg(extra.served)} フィーバー ${avg(extra.fevers)}回 (0回 ${extra.noFever}) 売上 ${avg(extra.feverSales)}` +

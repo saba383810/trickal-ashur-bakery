@@ -327,7 +327,7 @@ export function howToPanel(host: MenuHost, on: { close: () => void }): HTMLEleme
       art: () => h('div', { class: 'art' }, chara(host, SPEAKI, 'happy', 26), h('span', { class: 'big-num' }, '∞')),
     },
     {
-      page: H.guests(BALANCE.butter.shotInterval),
+      page: H.guests,
       art: () => h('div', { class: 'art' }, chara(host, KOMI, 'sleep', 28), chara(host, BUTTER, 'happy', 28, { flip: true })),
     },
     { page: H.burumi(BALANCE.burumi.reward), art: () => h('div', { class: 'art' }, burumiCanvas(72)) },
@@ -335,7 +335,7 @@ export function howToPanel(host: MenuHost, on: { close: () => void }): HTMLEleme
       page: H.modes(timed.map(stageTitle), timed.map((s) => s.duration)),
       art: () => h('div', { class: 'art' }, ...PLAY_STAGES.map((s) => h('span', { class: 'mode-chip' }, stageTitle(s)))),
     },
-    { page: H.keys, art: () => h('div', { class: 'art keys' }, ...['1', '2', 'A', 'Shift', 'Z', 'Space', 'B'].map((k) => h('kbd', {}, k))) },
+    { page: H.keys, art: () => h('div', { class: 'art keys' }, ...['1', '2', 'A', 'Shift', 'Z', 'B'].map((k) => h('kbd', {}, k))) },
   ];
   let page = 0;
   const body = h('div', { class: 'howto-body' });
@@ -456,7 +456,7 @@ export function resultPanel(
     h('span', {}, R.bestCombo(st.bestCombo)),
     h('span', {}, R.angry(st.angry)),
     h('span', {}, R.burnt(st.burnt)),
-    w.stage.elfin ? h('span', {}, R.repelled(st.repelled)) : null,
+    w.stage.elfin ? h('span', {}, R.elfinAte(st.elfinAte)) : null,
     h('span', {}, R.nellServed(st.nellSuccess, st.nellSuccess + st.nellFail)),
     st.fevers > 0 ? h('span', {}, R.fever(st.fevers, st.feverServed)) : null,
     h('span', {}, R.mochi(st.mochi)),

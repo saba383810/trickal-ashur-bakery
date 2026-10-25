@@ -25,6 +25,7 @@ export type GameEvent =
   | { type: 'komiSleep'; customerId: number; again: boolean }
   | { type: 'komiWake'; customerId: number }
   | { type: 'butterArrive'; customerId: number }
+  /** バターがエルフィンをパチンコで撃った（すぐあとに elfinFlee が続く） */
   | { type: 'butterShot'; customerId: number }
   | { type: 'bakeStart'; oven: number; bread: BreadId }
   | { type: 'ovenReady'; oven: number }
@@ -32,13 +33,14 @@ export type GameEvent =
   | { type: 'ovenBurnt'; oven: number }
   | { type: 'ovenClear'; oven: number }
   | { type: 'elfinEnter' }
+  /** パンを 1 個取った（代金はツケに） */
   | { type: 'elfinEat'; bread: BreadId; price: number }
-  | { type: 'elfinGrab' }
-  | { type: 'elfinStun' }
-  | { type: 'elfinLaunched' }
-  | { type: 'elfinLeave'; full: boolean }
-  /** ネルが来る / フィーバーが始まった */
-  | { type: 'elfinFlee'; reason: 'nell' | 'fever' }
+  /** 取れるパンが無くてむくれた */
+  | { type: 'elfinSulk' }
+  /** took = パンを抱えて帰る / false = むくれて手ぶらで帰る */
+  | { type: 'elfinLeave'; took: boolean }
+  /** パンを取る前に、ネルが来る / フィーバーが始まった / バターに撃たれた で手ぶらで逃げる */
+  | { type: 'elfinFlee'; reason: 'nell' | 'fever' | 'butter' }
   | { type: 'nellAnnounce' }
   | { type: 'nellArrive'; customerId: number }
   | { type: 'nellPeek'; customerId: number }

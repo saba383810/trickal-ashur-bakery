@@ -9,7 +9,8 @@ import type { Rect } from '../view/layout';
 import { C, font } from '../view/palette';
 
 // チュートリアルモードの手順説明。時計を止めた World の上で、指示した操作だけを通す。
-// エルフィン・コミー・バター・ネルも順に呼んで、全員の相手のしかたを一度ずつやってもらい、最後にフィーバータイムを体験。いつでもスキップできる。
+// エルフィン・コミー・バター・ネルも順に呼んで、全員の相手のしかたを一度ずつ（止められないエルフィンは見てもらうだけ）やってもらい、
+// 最後にフィーバータイムを体験。いつでもスキップできる。
 interface Step {
   text: string;
   expr?: Expr;
@@ -54,7 +55,7 @@ export class Tutorial {
     const isPinch = (a: Action) => a.type === 'pinch' && a.customerId === this.servedId;
     /** パンの出し入れとオーブン（在庫が切れても焼いて続けられるように、接客の手順ではいつでも通す） */
     const shop = (a: Action) => a.type === 'pick' || a.type === 'return' || a.type === 'ovenOpen' || a.type === 'bake' || a.type === 'ovenTap';
-    const elfinGone = () => w.elfin.state !== 'entering' && w.elfin.state !== 'eating';
+    const elfinGone = () => w.elfin.state === 'absent';
     const shopArea = () => union(view.L.showcase, view.L.tray, cust());
     const guest = (kind: 'komi' | 'butter' | 'nell', order: BreadId[], seat: number) => {
       this.servedId = w.spawnGuest(kind, order, seat)?.id ?? -1;
@@ -143,26 +144,22 @@ export class Tutorial {
         advance: (a) => a.type === 'ovenTap',
         target: () => [view.L.ovens[this.ovenIndex]],
       },
-      // ---- エルフィン
+      // ---- エルフィン（止められないので、見てもらってツケとネルの話をする）
       {
         kind: 'wait',
         expr: 'surprised',
         text: T.tutorial.elfin,
         enter: () => w.summonElfin(),
         allow: () => false,
-        done: () => w.elfin.eaten >= 1 && this.t > 1.5,
+        // パンが無くてむくれて帰っても進む（待ちきりにならないように）
+        done: () => elfinGone() && this.t > 2.4,
         target: () => [view.elfinRect(), view.L.showcase],
       },
       {
-        kind: 'act',
+        kind: 'tap',
         expr: 'sulk',
-        text: T.tutorial.elfinPull,
-        allow: (a) => a.type === 'elfinGrab',
-        done: () => w.stats.repelled >= 1,
-        tick: () => {
-          if (w.elfin.state === 'absent') w.summonElfin();
-        },
-        target: () => [view.elfinRect()],
+        text: T.tutorial.elfinTab,
+        target: () => [view.tabRect()],
       },
       // ---- コミー
       {
@@ -186,20 +183,21 @@ export class Tutorial {
         kind: 'wait',
         expr: 'happy',
         text: T.tutorial.butter,
-        enter: () => {
-          guest('butter', ['melon', 'roll'], 2);
-          w.summonElfin();
+        enter: () => guest('butter', ['melon', 'roll'], 2),
+        // バターが座ってから呼ぶ（座る前に来ると、撃たれる前にパンを取って帰ってしまう）
+        tick: () => {
+          if (w.stats.butterShots === 0 && target()?.state === 'waiting') w.summonElfin();
         },
         allow: () => false,
-        done: () => w.stats.butterShots >= 1 && this.t > 2,
+        done: () => w.stats.butterShots >= 1 && elfinGone() && this.t > 2,
         target: () => [cust(), view.elfinRect()],
       },
       {
         kind: 'wait',
         text: T.tutorial.butterServe,
-        allow: (a) => shop(a) || isServe(a) || a.type === 'elfinGrab',
-        done: () => servedLeft() && elfinGone(),
-        target: () => [union(view.L.showcase, view.L.tray, cust(), view.elfinRect())],
+        allow: (a) => shop(a) || isServe(a),
+        done: servedLeft,
+        target: () => [shopArea()],
       },
       // ---- ネル
       {

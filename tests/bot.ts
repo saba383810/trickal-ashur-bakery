@@ -6,8 +6,6 @@ export interface BotSkill {
   name: string;
   /** 1 操作にかかる秒数 */
   actionTime: number;
-  /** エルフィンに気づくまでの秒数 */
-  noticeElfin: number;
   /** ほっぺを引っぱって離すまでの秒数 */
   pullTime: number;
   /** ネルの注文を覚えられる確率 */
@@ -17,17 +15,14 @@ export interface BotSkill {
 }
 
 export const SKILLS: BotSkill[] = [
-  { name: '初心者', actionTime: 0.95, noticeElfin: 4.5, pullTime: 0.9, memory: 0.6, noticeOven: 3 },
-  { name: 'ふつう', actionTime: 0.7, noticeElfin: 3, pullTime: 0.7, memory: 0.85, noticeOven: 2 },
-  { name: '上手い', actionTime: 0.5, noticeElfin: 1.5, pullTime: 0.5, memory: 0.97, noticeOven: 1 },
+  { name: '初心者', actionTime: 0.95, pullTime: 0.9, memory: 0.6, noticeOven: 3 },
+  { name: 'ふつう', actionTime: 0.7, pullTime: 0.7, memory: 0.85, noticeOven: 2 },
+  { name: '上手い', actionTime: 0.5, pullTime: 0.5, memory: 0.97, noticeOven: 1 },
 ];
 
 export class Bot {
   private busyUntil = 0;
-  private pulling = false;
   private remembered = new Map<number, boolean>();
-  /** エルフィンが現れた時刻 */
-  private elfinSince: number | null = null;
 
   constructor(
     private w: World,
@@ -38,10 +33,6 @@ export class Bot {
   tick(): void {
     const w = this.w;
     if (w.time < this.busyUntil) return;
-    if (this.pulling) {
-      this.pulling = false;
-      w.elfinRelease(1.2);
-    }
     const cost = this.act();
     this.busyUntil = w.time + cost;
   }
@@ -57,17 +48,7 @@ export class Bot {
     const burnt = w.ovens.findIndex((o) => o.state === 'burnt');
     if (burnt >= 0) return w.tapOven(burnt), t;
 
-    const e = w.elfin;
-    const active = e.state === 'entering' || e.state === 'eating';
-    if (!active) this.elfinSince = null;
-    else this.elfinSince ??= w.time;
-    if (active && w.time - this.elfinSince! >= s.noticeElfin) {
-      if (w.elfinGrab()) {
-        this.pulling = true;
-        return s.pullTime;
-      }
-    }
-
+    // エルフィンは止められないので相手にしない（持っていかれた分は焼いて補う）
     const all = w.customers.filter((c) => c.state === 'waiting').sort((a, b) => a.patience - b.patience);
     // 寝ているコミーと、帰りそうな客はほっぺを引っぱる
     const pinch = all.find((c) => c.asleep || (c.kind !== 'nell' && !c.mochi && c.patience < 2.5));

@@ -8,8 +8,6 @@ export class Sound {
   private sfxGain: GainNode | null = null;
   bgmGain: GainNode | null = null;
   private noiseBuf: AudioBuffer | null = null;
-  private stretchOsc: OscillatorNode | null = null;
-  private stretchGain: GainNode | null = null;
   sfxVolume = 0.8;
   bgmVolume = 0.5;
   muted = false;
@@ -90,8 +88,6 @@ export class Sound {
     this.sfxGain = null;
     this.bgmGain = null;
     this.noiseBuf = null;
-    this.stretchOsc = null;
-    this.stretchGain = null;
     this.stuckSince = 0;
     void old?.close().catch(() => undefined);
   }
@@ -267,63 +263,9 @@ export class Sound {
     lfo.stop(t + 0.45);
   }
 
-  /** 引っぱっている間の「むにー」。power は 0..1.5 */
-  stretch(power: number | null): void {
-    const ctx = this.ctx;
-    if (!ctx || !this.sfxGain) return;
-    if (power === null || this.muted) {
-      if (this.stretchOsc && this.stretchGain) {
-        this.stretchGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.02);
-        this.stretchOsc.stop(ctx.currentTime + 0.1);
-        this.stretchOsc = null;
-        this.stretchGain = null;
-      }
-      return;
-    }
-    if (!this.stretchOsc) {
-      this.stretchOsc = ctx.createOscillator();
-      this.stretchOsc.type = 'triangle';
-      this.stretchGain = ctx.createGain();
-      this.stretchGain.gain.value = 0.0001;
-      this.stretchOsc.connect(this.stretchGain).connect(this.sfxGain);
-      this.stretchOsc.start();
-    }
-    const f = 160 + Math.min(power, 1.4) * 260;
-    this.stretchOsc.frequency.setTargetAtTime(f, ctx.currentTime, 0.03);
-    this.stretchGain!.gain.setTargetAtTime(0.05 + Math.min(power, 1) * 0.07, ctx.currentTime, 0.03);
-  }
-
-  grab(): void {
-    this.tone(260, 0.08, { to: 200, type: 'sine', vol: 0.3 });
-  }
-
+  /** エルフィンにバターの石が当たった */
   stun(): void {
     this.tone(330, 0.15, { to: 260, type: 'sine', vol: 0.28 });
-  }
-
-  launch(): void {
-    const ctx = this.ctx;
-    if (!ctx || !this.sfxGain || this.muted) return;
-    const t = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(220, t);
-    osc.frequency.exponentialRampToValueAtTime(880, t + 0.12);
-    osc.frequency.exponentialRampToValueAtTime(330, t + 0.45);
-    const lfo = ctx.createOscillator();
-    lfo.frequency.value = 18;
-    const lg = ctx.createGain();
-    lg.gain.value = 40;
-    lfo.connect(lg).connect(osc.frequency);
-    const g = ctx.createGain();
-    g.gain.setValueAtTime(0.35, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
-    osc.connect(g).connect(this.sfxGain);
-    osc.start(t);
-    lfo.start(t);
-    osc.stop(t + 0.52);
-    lfo.stop(t + 0.52);
-    this.noise(0.08, { freq: 3000, vol: 0.15 });
   }
 
   nellAnnounce(): void {

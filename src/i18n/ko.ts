@@ -68,7 +68,7 @@ export const ko: Strings = {
 
   intro: {
     elfin: '에르핀',
-    elfinTip: '빵을 멋대로 먹고 외상으로 달아 둬요. 볼을 세게 잡아당겼다 놓으면 쫓아낼 수 있어요.',
+    elfinTip: '가끔 뛰어 들어와서 빵을 1개 가져가요. 빵값은 외상이 되고 매출에 들어가지 않아요.',
     nell: '네르',
     nellTip: (reveal: number, buff: number, rate: number) =>
       `주문은 처음 ${reveal}초 동안만 보여요. 기억해서 딱 맞게 건네면 외상 회수 + ${buff}초간 매출 ×${rate}.`,
@@ -151,9 +151,9 @@ export const ko: Strings = {
     elfin: {
       title: '에르핀',
       text: [
-        '진열대의 빵을 멋대로 먹고 외상으로 달아 둬요. 외상은 매출에 들어가지 않아요.',
-        '볼을 집어서 잡아당겼다 놓으면 쫓아낼 수 있어요. 약하게 당기면 움찔하기만 해요.',
-        '집고 있는 동안에는 먹지 못해요. 다른 손으로 손님 응대도 할 수 있어요.',
+        '가끔 "간식~!" 하고 뛰어 들어와서 진열대의 빵을 1개 가져가요 (제일 비싼 빵부터).',
+        '빵값은 외상이 되고 매출에 들어가지 않아요. 외상은 네르의 기억 주문에 성공하면 전액 회수할 수 있어요.',
+        '막을 수는 없어요 (겹쳐 있어도 뒤에 있는 빵이나 손님은 그대로 탭할 수 있어요). 버터가 앉아 있으면 새총으로 쫓아내 줘요.',
       ],
     },
     nell: (lead: number, reveal: number, buff: number, rate: number, peek: number) => ({
@@ -174,14 +174,14 @@ export const ko: Strings = {
         '피버 중에 시간이 다 돼도, 폐점은 피버가 끝난 뒤예요. 끝까지 다 건네 봐요.',
       ],
     }),
-    guests: (interval: number) => ({
+    guests: {
       title: '코미와 버터',
       text: [
         '코미는 자리에서 졸고 있어서 주문을 하지 않아요. 볼을 잡아당기면 깨어나요.',
         '깨어난 뒤에도 너무 오래 기다리게 하면 다시 잠들어 버려요.',
-        `버터는 앉아 있는 동안 ${interval}초마다 새총으로 에르핀을 쫓아내 줘요.`,
+        '버터는 앉아 있는 동안 뛰어 들어온 에르핀을 새총으로 쫓아내 줘요 (빵을 빼앗기지 않아요). 빨리 건네면 망보기도 거기서 끝나요.',
       ],
-    }),
+    },
     burumi: (reward: number) => ({
       title: '영춘',
       text: [
@@ -203,7 +203,7 @@ export const ko: Strings = {
         '1~4: 빵을 트레이로 (구울 빵을 고를 때도)',
         'A S D F: 왼쪽 손님부터 건네기 · Shift+A S D F: 볼 잡아당기기',
         'Z X: 오븐 · Backspace: 트레이의 마지막 빵 되돌리기',
-        'Space 길게 누르기→떼기: 에르핀 쫓아내기 · B: 영춘 · Esc / P: 일시 정지',
+        'B: 영춘 · Esc / P: 일시 정지',
       ],
     },
   },
@@ -234,7 +234,7 @@ export const ko: Strings = {
     bestCombo: (n: number) => `최대 콤보 ${n}`,
     angry: (n: number) => `화나게 한 손님 ${n}명`,
     burnt: (n: number) => `태운 횟수 ${n}`,
-    repelled: (n: number) => `쫓아낸 횟수 ${n}`,
+    elfinAte: (n: number) => `에르핀이 가져간 빵 ${n}개`,
     nellServed: (ok: number, all: number) => `네르 응대 ${ok}/${all}`,
     fever: (n: number, served: number) => `피버 ${n}번 (${served}명)`,
     mochi: (n: number) => `볼 잡아당기기 ${n}번`,
@@ -271,14 +271,13 @@ export const ko: Strings = {
     butterShot: '얍!',
     elfinEnter: '간식~!',
     elfinTitle: '에르핀이 왔다!',
-    elfinHint: '볼을 세게 잡아당겼다 놓아서 쫓아내자',
+    elfinHint: '빵 1개를 외상으로 가져가요. 네르 주문에 성공하면 회수!',
     elfinEat: (price: number) => `외상 +${price}`,
-    elfinLaunched: '뾰잉!',
-    elfinFull: '외상으로 달아 둬!',
+    elfinTook: '외상으로 달아 둬~!',
+    elfinSulk: '에~ 텅 비었잖아…',
+    elfinShot: '아얏!',
     elfinFleeNell: '네, 네르…!?',
     elfinFleeFever: '뭐, 뭐야 이 빛은…!?',
-    letGo: '놓기!',
-    pinchHint: '집어서 당기기',
     nellAnnounce: '네르가 방문합니다!',
     nellAnnounceSub: (sec: number) => `주문은 처음 ${sec}초 동안만 보여요`,
     nellArrive: '오늘은 심부름하러 왔습니다.',
@@ -334,12 +333,12 @@ export const ko: Strings = {
     bake: '빵은 팔리면 줄어들어. 비어 있는 오븐을 탭해서 구울 빵을 골라 줘!',
     baking: '다 구워질 때까지 조금만 기다려.',
     takeOut: '다 구워졌어! 탭해서 꺼내 줘. 순한맛과 보통맛에서는 타지 않지만, 매운맛부터는 내버려 두면 타 버리니까 조심해!',
-    elfin: '앗, 여왕님(에르핀)! 진열대의 빵을 멋대로 먹고 외상으로 달아 버려. 외상은 매출에 안 들어간단 말이야……!',
-    elfinPull: '볼을 집어서 세게 잡아당겼다 놓으면 쫓아낼 수 있어! 약하게 당기면 움찔하기만 해.',
+    elfin: '앗, 여왕님(에르핀)! 진열대의 빵을 하나 집어 가서 외상으로 달아 버려. 외상은 매출에 안 들어간단 말이야……!',
+    elfinTab: '여왕님은 못 막지만, 외상은 위쪽 "외상"에 쌓여 가. 나중에 오는 네르에게 딱 맞게 건네면 전부 갚아 줄 거야!',
     komi: '코미가 왔어. 자리에서 졸기만 하고 주문을 안 해. 볼을 잡아당겨서 깨워 줘!',
     komiAwake: '깼네! 주문한 빵을 건네줘. 너무 오래 기다리게 하면 또 잠드니까 조심해.',
     butter: '버터야. 앉아 있는 동안에는 몰래 집어 먹으러 온 에르핀을 새총으로 쫓아내 주거든!',
-    butterServe: '버터에게도 빵을 건네줘. 건네면 돌아가 버리니까, 그다음엔 에르핀을 직접 쫓아내야 해.',
+    butterServe: '버터에게도 빵을 건네줘. 건네면 돌아가 버리니까, 망보기도 거기서 끝이야.',
     nell: '마지막은 네르. 주문은 처음 3초밖에 안 보이니까 잘 기억해 둬! 딱 맞게 건네면 여왕님 외상을 전부 갚아 줄 거야.',
     nellHow: '기억한 빵을 트레이에 모아서 한 번에 건네는 거야. 잊어버렸으면 볼을 잡아당겨 봐. 한 번 더 보여 줄 거야.',
     fever: '마지막으로 보상 타임! 계속 응대하면 스피키 게이지가 차고, 가득 차면 피버 타임이야!',

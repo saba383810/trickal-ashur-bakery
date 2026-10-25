@@ -72,7 +72,7 @@ export const en: Strings = {
 
   intro: {
     elfin: 'Erpin',
-    elfinTip: 'Snacks on your bread and puts it on her tab. Pull her cheeks hard and let go to shoo her away.',
+    elfinTip: "Dashes in now and then and grabs one bread. It goes on her tab and doesn't count toward sales.",
     nell: 'Ner',
     nellTip: (reveal: number, buff: number, rate: number) =>
       `Her order shows for just ${reveal}s. Serve it exactly from memory to collect the tab and get sales ×${rate} for ${buff}s.`,
@@ -159,9 +159,9 @@ export const en: Strings = {
     elfin: {
       title: 'Erpin',
       text: [
-        "She snacks on bread from the display case and puts it on her tab. Her tab doesn't count toward sales.",
-        'Pinch her cheek, pull, and let go to shoo her away. A weak pull only makes her flinch.',
-        "She can't eat while you're pinching her. You can still serve with your other hand.",
+        'Now and then she dashes in shouting "Snack time~!" and grabs one bread from the display case (the priciest first).',
+        "It goes on her tab, which doesn't count toward sales. Serve Ner perfectly and the whole tab gets paid.",
+        "There's no stopping her, but she won't block your taps either: the bread and customers behind her still respond. If Butter is seated, she'll slingshot Erpin away.",
       ],
     },
     nell: (lead: number, reveal: number, buff: number, rate: number, peek: number) => ({
@@ -182,14 +182,14 @@ export const en: Strings = {
         'If time runs out during Fever, the shop closes once Fever ends. Serve until the very end!',
       ],
     }),
-    guests: (interval: number) => ({
+    guests: {
       title: 'Kommy and Butter',
       text: [
         "Kommy dozes off in her seat and won't order. Pull her cheeks to wake her up.",
         "Keep her waiting too long after she wakes up, and she'll fall back asleep.",
-        `While Butter is seated, she shoos Erpin away with her slingshot every ${interval}s.`,
+        'While Butter is seated, she slingshots Erpin away before she can grab any bread. Serve Butter early and her watch ends there.',
       ],
-    }),
+    },
     burumi: (reward: number) => ({
       title: 'Youngchun',
       text: [
@@ -211,7 +211,7 @@ export const en: Strings = {
         '1–4: Put bread on the tray (also picks bread to bake)',
         'A S D F: Serve customers from the left · Shift+A S D F: Pull cheeks',
         'Z X: Ovens · Backspace: Remove the last tray item',
-        'Hold Space → release: Shoo Erpin · B: Youngchun · Esc / P: Pause',
+        'B: Youngchun · Esc / P: Pause',
       ],
     },
   },
@@ -242,7 +242,7 @@ export const en: Strings = {
     bestCombo: (n: number) => `Best Combo ${n}`,
     angry: (n: number) => `${n} left angry`,
     burnt: (n: number) => `${n} burnt`,
-    repelled: (n: number) => `${n} shooed away`,
+    elfinAte: (n: number) => plural(n, 'bread snatched', 'breads snatched'),
     nellServed: (ok: number, all: number) => `Ner orders ${ok}/${all}`,
     fever: (n: number, served: number) => `${plural(n, 'Fever')} (${served} served)`,
     mochi: (n: number) => plural(n, 'cheek pull'),
@@ -279,14 +279,13 @@ export const en: Strings = {
     butterShot: 'Hiyah!',
     elfinEnter: 'Snack time~!',
     elfinTitle: 'Erpin is here!',
-    elfinHint: 'Pull hard and let go to shoo her!',
+    elfinHint: 'She takes one bread on her tab. Ner can pay it off!',
     elfinEat: (price: number) => `Tab +${price}`,
-    elfinLaunched: 'Boing!',
-    elfinFull: 'Put it on the royal tab!',
+    elfinTook: 'Put it on the royal tab~!',
+    elfinSulk: 'Aww, nothing left…',
+    elfinShot: 'Ow!',
     elfinFleeNell: 'N-Ner…!?',
     elfinFleeFever: "Wh-what's that light…!?",
-    letGo: 'Let go!',
-    pinchHint: 'Pinch & pull',
     nellAnnounce: 'Ner is coming!',
     nellAnnounceSub: (sec: number) => `Her order shows for only ${sec}s`,
     nellArrive: 'Good day. I am here on an errand.',
@@ -343,12 +342,12 @@ export const en: Strings = {
     baking: "It'll be ready in a moment.",
     takeOut:
       "It's done! Tap to take it out. Bread won't burn in Mild and Medium, but from Hot on, it burns if you leave it, so be careful!",
-    elfin: "Ah, it's Her Majesty (Erpin)! She eats bread from the display case and puts it on her tab. And tabs don't count as sales…!",
-    elfinPull: 'Pinch her cheek, pull hard, and let go to shoo her away! A weak pull just makes her flinch.',
+    elfin: "Ah, it's Her Majesty (Erpin)! She grabs a bread from the display case and puts it on her tab. And tabs don't count as sales…!",
+    elfinTab: "There's no stopping Her Majesty, but her tab piles up at the top of the screen. Serve Ner exactly right when she visits, and she'll pay the whole thing off!",
     komi: "Kommy's here. She dozes off in her seat and won't order. Pull her cheeks to wake her up!",
     komiAwake: "She's up! Hand her the bread she ordered. Keep her waiting too long and she'll fall asleep again, so be careful.",
     butter: "That's Butter! While she's seated, she'll chase off Erpin's snack raids with her slingshot!",
-    butterServe: "Give Butter her bread, too. She leaves once served, so after that you'll have to shoo Erpin yourself.",
+    butterServe: 'Give Butter her bread, too. She leaves once served, and her watch ends with it.',
     nell: "Last up is Ner. Her order only shows for the first 3 seconds, so memorize it well! Get it exactly right and she'll pay off Her Majesty's whole tab.",
     nellHow: "Gather the bread you memorized on your tray and hand it over in one go. If you forget, pull her cheeks and she'll show you again.",
     fever: "Finally, reward time! Keep serving to fill Speaki's gauge. When it's full, it's Fever Time!",
