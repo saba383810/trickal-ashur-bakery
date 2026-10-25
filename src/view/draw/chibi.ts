@@ -212,24 +212,33 @@ export function drawChibi(
     sideHair(ctx, spec, body, sway);
   }
 
+  // スピキの涙のたまった大きな目は下がほっぺにかかり、引っぱると一緒に伸びてしまうので、その間は変形しない手前の層に描く
+  const frontEyes = pose.expr === 'pinched' && spec.extra === 'speaki';
   if (layers & LAYER.face) {
     face(ctx, spec, g, sway);
     cheekBulge(ctx, spec, g);
     // 顔を向けた側へ目と口を少しずらす（3/4 向き）
     ctx.save();
     ctx.translate(g.turn * 3, 0);
-    eyes(ctx, spec, pose);
+    if (!frontEyes) eyes(ctx, spec, pose);
     mouth(ctx, spec, pose);
     ctx.restore();
   }
 
   if (layers & LAYER.front) {
+    if (frontEyes) {
+      ctx.save();
+      ctx.translate(g.turn * 3, 0);
+      eyes(ctx, spec, pose);
+      ctx.restore();
+    }
     swayed(ctx, sway * BANG_SWAY, BANG_TOP, () => bangs(ctx, spec));
     ctx.save();
     ctx.translate(g.turn * 3, 0);
     brows(ctx, spec, pose.expr);
     // 涙は伸びるほっぺにかかるので、変形しない手前の層に描く
-    if (pose.expr === 'pinched' && !spec.mob) for (const side of [-1, 1]) tear(ctx, side * EYE_POS.x, EYE_POS.y, side);
+    // スピキは目に涙がたまっているので足さない
+    if (pose.expr === 'pinched' && !spec.mob && spec.extra !== 'speaki') for (const side of [-1, 1]) tear(ctx, side * EYE_POS.x, EYE_POS.y, side);
     ctx.restore();
     if (spec.ears === 'cat') catEars(ctx, spec);
     if (spec.ahoge) ahoge(ctx, spec, sway);
@@ -1899,7 +1908,8 @@ function eyes(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): voi
     ctx.fillStyle = eyeInk;
     ctx.lineWidth = 3;
 
-    if (e === 'pinched') {
+    // スピキは引っぱられても「> <」にせず、うるうるの目のまま
+    if (e === 'pinched' && s.extra !== 'speaki') {
       pinchedEye(ctx, x, y, side);
       continue;
     }
@@ -2290,9 +2300,11 @@ function speakiEye(ctx: CanvasRenderingContext2D, x: number, y: number, side: nu
 
 /**
  * スピキの口: 縦長の卵形に大きく開けた口（中はほとんどピンク）。少し右へ傾き、上唇の線が右の口角から小さくはね上がる。
- * 困り顔は上唇が「へ」の字の泣き口、驚くと小さな縦長の「o」。それ以外の表情はふつうの口に任せる（false を返す）
+ * 困り顔（と引っぱられている間）は上唇が「へ」の字の泣き口、驚くと小さな縦長の「o」。それ以外の表情はふつうの口に任せる（false を返す）
  */
-function speakiMouth(ctx: CanvasRenderingContext2D, e: Expr): boolean {
+function speakiMouth(ctx: CanvasRenderingContext2D, expr: Expr): boolean {
+  // 引っぱられている間は、困り顔の泣き口
+  const e = expr === 'pinched' ? 'worried' : expr;
   const calm = e === 'normal' || e === 'smile' || e === 'happy';
   if (!calm && e !== 'worried' && e !== 'surprised') return false;
   const lip = new Path2D();
