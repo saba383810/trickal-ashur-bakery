@@ -1070,7 +1070,7 @@ export class GameView {
     f.r = r;
     f.frame = this.frame;
     f.z = ++this.faceZ;
-    f.body.draw(c, spec, x, y, r, f.body.pinch.held ? { ...pose, expr: 'surprised' } : pose);
+    f.body.draw(c, spec, x, y, r, f.body.pinch.held ? { ...pose, expr: 'pinched' } : pose);
   }
 
   /** キャラのセリフ。同じ key（同じ話し手）の前のセリフは消す */
@@ -1150,7 +1150,7 @@ export class GameView {
     const blink = this.time > v.blinkAt;
     const ratio = cu.patience / cu.patienceMax;
     let expr: Expr = cu.kind === 'nell' ? 'smile' : 'normal';
-    if (v.body.pinch.held) expr = 'surprised';
+    if (v.body.pinch.held) expr = 'pinched';
     else if (cu.state === 'leaving') expr = cu.mood === 'happy' ? 'happy' : cu.kind === 'nell' ? 'stern' : 'angry';
     else if (cu.asleep) expr = 'sleep';
     else if (cu.reject > 0) expr = cu.kind === 'nell' ? 'stern' : 'sulk';
@@ -1253,7 +1253,7 @@ export class GameView {
     if (we.stun > 0) expr = 'worried';
     const stretch = this.elfinStretch();
     const ready = stretch >= BALANCE.elfin.launchStretch;
-    if (grabbed) expr = ready ? 'surprised' : 'worried';
+    if (grabbed) expr = ready ? 'pinched' : 'worried';
     if (state === 'leaving') expr = we.eaten > 0 ? 'happy' : 'worried';
     if (state === 'launched') expr = 'dizzy';
     if (e.free) expr = 'surprised';

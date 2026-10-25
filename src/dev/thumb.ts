@@ -54,7 +54,7 @@ async function draw(): Promise<void> {
   mochi.grab(1, { x: -40, y: 30 });
   mochi.pinch.move(1, { x: -120, y: 52 });
   for (let i = 0; i < 40; i++) mochi.update(1 / 60);
-  mochi.draw(c, ELFIN, 112, 300, 54, { expr: 'surprised', t: 0, turn: -1 });
+  mochi.draw(c, ELFIN, 112, 300, 54, { expr: 'pinched', t: 0, turn: -1 });
   drawChibi(c, KOMI, 252, 322, 44, { expr: 'sleep', t: 0, turn: 1 });
   drawChibi(c, BUTTER, 548, 322, 44, { expr: 'happy', t: 0, turn: -1 });
   drawChibi(c, NELL, 690, 300, 54, { expr: 'smile', t: 0, turn: -1 });

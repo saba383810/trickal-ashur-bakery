@@ -39,7 +39,7 @@ if (location.search.includes('mochi')) {
     ctx.fillRect(0, 0, W, H);
     for (const c of cast) {
       c.body.update(dt);
-      c.body.draw(ctx, c.spec, c.x, c.y, c.r, { expr: c.body.pinch.held ? 'surprised' : 'normal', t: now / 1000, turn: c.x < W / 2 ? 1 : -1 });
+      c.body.draw(ctx, c.spec, c.x, c.y, c.r, { expr: c.body.pinch.held ? 'pinched' : 'normal', t: now / 1000, turn: c.x < W / 2 ? 1 : -1 });
     }
     requestAnimationFrame(frame);
   };
@@ -54,7 +54,7 @@ if (location.search.includes('mochi')) {
     held.grab(1, { x: side * 40, y: 30 });
     held.pinch.move(1, { x: side * 110, y: 20 });
     for (let f = 0; f < 40; f++) held.update(1 / 60);
-    held.draw(ctx, spec, x, 300 + (FEET_R - feetR(spec)) * 92, 92, { expr: 'surprised', t: 0.3, turn });
+    held.draw(ctx, spec, x, 300 + (FEET_R - feetR(spec)) * 92, 92, { expr: 'pinched', t: 0.3, turn });
     const swing = new MochiBody();
     swing.grab(1, { x: side * 40, y: 30 });
     swing.pinch.move(1, { x: side * 110, y: 20 });
@@ -79,11 +79,11 @@ if (location.search.includes('mochi')) {
   [3, 1, 5, 9].forEach((seed, i) => drawChibi(ctx, villager(seed * 7919 + 13), 190 + i * 340, 870, 105, { expr: mobExprs[i], t: 0, turn: i % 2 ? -1 : 1 }));
 } else {
   // 立ち絵（持ち物つき）・ほっぺを引っぱった顔・顔アイコン
-  // 表情の一覧（6 人 × 11 表情）
-  const exprs: Expr[] = ['normal', 'happy', 'smile', 'angry', 'worried', 'munch', 'surprised', 'sulk', 'dizzy', 'stern', 'sleep'];
+  // 表情の一覧（6 人 × 12 表情）
+  const exprs: Expr[] = ['normal', 'happy', 'smile', 'angry', 'worried', 'munch', 'surprised', 'sulk', 'dizzy', 'stern', 'sleep', 'pinched'];
   [ESHUR, ELFIN, NELL, KOMI, BUTTER, SPEAKI].forEach((spec, row) => {
     exprs.forEach((expr, i) => {
-      drawChibi(ctx, spec, 60 + i * 125, 80 + row * 140, 30, { expr, t: 0.3 });
+      drawChibi(ctx, spec, 60 + i * 112, 80 + row * 140, 30, { expr, t: 0.3 });
     });
   });
   const mobExprs: Expr[] = ['normal', 'happy', 'normal', 'worried', 'normal', 'angry', 'normal', 'surprised', 'happy', 'normal'];

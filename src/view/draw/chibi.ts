@@ -22,7 +22,9 @@ export type Expr =
   | 'sulk'
   | 'dizzy'
   | 'stern'
-  | 'sleep';
+  | 'sleep'
+  /** ほっぺを引っぱられている顔（ぎゅっとつぶった「> <」の目と、わめいて開いた口） */
+  | 'pinched';
 
 export interface ChibiSpec {
   skin: string;
@@ -88,8 +90,10 @@ export interface ChibiPose {
  */
 export const LAYER = { back: 1, face: 2, front: 4, all: 7 } as const;
 
-/** ほっぺの中心。頭半径 50 の単位 */
-const CHEEK = { x: 36, y: 29 };
+/** ほっぺ（頬紅）の中心。目の少し外・目の下端より下で、口と同じ高さ。頭半径 50 の単位 */
+const CHEEK = { x: 32, y: 28 };
+/** 目の中心（右目。左目は x を反転）と大きさ */
+const EYE_POS = { x: 19, y: 14, rx: 4.8, ry: 8.4 };
 /** 足の裏の高さ（頭の半径に対する倍率） */
 export const FEET_R = 2.34;
 /** しゃがんだ時の足の裏の高さ */
@@ -179,6 +183,8 @@ export function drawChibi(
     ctx.save();
     ctx.translate(g.turn * 3, 0);
     brows(ctx, spec, pose.expr);
+    // 涙は伸びるほっぺにかかるので、変形しない手前の層に描く
+    if (pose.expr === 'pinched' && !spec.mob) for (const side of [-1, 1]) tear(ctx, side * EYE_POS.x, EYE_POS.y, side);
     ctx.restore();
     if (spec.ears === 'cat') catEars(ctx, spec);
     if (spec.ahoge) ahoge(ctx, spec, sway);
@@ -1652,14 +1658,17 @@ function prop(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
 
 // ------------------------------------------------------------------ face
 
-/** 横に広いもち顔の輪郭 */
+/**
+ * もち顔の輪郭。こめかみは細く、ほっぺ（頬紅）の高さでいちばん横へふくらみ、
+ * あごは丸く広い（つきたてのおもちが少しだれたような下ぶくれ）
+ */
 function facePath(w: number, b: number): Path2D {
   const p = new Path2D();
   p.moveTo(-44, -38);
-  p.bezierCurveTo(-52, -24, -w, 2, -(w - 1), 22);
-  p.bezierCurveTo(-(w - 2), 40, -34, b, 0, b);
-  p.bezierCurveTo(34, b, w - 2, 40, w - 1, 22);
-  p.bezierCurveTo(w, 2, 52, -24, 44, -38);
+  p.bezierCurveTo(-51, -26, -(w - 3), -4, -w, 24);
+  p.bezierCurveTo(-(w + 1), 42, -38, b, 0, b);
+  p.bezierCurveTo(38, b, w + 1, 42, w, 24);
+  p.bezierCurveTo(w - 3, -4, 51, -26, 44, -38);
   p.quadraticCurveTo(0, -58, -44, -38);
   p.closePath();
   return p;
@@ -1677,19 +1686,20 @@ interface FaceGeom {
 function faceGeom(s: ChibiSpec, pose: ChibiPose): FaceGeom {
   const puffed = pose.expr === 'angry' || pose.expr === 'sulk';
   const wob = pose.wobble ?? 0;
-  const w = (puffed ? 57 : 54) + wob * 4;
-  const b = (puffed ? 48 : 46) + Math.abs(wob) * 2;
+  const w = (puffed ? 53 : 50) + wob * 4;
+  const b = (puffed ? 49 : 47) + Math.abs(wob) * 2;
   const turn = pose.turn ?? 1;
   const sc = puffed ? 1.12 : 1;
   // モブは目が無いぶん、頬を前髪のすぐ下まで上げる
   const by = s.mob ? -8 : 0;
-  const bulge = { x: turn * (45 + wob * 3 + (puffed ? 2 : 0)), y: 28 + Math.abs(wob), rx: 22 + (puffed ? 2 : 0), ry: 17 + Math.abs(wob) * 2 };
+  const bulge = { x: turn * (42 + wob * 3 + (puffed ? 2 : 0)), y: 29 + Math.abs(wob), rx: 20 + (puffed ? 2 : 0), ry: 16 + Math.abs(wob) * 2 };
   return {
     path: facePath(w, b),
     turn,
     bulge,
+    // 向いた側は 3/4 向きで手前に来るぶん外へ、反対側は少し内へ
     blush: [
-      { x: bulge.x - turn * 3, y: bulge.y - 1 + by, sc: sc * 1.06 },
+      { x: bulge.x - turn * 7, y: CHEEK.y + Math.abs(wob) + by, sc: sc * 1.05 },
       { x: -turn * (CHEEK.x - 2 + wob * 3), y: CHEEK.y + by, sc },
     ],
   };
@@ -1762,7 +1772,7 @@ function mobBlush(ctx: CanvasRenderingContext2D, x: number, y: number, sc: numbe
 function blush(ctx: CanvasRenderingContext2D, x: number, y: number, sc: number): void {
   ctx.fillStyle = BLUSH;
   ctx.beginPath();
-  ctx.ellipse(x, y, 14 * sc, 12.5 * sc, 0, 0, Math.PI * 2);
+  ctx.ellipse(x, y, 12.5 * sc, 11 * sc, 0, 0, Math.PI * 2);
   ctx.fill();
 }
 
@@ -1771,12 +1781,16 @@ function eyes(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): voi
   if (s.mob) return;
   const e = pose.expr;
   for (const side of [-1, 1]) {
-    const x = side * 22;
-    const y = 12;
+    const x = side * EYE_POS.x;
+    const y = EYE_POS.y;
     ctx.strokeStyle = EYE;
     ctx.fillStyle = EYE;
     ctx.lineWidth = 3;
 
+    if (e === 'pinched') {
+      pinchedEye(ctx, x, y, side);
+      continue;
+    }
     if (e === 'munch') {
       ctx.beginPath();
       ctx.moveTo(x + side * 5, y - 7);
@@ -1803,10 +1817,10 @@ function eyes(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): voi
     }
     if (e === 'surprised') {
       ctx.beginPath();
-      ctx.ellipse(x, y, 7.5, 9, 0, 0, Math.PI * 2);
+      ctx.ellipse(x, y, 6.6, 8.2, 0, 0, Math.PI * 2);
       fillStroke(ctx, WHITE, 2.4, EYE);
       ctx.beginPath();
-      ctx.ellipse(x, y + 1, 3, 3.6, 0, 0, Math.PI * 2);
+      ctx.ellipse(x, y + 1, 2.7, 3.3, 0, 0, Math.PI * 2);
       ctx.fillStyle = EYE;
       ctx.fill();
       continue;
@@ -1819,30 +1833,53 @@ function eyes(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): voi
     ctx.save();
     if (lid) {
       ctx.beginPath();
-      ctx.moveTo(x - side * 9, lid[0]);
-      ctx.lineTo(x + side * 9, lid[1]);
-      ctx.lineTo(x + side * 9, y + 14);
-      ctx.lineTo(x - side * 9, y + 14);
+      ctx.moveTo(x - side * 8, lid[0]);
+      ctx.lineTo(x + side * 8, lid[1]);
+      ctx.lineTo(x + side * 8, y + 13);
+      ctx.lineTo(x - side * 8, y + 13);
       ctx.closePath();
       ctx.clip();
     }
     ctx.beginPath();
-    ctx.ellipse(x, y, 5.4, e === 'happy' ? 9.6 : 9, 0, 0, Math.PI * 2);
+    ctx.ellipse(x, y, EYE_POS.rx, e === 'happy' ? EYE_POS.ry + 0.5 : EYE_POS.ry, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
-    ctx.lineWidth = 2.6;
+    ctx.lineWidth = 2.4;
     ctx.beginPath();
     if (lid) {
-      ctx.moveTo(x - side * 7.5, lid[0]);
-      ctx.lineTo(x + side * 7.5, lid[1]);
-      ctx.lineTo(x + side * 10.5, lid[1] - 3);
+      ctx.moveTo(x - side * 6.8, lid[0]);
+      ctx.lineTo(x + side * 6.8, lid[1]);
+      ctx.lineTo(x + side * 9.6, lid[1] - 2.8);
     } else {
-      ctx.moveTo(x + side * 4.2, y - 8);
-      ctx.lineTo(x + side * 8.5, y - 10.5);
+      // 目尻の上のまつ毛（短い 2 本）
+      ctx.moveTo(x + side * 3.4, y - 7.6);
+      ctx.lineTo(x + side * 7.4, y - 10);
+      ctx.moveTo(x + side * 4.9, y - 5.2);
+      ctx.lineTo(x + side * 8.4, y - 6.4);
     }
     ctx.stroke();
   }
+}
+
+/** ほっぺを引っぱられた目: ぎゅっとつぶった「>」「<」（くの字が顔の内側を向く） */
+function pinchedEye(ctx: CanvasRenderingContext2D, x: number, y: number, side: number): void {
+  ctx.lineWidth = 3.2;
+  ctx.beginPath();
+  ctx.moveTo(x + side * 5, y - 6.5);
+  ctx.lineTo(x - side * 4.5, y);
+  ctx.lineTo(x + side * 5, y + 5.5);
+  ctx.stroke();
+}
+
+/** 目尻の涙のつぶ（目の中心 x, y） */
+function tear(ctx: CanvasRenderingContext2D, x: number, y: number, side: number): void {
+  ctx.beginPath();
+  ctx.moveTo(x + side * 8.5, y + 3);
+  ctx.quadraticCurveTo(x + side * 11.5, y + 8, x + side * 9.5, y + 10);
+  ctx.quadraticCurveTo(x + side * 6.5, y + 9.5, x + side * 8.5, y + 3);
+  ctx.closePath();
+  fillStroke(ctx, '#bfe6fb', 1.4, '#6aa9d0');
 }
 
 function brows(ctx: CanvasRenderingContext2D, s: ChibiSpec, e: Expr): void {
@@ -1861,8 +1898,8 @@ function brows(ctx: CanvasRenderingContext2D, s: ChibiSpec, e: Expr): void {
       ctx.moveTo(side * 9, -4);
       ctx.lineTo(side * 27, -12);
     } else if (e === 'worried') {
-      ctx.moveTo(side * 9, -12);
-      ctx.lineTo(side * 27, -6);
+      ctx.moveTo(side * 8, -11);
+      ctx.lineTo(side * 25, -5);
     } else if (e === 'sulk') {
       ctx.moveTo(side * 10, -7);
       ctx.lineTo(side * 26, -10);
@@ -1943,6 +1980,9 @@ function mouth(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): vo
       ctx.ellipse(0, 31, 4.5, 5.5, 0, 0, Math.PI * 2);
       fillStroke(ctx, MOUTH, 2.2);
       return;
+    case 'pinched':
+      pinchedMouth(ctx);
+      return;
     case 'munch': {
       const o = Math.abs(Math.sin(pose.t * 14));
       ctx.beginPath();
@@ -1987,6 +2027,28 @@ function mouth(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): vo
   }
 }
 
+/** ほっぺを引っぱられてわめく口: 上がわなわな波打つ、横に広い開いた口と舌 */
+function pinchedMouth(ctx: CanvasRenderingContext2D): void {
+  const lip = new Path2D();
+  lip.moveTo(-8, 28);
+  for (let i = 1; i <= 4; i++) lip.quadraticCurveTo(-8 + (i - 0.5) * 4, 28 + (i % 2 ? -1.8 : 1.8), -8 + i * 4, 28);
+  lip.bezierCurveTo(9, 33, 5.5, 37.5, 0, 37.5);
+  lip.bezierCurveTo(-5.5, 37.5, -9, 33, -8, 28);
+  lip.closePath();
+  ctx.fillStyle = MOUTH;
+  ctx.fill(lip);
+  ctx.save();
+  ctx.clip(lip);
+  ctx.fillStyle = TONGUE;
+  ctx.beginPath();
+  ctx.ellipse(0, 38, 5, 3.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = LINE;
+  ctx.lineWidth = 2.2;
+  ctx.stroke(lip);
+}
+
 /** モブの小さな口（目が見えないぶん、口の形で表情を出す） */
 function mobMouth(ctx: CanvasRenderingContext2D, s: ChibiSpec, e: Expr): void {
   const y = 32;
@@ -2003,6 +2065,7 @@ function mobMouth(ctx: CanvasRenderingContext2D, s: ChibiSpec, e: Expr): void {
       fillStroke(ctx, MOUTH, 2);
       return;
     case 'worried':
+    case 'pinched':
       // 上がぎざぎざの、わなわなした口
       ctx.moveTo(-7, y);
       for (let i = 1; i <= 6; i++) ctx.lineTo(-7 + i * (14 / 6), y + (i % 2 ? -1.6 : 0));

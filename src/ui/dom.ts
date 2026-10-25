@@ -107,7 +107,7 @@ export function mochiChibi(
       c.translate(w, 0);
       c.scale(-1, 1);
     }
-    const pose: ChibiPose = { expr: mochi.pinch.held ? 'surprised' : expr, t: 0.4, body };
+    const pose: ChibiPose = { expr: mochi.pinch.held ? 'pinched' : expr, t: 0.4, body };
     mochi.draw(c, spec, w / 2, top, size, pose);
   };
   let raf = 0;
