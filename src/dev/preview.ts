@@ -63,6 +63,13 @@ if (location.search.includes('mochi')) {
     for (let f = 0; f < 6; f++) swing.update(1 / 60);
     swing.draw(ctx, spec, x, 820 + (FEET_R - feetR(spec)) * 92, 92, { expr: 'normal', t: 0.3, turn });
   });
+} else if (location.search.includes('sway')) {
+  // 髪を揺らしきった形（上の段: 右へ、下の段: 左へ。モブはツインテール・ポニーテールも）
+  const cast = [ESHUR, ELFIN, NELL, KOMI, BUTTER, SPEAKI];
+  for (const [row, sway] of [[0, 10], [1, -10]]) {
+    cast.forEach((spec, i) => drawChibi(ctx, spec, 125 + i * 230, 260 + row * 330 + (FEET_R - feetR(spec)) * 80, 80, { expr: 'normal', t: 0.3, sway }));
+  }
+  [3, 1, 5, 9, 4, 7].forEach((seed, i) => drawChibi(ctx, villager(seed * 7919 + 13), 125 + i * 230, 1000, 70, { expr: 'normal', t: 0, sway: i % 2 ? -10 : 10 }));
 } else if (location.search.includes('big')) {
   // 足の裏をそろえる（しゃがんだスピキは頭が低い）
   [ESHUR, ELFIN, NELL, KOMI, BUTTER, SPEAKI].forEach((spec, i) =>

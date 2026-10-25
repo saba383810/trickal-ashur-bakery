@@ -150,10 +150,13 @@ export function drawChibi(
       ctx.rect(-140, -140, 280, 196);
       ctx.clip();
     }
-    if (spec.hat === 'veil') swayed(ctx, sway * 0.5, -60, () => veilBack(ctx, spec));
-    if (body && spec.extra === 'elfin') royalCape(ctx);
-    swayed(ctx, sway, -40, () => backHair(ctx, spec));
+    // 揺れは毛先ほど・ほっぺに近い髪ほど大きく、頭にくっついた後ろ髪やヴェールは控えめ
+    if (spec.hat === 'veil') swayed(ctx, sway * SWAY.veil, -60, () => veilBack(ctx, spec));
+    swayed(ctx, sway * SWAY.back, -40, () => backHair(ctx, spec));
+    if (spec.style === 'twin' || spec.style === 'pony') bent(ctx, sway * SWAY.tails, -40, () => hairTails(ctx, spec));
     ctx.restore();
+    // マントは肩から羽織るので、後ろ髪より手前・体より奥（髪はマントの外側からのぞく）
+    if (body && spec.extra === 'elfin') royalCape(ctx);
     if (body) drawBody(ctx, spec, pose);
     if (spec.ears === 'elf') elfEars(ctx, spec);
     // 横の髪は顔より奥（ほっぺが髪の手前に出る）
@@ -190,7 +193,12 @@ export function drawChibi(
 
 /** 前髪の根もと（頭のてっぺん）と、毛先の揺れに対する前髪の揺れの割合（前髪は短いので少しだけ） */
 const BANG_TOP = -73;
-const BANG_SWAY = 0.2;
+const BANG_SWAY = 0.15;
+/**
+ * 髪の部分ごとの揺れの割合（pose.sway に掛ける）。ほっぺの横に垂れる髪（触覚）・三つ編み・垂れ耳・
+ * ツインテールは毛先ほど大きくしなり、頭にくっついた後ろ髪とヴェールは少しだけ
+ */
+const SWAY = { back: 0.35, veil: 0.3, side: 1.7, dogEars: 1.3, tails: 1.2, ahoge: 0.045 };
 
 /**
  * 髪を揺らして描く。y = pivot の高さは動かさず、下へ行くほど横へずらす（毛先ほど大きく揺れる）。
@@ -206,6 +214,40 @@ function swayed(ctx: CanvasRenderingContext2D, sway: number, pivot: number, draw
   ctx.transform(1, 0, c, 1, -c * pivot, 0);
   draw();
   ctx.restore();
+}
+
+/**
+ * 髪をしならせて描く。y = pivot より上は動かさず、下へ行くほど (距離 / 100)² に比例して横へずらす
+ * （根もとはほとんど動かず、毛先ほど大きく揺れる）。sway は pivot から 100 下でのずれ。
+ * 横の帯に分けて、帯ごとに前後の帯とつながる傾きで描く
+ */
+function bent(ctx: CanvasRenderingContext2D, sway: number, pivot: number, draw: () => void, len = 120): void {
+  if (!sway) {
+    draw();
+    return;
+  }
+  const n = 6;
+  const off = (y: number) => {
+    const t = Math.max(0, y - pivot) / 100;
+    return sway * t * t;
+  };
+  for (let i = -1; i < n; i++) {
+    const y0 = i < 0 ? -1000 : pivot + (len * i) / n;
+    const y1 = i < 0 ? pivot : i === n - 1 ? 1000 : pivot + (len * (i + 1)) / n;
+    ctx.save();
+    ctx.beginPath();
+    // 帯の境目に継ぎ目が出ないよう少し重ねる
+    ctx.rect(-1000, y0 - 0.3, 2000, y1 - y0 + 0.6);
+    ctx.clip();
+    if (i >= 0) {
+      const a = pivot + (len * i) / n;
+      const b = pivot + (len * (i + 1)) / n;
+      const k = (off(b) - off(a)) / (b - a);
+      ctx.transform(1, 0, k, 1, off(a) - k * a, 0);
+    }
+    draw();
+    ctx.restore();
+  }
 }
 
 // ------------------------------------------------------------------ helpers
@@ -452,24 +494,14 @@ function backHair(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
       ctx.bezierCurveTo(64, 48, 72, 16, 60, -24);
       break;
     case 'twin':
-      bottom = 74;
-      for (const side of [-1, 1]) {
-        ctx.moveTo(side * 52, -34);
-        ctx.bezierCurveTo(side * 96, -24, side * 92, 44, side * 72, 74);
-        ctx.bezierCurveTo(side * 70, 40, side * 64, 8, side * 46, -10);
-        ctx.closePath();
-      }
+      bottom = 40;
       ctx.moveTo(-58, -20);
       ctx.bezierCurveTo(-66, 20, -52, 40, -34, 40);
       ctx.lineTo(34, 40);
       ctx.bezierCurveTo(52, 40, 66, 20, 58, -20);
       break;
     case 'pony':
-      bottom = 64;
-      ctx.moveTo(34, -56);
-      ctx.bezierCurveTo(96, -62, 94, 28, 70, 64);
-      ctx.bezierCurveTo(70, 24, 62, -14, 44, -22);
-      ctx.closePath();
+      bottom = 36;
       ctx.moveTo(-58, -20);
       ctx.bezierCurveTo(-64, 16, -50, 36, -34, 36);
       ctx.lineTo(34, 36);
@@ -501,6 +533,27 @@ function backHair(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
       break;
   }
   ctx.closePath();
+  fillStroke(ctx, vgrad(ctx, -40, bottom, [mix(s.hair, s.hairShade, 0.45), mix(s.hair, s.hairShade, 0.2), s.hairTip]), 2.6);
+}
+
+/** ツインテール・ポニーテールの房（後ろ髪とは別に、毛先ほど大きく揺らす） */
+function hairTails(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
+  ctx.beginPath();
+  let bottom = 74;
+  if (s.style === 'twin') {
+    for (const side of [-1, 1]) {
+      ctx.moveTo(side * 52, -34);
+      ctx.bezierCurveTo(side * 96, -24, side * 92, 44, side * 72, 74);
+      ctx.bezierCurveTo(side * 70, 40, side * 64, 8, side * 46, -10);
+      ctx.closePath();
+    }
+  } else {
+    bottom = 64;
+    ctx.moveTo(34, -56);
+    ctx.bezierCurveTo(96, -62, 94, 28, 70, 64);
+    ctx.bezierCurveTo(70, 24, 62, -14, 44, -22);
+    ctx.closePath();
+  }
   fillStroke(ctx, vgrad(ctx, -40, bottom, [mix(s.hair, s.hairShade, 0.45), mix(s.hair, s.hairShade, 0.2), s.hairTip]), 2.6);
 }
 
@@ -537,7 +590,7 @@ function bangsPath(s: ChibiSpec): Path2D {
 /** 顔の横に垂れる髪と、三つ編み・垂れ耳。顔の輪郭より奥に描き、ほっぺの外側から毛先がのぞく */
 function sideHair(ctx: CanvasRenderingContext2D, s: ChibiSpec, body: boolean, sway: number): void {
   const len = s.style === 'short' ? 22 : s.style === 'bob' ? 42 : s.style === 'straight' ? 96 : s.style === 'long' || s.style === 'wavy' ? 60 : 46;
-  swayed(ctx, sway, -22, () => {
+  bent(ctx, sway * SWAY.side, -22, () => {
     for (const side of [-1, 1]) {
       ctx.beginPath();
       ctx.moveTo(side * 54, -24);
@@ -550,7 +603,7 @@ function sideHair(ctx: CanvasRenderingContext2D, s: ChibiSpec, body: boolean, sw
     if (s.extra === 'elfin' && body) braid(ctx, s);
   });
   // 垂れ耳は横の髪より手前・顔より奥（付け根は前髪に隠れる）
-  if (s.ears === 'dog') swayed(ctx, sway * 0.8, -50, () => dogEars(ctx, s));
+  if (s.ears === 'dog') bent(ctx, sway * SWAY.dogEars, -50, () => dogEars(ctx, s));
 }
 
 /** 前髪（毛束の線・つや・ヘアピンも） */
@@ -720,7 +773,7 @@ function ahoge(ctx: CanvasRenderingContext2D, s: ChibiSpec, sway: number): void 
   // 根もとを軸に、髪の揺れと同じ向きへしなる
   ctx.save();
   ctx.translate(0, -60);
-  ctx.rotate(sway * 0.03);
+  ctx.rotate(sway * SWAY.ahoge);
   ctx.translate(0, 60);
   ctx.beginPath();
   ctx.moveTo(-4, -60);
