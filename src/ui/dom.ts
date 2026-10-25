@@ -226,7 +226,7 @@ export function burumiCanvas(size: number): HTMLCanvasElement {
   cv.className = 'chibi';
   const c = cv.getContext('2d')!;
   c.scale(k, k);
-  drawBurumiIcon(c, size / 2, size * 0.54, size * 0.4);
+  drawBurumiIcon(c, size / 2, size / 2, size);
   return cv;
 }
 

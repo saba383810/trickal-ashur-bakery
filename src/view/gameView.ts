@@ -1069,9 +1069,10 @@ export class GameView {
   }
 
   /** ブルミの吹き出しは窓の上のほうに出す（窓の下には客の注文の吹き出しがある） */
+  /** ブルミの吹き出しは、ブルミが張り付く左上のガラスを隠さないよう、窓の横桟の下に出す */
   private burumiSayPos(window: 0 | 1): Point {
     const r = this.L.windows[window];
-    return { x: r.x + r.w / 2, y: r.y + 8 };
+    return { x: r.x + r.w / 2, y: r.y + r.h * 0.55 + 8 };
   }
 
   private burumiTappable(): boolean {
