@@ -1002,31 +1002,45 @@ function beret(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
   critter(ctx, 38, -60, 1);
 }
 
-/** オレンジの謎の生き物（うさぎっぽい顔） */
+/** オレンジの猫の顔のピン。下に青とオレンジの山形のリボンを下げる */
 function critter(ctx: CanvasRenderingContext2D, x: number, y: number, sc: number): void {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(sc, sc);
-  for (const side of [-1, 1]) {
+  for (const [color, dy] of [['#fdb155', 15], ['#5b7fc4', 10]] as const) {
     ctx.beginPath();
-    ctx.ellipse(side * 5.5, -10, 3.6, 7, side * 0.3, 0, Math.PI * 2);
-    fillStroke(ctx, '#fdb155', 1.8);
+    ctx.moveTo(-6, dy - 4);
+    ctx.lineTo(0, dy);
+    ctx.lineTo(6, dy - 4);
+    ctx.lineTo(6, dy + 1);
+    ctx.lineTo(0, dy + 5);
+    ctx.lineTo(-6, dy + 1);
+    ctx.closePath();
+    fillStroke(ctx, color, 1.5);
   }
   ctx.beginPath();
-  ctx.ellipse(0, 0, 10.5, 9, 0, 0, Math.PI * 2);
+  ctx.moveTo(-10, 2);
+  ctx.lineTo(-9.5, -12);
+  ctx.lineTo(-3.5, -6.5);
+  ctx.quadraticCurveTo(0, -7.5, 3.5, -6.5);
+  ctx.lineTo(9.5, -12);
+  ctx.lineTo(10, 2);
+  ctx.quadraticCurveTo(10, 8.5, 0, 8.5);
+  ctx.quadraticCurveTo(-10, 8.5, -10, 2);
+  ctx.closePath();
   fillStroke(ctx, '#fdb155', 1.8);
-  ctx.fillStyle = LINE;
+  ctx.fillStyle = eyeInk;
   for (const side of [-1, 1]) {
     ctx.beginPath();
-    ctx.arc(side * 4, -1, 1.4, 0, Math.PI * 2);
+    ctx.arc(side * 4, 0, 1.4, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.strokeStyle = ink;
   ctx.lineWidth = 1.3;
   ctx.beginPath();
-  ctx.moveTo(-3, 3);
-  ctx.quadraticCurveTo(-1.5, 5, 0, 3);
-  ctx.quadraticCurveTo(1.5, 5, 3, 3);
+  ctx.moveTo(-2.6, 3.2);
+  ctx.quadraticCurveTo(-1.3, 4.8, 0, 3.4);
+  ctx.quadraticCurveTo(1.3, 4.8, 2.6, 3.2);
   ctx.stroke();
   ctx.restore();
 }
@@ -1103,18 +1117,30 @@ function drawBody(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose):
   }
 }
 
+/**
+ * 原作の SD の脚: タイツをはいた両脚をひとかたまりの短い棒にまとめ、下だけ小さく割る。
+ * 上は legs（タイツ）、下は shoes（靴・ブーツ）の色へ変わる
+ */
 function legs(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
-  for (const side of [-1, 1]) {
-    ctx.beginPath();
-    ctx.roundRect(side * 10 - 6.5, 92, 13, 20, 4);
-    fillStroke(ctx, s.legs, 2.2);
-    ctx.beginPath();
-    ctx.roundRect(side * 10 - 8, 108, 16, 9, 4.5);
-    fillStroke(ctx, s.shoes, 2.2);
-  }
+  ctx.beginPath();
+  ctx.moveTo(-11.5, 90);
+  ctx.lineTo(-10.5, 112.5);
+  ctx.quadraticCurveTo(-10.5, 117, -6, 117);
+  ctx.lineTo(-1.4, 117);
+  ctx.lineTo(0, 110.5);
+  ctx.lineTo(1.4, 117);
+  ctx.lineTo(6, 117);
+  ctx.quadraticCurveTo(10.5, 117, 10.5, 112.5);
+  ctx.lineTo(11.5, 90);
+  ctx.closePath();
+  fillStroke(ctx, vgrad(ctx, 90, 117, [s.legs, s.legs, mix(s.legs, s.shoes, 0.5), s.shoes]), 2.2);
+  // ひざの小さなつや
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+  ctx.beginPath();
+  ctx.ellipse(-5, 100, 2.2, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
 }
 
-/** モブのむちっとした脚。ひざにほんのり赤み */
 function mobLegs(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
   for (const side of [-1, 1]) {
     ctx.beginPath();
@@ -1299,20 +1325,6 @@ function butterBody(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
 }
 
 function elfinBody(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): void {
-  // 白いガーターとニーハイのレース
-  ctx.strokeStyle = '#3d2a2c';
-  ctx.lineWidth = 1.6;
-  for (const side of [-1, 1]) {
-    ctx.beginPath();
-    ctx.moveTo(side * 10, 94);
-    ctx.lineTo(side * 10, 99);
-    ctx.stroke();
-    ctx.fillStyle = WHITE;
-    ctx.beginPath();
-    ctx.roundRect(side * 10 - 7, 98, 14, 4, 2);
-    ctx.fill();
-    ctx.stroke();
-  }
   torsoPath(ctx);
   fillStroke(ctx, sideShade(ctx, -36, 36, s.outfit, s.outfitShade));
   // スカートの裾（金とコーラルの縁）
@@ -1553,7 +1565,7 @@ function eshurBody(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose)
   ctx.lineTo(0, 64);
   ctx.lineTo(-3.5, 60);
   ctx.closePath();
-  fillStroke(ctx, '#908fa2', 1.6);
+  fillStroke(ctx, '#6f8fcf', 1.6);
   for (const side of [-1, 1]) {
     ctx.beginPath();
     ctx.moveTo(0, 46);
@@ -1580,21 +1592,10 @@ function eshurBody(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose)
   // ポーチ
   ctx.beginPath();
   ctx.roundRect(-30, 78, 17, 13, 3);
-  fillStroke(ctx, '#977473', 2);
-  dot(ctx, -21.5, 84.5, 2.6, '#d9534f', 1.2);
-  // 胸の謎の生き物のブローチと青いリボン
-  ctx.fillStyle = '#8fa6d6';
-  ctx.strokeStyle = ink;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(-14, 64);
-  ctx.lineTo(-18, 76);
-  ctx.lineTo(-14, 73);
-  ctx.lineTo(-11, 76);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  critter(ctx, -14, 62, 0.55);
+  fillStroke(ctx, '#fbf6ef', 2);
+  dot(ctx, -21.5, 84.5, 2.8, '#f08a4b', 1.2);
+  // ネクタイの猫のピン
+  critter(ctx, 0, 54, 0.5);
 }
 
 // ------------------------------------------------------------------ props
