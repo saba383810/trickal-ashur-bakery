@@ -7,10 +7,10 @@ export const ko: Strings = {
   wrapByChar: false,
   docTitle: '에슈르의 빵집',
   disclaimer:
-    '이 작품은 『트릭컬 리바이브』의 비공식 팬 게임입니다. 공식과는 관계가 없습니다. 원작에 관한 권리는 각 권리자에게 있습니다.',
+    '본 작품은 『트릭컬 리바이브』의 비공식 팬 게임으로, 공식과는 관련이 없습니다. 원작의 모든 권리는 각 권리자에게 있습니다.',
 
   breads: {
-    roll: '롤빵',
+    roll: '모닝빵',
     croissant: '크루아상',
     melon: '메론빵',
     anpan: '단팥빵',
@@ -30,7 +30,7 @@ export const ko: Strings = {
       title: '매운맛',
       blurb: '점심시간이야. 빵은 4종류. 여기서부터는 다 구운 빵을 내버려 두면 타 버리니까, "다 됐다!"가 뜨면 바로 꺼내 줘.',
     },
-    hot: { title: '아주 매운맛', blurb: '모든 빵에 모든 손님. 빵도 금방 타고, 여왕님도 배가 잔뜩 고프대. 교주, 각오는 됐어?' },
+    hot: { title: '아주 매운맛', blurb: '모든 빵에 모든 손님. 빵도 금방 타고, 여왕님도 배가 잔뜩 고파. 교주, 각오는 됐어?' },
     endless: { title: '엔드리스', blurb: '콤보를 이어 가면 시간이 늘어나. 점점 바빠지는 가게에서 어디까지 버틸 수 있을까?' },
   },
 
@@ -50,14 +50,14 @@ export const ko: Strings = {
     logo1: '에슈르의',
     logo2: '빵집',
     say: '빵집이 아니라 대마법사의 가게라고!',
-    hint: '모두의 볼은 집어서 잡아당길 수 있어요',
+    hint: '모두의 볼을 집어서 잡아당길 수 있어요',
     start: '시작하기',
     stars: (n: number, max: number) => `모은 ★ ${n} / ${max}`,
   },
 
   modes: {
     heading: '모드 고르기',
-    heat: (heat: number) => (heat > 4 ? '매운 정도 ∞' : `매운 정도 ${heat}`),
+    heat: (heat: number) => (heat > 4 ? '맵기 ∞' : `맵기 ${heat}`),
     metaTutorial: '에르핀, 네르, 코미, 버터를 상대하는 법까지 전부',
     metaEndless: (sec: number, breads: number) => `시작 ${sec}초 · 빵 ${breads}종`,
     meta: (sec: number, breads: number, seats: number) => `${sec}초 · 빵 ${breads}종 · 좌석 ${seats}개`,
@@ -81,7 +81,7 @@ export const ko: Strings = {
     fever: '피버 타임',
     feverTip: (serves: number, sec: number) =>
       `${serves}번 계산하면 게이지가 가득 차요. ${sec}초간 빵이 줄지 않고, 빵을 1개만 원하는 손님이 줄줄이 와요.`,
-    endlessInfo: (sec: number, ovens: number, seats: number) => `처음 남은 시간 ${sec}초 · 오븐 ${ovens}대 · 좌석 ${seats}개`,
+    endlessInfo: (sec: number, ovens: number, seats: number) => `기본 시간 ${sec}초 · 오븐 ${ovens}대 · 좌석 ${seats}개`,
     timedInfo: (sec: number, ovens: number, seats: number) => `제한 시간 ${sec}초 · 오븐 ${ovens}대 · 좌석 ${seats}개`,
     ruleExtend: (base: number, perCombo: number, max: number, nell: number) =>
       `계산하면 시간이 늘어나요: ${base}초 + 콤보 × ${perCombo}초 (남은 시간은 최대 ${max}초). 네르 성공 시 +${nell}초.`,
@@ -103,7 +103,7 @@ export const ko: Strings = {
     sfx: '효과음',
     bgm: 'BGM',
     keyHints: '키보드 조작 힌트 표시',
-    tutorialNote: '튜토리얼은 "시작하기"의 모드 선택에서 언제든지 플레이할 수 있어요.',
+    tutorialNote: '튜토리얼은 "시작하기" → 모드 선택에서 언제든지 할 수 있어요.',
   },
 
   howTo: {
@@ -115,12 +115,12 @@ export const ko: Strings = {
     bake: '굽기',
     baked: '다 됐다!',
     burnFrom: (stage: string, level: number) => `${stage} (레벨 ${level}부터)`,
-    burnNames: (names: string[]) => names.join(', '),
+    burnNames: (names: string[]) => names.join('·'),
     burnAt: (names: string, sec: number) => `${names}에서는 ${sec}초`,
     burnText: (safe: string, burns: string[]) =>
       `${safe ? `${safe}에서는 타지 않아요. ` : ''}${burns.join(', ')} 만에 타 버려요.`,
     flow: {
-      title: '가게의 흐름',
+      title: '가게 운영',
       text: [
         '제한 시간 안에 얼마나 벌 수 있을까요? 매출에 따라 ★ 개수가 정해져요.',
         '진열대의 빵을 탭하면 트레이에 올라가요 (최대 4개).',
@@ -132,7 +132,7 @@ export const ko: Strings = {
       title: '볼 잡아당기기',
       text: [
         '손님을 누른 채로 손가락을 끌면 볼을 잡아당겨요 (탭은 손님 응대).',
-        '잡아당겼다 놓으면 기다리는 시간이 가득 채워져요. 1명당 1번까지.',
+        '잡아당겼다 놓으면 인내심 게이지가 다시 가득 차요. 1명당 1번까지.',
         '타이틀이나 이 화면의 캐릭터도 볼을 잡아당길 수 있어요.',
       ],
     },
@@ -160,7 +160,7 @@ export const ko: Strings = {
       title: '네르의 기억 주문',
       text: [
         `방문 ${lead}초 전에 예고가 떠요. 주문은 처음 ${reveal}초 동안만 보여요.`,
-        '기억한 빵을 트레이에 갖춰서 한 번에 건네요. 너무 많아도 적어도 안 돼요 (순서는 상관없어요).',
+        '기억한 빵을 트레이에 모아서 한 번에 건네요. 너무 많아도 적어도 안 돼요 (순서는 상관없어요).',
         `성공: 외상 전액 회수 + ${buff}초간 매출 ×${rate}. 실패: 외상은 그대로.`,
         `트레이가 비어 있을 때 탭하거나 볼을 잡아당기면 한 번 더 보여 줘요 (${peek}초 기다리게 돼요).`,
       ],
@@ -194,7 +194,7 @@ export const ko: Strings = {
       text: [
         `${titles.join(', ')}: ${secs.map((s) => `${s}초`).join(' / ')}. 매울수록 빵도 손님도 늘어나요.`,
         '엔드리스: 계산할 때마다 시간이 늘어나고, 콤보가 이어질수록 더 많이 늘어나요. 시간이 지날수록 손님이 늘어나요.',
-        '튜토리얼은 모드 선택에서 언제든지. 도중에 건너뛸 수도 있어요.',
+        '튜토리얼은 모드 선택에서 언제든 할 수 있고, 건너뛸 수도 있어요.',
       ],
     }),
     keys: {
@@ -240,8 +240,8 @@ export const ko: Strings = {
     mochi: (n: number) => `볼 잡아당기기 ${n}번`,
     butter: (n: number) => `버터의 지원 ${n}번`,
     burumiTimes: (n: number) => `영춘 ${n}번`,
-    comment3: '대단하잖아! 이걸로 마법 연구비도 완벽해!',
-    commentTab: '네르 덕분에 여왕님 외상을 돌려받았어. 살았다!',
+    comment3: '대단한데! 이걸로 마법 연구비도 든든하겠어!',
+    commentTab: '네르 덕분에 여왕님 외상값을 받았어. 살았다!',
     comment2: '제법인데? 역시 내 조수야!',
     comment1Tab: '그럭저럭이네. ……여왕님 외상은 또 늘었지만.',
     comment1: '그럭저럭이네. 다음엔 더 많이 벌 거야, 교주!',
@@ -259,12 +259,12 @@ export const ko: Strings = {
     comboBroken: '콤보가 끊겼다…',
     happy: '기분 최고!',
     trayFull: '트레이가 가득 찼어요',
-    komiArrive: '하암…… 잠깐만 잘게냥.',
+    komiArrive: '하암…… 코미는 잠깐만 잘래.',
     komiSleep: '음냐……',
     komiSleepAgain: '새근새근……',
     komiTitle: '코미가 졸고 있어!',
     komiHint: '볼을 잡아당겨서 깨우자',
-    komiWake: '냥?! ……그럼, 이거랑 이거.',
+    komiWake: '흐앗?! ……그럼, 이거랑 이거.',
     butterArrive: '안녕하세요! 망보기는 맡겨 주세요!',
     butterTitle: '버터가 망보는 중!',
     butterHint: '앉아 있는 동안 새총으로 에르핀을 쫓아내요',
@@ -281,14 +281,14 @@ export const ko: Strings = {
     pinchHint: '집어서 당기기',
     nellAnnounce: '네르가 방문합니다!',
     nellAnnounceSub: (sec: number) => `주문은 처음 ${sec}초 동안만 보여요`,
-    nellArrive: '오늘은 심부름을 왔습니다.',
+    nellArrive: '오늘은 심부름하러 왔습니다.',
     nellArriveTab: '여왕님의 외상을 정산하러 왔습니다.',
-    nellPeek: '딱 한 번만 더예요.',
+    nellPeek: '딱 한 번만이에요.',
     nellWrong: '그게 아닌데요?',
     nellTapAgain: '탭해서 다시 보기',
     tabPaid: (n: number) => `외상 회수 +${n}`,
     nellSuccess: '완벽합니다. 감사합니다.',
-    nellSuccessTab: '완벽합니다. 외상은 이걸로 갚을게요.',
+    nellSuccessTab: '완벽합니다. 외상값은 여기 있습니다.',
     nellBlessing: '네르의 축복!',
     nellBlessingSub: (sec: number, rate: number) => `${sec}초간 매출 ×${rate}`,
     nellBye: '……또 올게요.',
@@ -329,7 +329,7 @@ export const ko: Strings = {
     tips: '그렇지! 빨리 건넬수록 팁이 늘어나고, 연달아 응대하면 콤보로 더 늘어나.',
     two: '주문이 2개면 둘 다 트레이에 올려서 한꺼번에 건네는 게 빨라. 잘못 올린 빵은 트레이에서 탭하면 되돌릴 수 있어.',
     mochi:
-      '너무 오래 기다리게 하면 손님이 화나서 돌아가 버려. 그럴 땐 손님을 누른 채로 손가락을 끌어서 볼을 잡아당겨 줘! 기분이 가득 채워질 거야 (1명당 1번이야).',
+      '너무 오래 기다리게 하면 손님이 화나서 돌아가 버려. 그럴 땐 손님을 누른 채로 손가락을 끌어서 볼을 잡아당겨 줘! 기분 게이지가 꽉 찰 거야 (1명당 1번이야).',
     mochiDone: '기분이 좋아졌네. 카레빵도 건네줘.',
     bake: '빵은 팔리면 줄어들어. 비어 있는 오븐을 탭해서 구울 빵을 골라 줘!',
     baking: '다 구워질 때까지 조금만 기다려.',
@@ -338,13 +338,13 @@ export const ko: Strings = {
     elfinPull: '볼을 집어서 세게 잡아당겼다 놓으면 쫓아낼 수 있어! 약하게 당기면 움찔하기만 해.',
     komi: '코미가 왔어. 자리에서 졸기만 하고 주문을 안 해. 볼을 잡아당겨서 깨워 줘!',
     komiAwake: '깼네! 주문한 빵을 건네줘. 너무 오래 기다리게 하면 또 잠드니까 조심해.',
-    butter: '버터야. 앉아 있는 동안에는 몰래 집어 먹으러 온 에르핀을 새총으로 쫓아내 줘!',
+    butter: '버터야. 앉아 있는 동안에는 몰래 집어 먹으러 온 에르핀을 새총으로 쫓아내 주거든!',
     butterServe: '버터에게도 빵을 건네줘. 건네면 돌아가 버리니까, 그다음엔 에르핀을 직접 쫓아내야 해.',
     nell: '마지막은 네르. 주문은 처음 3초밖에 안 보이니까 잘 기억해 둬! 딱 맞게 건네면 여왕님 외상을 전부 갚아 줄 거야.',
-    nellHow: '기억한 빵을 트레이에 갖춰서 한 번에 건네는 거야. 잊어버렸으면 볼을 잡아당겨 봐. 한 번 더 보여 줄 거야.',
+    nellHow: '기억한 빵을 트레이에 모아서 한 번에 건네는 거야. 잊어버렸으면 볼을 잡아당겨 봐. 한 번 더 보여 줄 거야.',
     fever: '마지막으로 보상 타임! 계속 응대하면 스피키 게이지가 차고, 가득 차면 피버 타임이야!',
     feverHow: '피버 중에는 빵이 줄지 않고, 빵을 1개만 원하는 손님이 줄줄이 와. 쭉쭉 건네줘!',
-    done: '이제 모두를 상대하는 법은 완벽해! 우선 순한맛부터. 익숙해지면 조금씩 맵게 해서 엔드리스에도 도전해 봐!',
+    done: '이제 모두 상대하는 법은 다 익혔네! 우선 순한맛부터. 익숙해지면 조금씩 맵게 해서 엔드리스에도 도전해 봐!',
   },
 
   html: {
