@@ -38,8 +38,12 @@ export interface Layout {
   ovens: Rect[];
   /** エルフィンが入ってくる位置（頭の中心） */
   elfinDoor: Point;
-  /** バナーを出す中心 */
+  /** お知らせ（バナー）を出す中心。客の顔と注文の吹き出しに重ならない場所 */
   banner: Point;
+  /** お知らせの最大幅 */
+  bannerW: number;
+  /** 左右の窓（ブルミが張り付く） */
+  windows: Rect[];
 }
 
 export function inside(r: Rect, p: Point, pad = 0): boolean {
@@ -122,8 +126,10 @@ function landscapeLayout(w: number, h: number, stage: StageDef): Layout {
     slots,
     ovens,
     elfinDoor: { x: -70, y: showcase.y + showcase.h - 70 },
-    // 注文の吹き出しを隠さないよう、客の顔の高さに出す
-    banner: { x: w / 2, y: 268 + top },
+    // 客の顔も吹き出しも隠さないよう、カウンターのトレーの左に出す
+    banner: { x: tray.x / 2, y: counter.y + counter.h / 2 },
+    bannerW: tray.x - 24,
+    windows: windowRects(w, 150, 150, 40, floor.y + 34),
   };
 }
 
@@ -167,8 +173,16 @@ function portraitLayout(w: number, h: number, stage: StageDef): Layout {
     slots,
     ovens,
     elfinDoor: { x: -70, y: showcase.y + showcase.h - 80 },
-    banner: { x: w / 2, y: 450 + top },
+    // 看板の下・注文の吹き出しの上の壁に出す（左右の窓には半分までかかってよい）
+    banner: { x: w / 2, y: 190 + top / 2 },
+    bannerW: w - 2 * (26 + 60),
+    windows: windowRects(w, 120, 170, 26, floor.y + 70),
   };
+}
+
+/** 左右の窓（幅 ww・高さ wh・壁の端からの距離 margin・上端 y） */
+function windowRects(w: number, ww: number, wh: number, margin: number, y: number): Rect[] {
+  return [margin, w - margin - ww].map((x) => ({ x, y, w: ww, h: wh }));
 }
 
 function inset(r: Rect, dx: number, dy: number): Rect {

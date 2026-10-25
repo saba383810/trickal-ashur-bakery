@@ -59,10 +59,7 @@ function drawBack(c: CanvasRenderingContext2D, L: Layout): void {
   }
 
   // 窓（左右）
-  const winW = L.portrait ? 120 : 150;
-  const winH = L.portrait ? 170 : 150;
-  const winY = f.y + (L.portrait ? 70 : 34);
-  for (const x of [L.portrait ? 26 : 40, L.w - (L.portrait ? 26 : 40) - winW]) drawWindow(c, x, winY, winW, winH);
+  for (const r of L.windows) drawWindow(c, r.x, r.y, r.w, r.h);
 
   // 吊り看板
   const signW = L.portrait ? 300 : 340;

@@ -983,7 +983,7 @@ export class GameView {
         // 時間切れのあとのフィーバーが終わったら、そのまま閉店の知らせだけ出す
         if (this.world.phase === 'playing') {
           s.feverEnd();
-          this.fx.float('フィーバーおしまい', L.w / 2, L.banner.y - 40, '#ffffff', 26, '#e0569b');
+          this.fx.float('フィーバーおしまい', L.banner.x, L.banner.y - 40, '#ffffff', 26, '#e0569b');
         }
         this.refreshBgm();
         break;
@@ -1608,8 +1608,7 @@ export class GameView {
       const outT = Math.max(0, (b.t - (b.dur - 0.3)) / 0.3);
       const ease = 1 - Math.pow(1 - inT, 3);
       c.save();
-      // 客の顔に重なるので、読み終わるころには透かして下の客を見せる
-      c.globalAlpha = (1 - outT) * (b.big ? 1 : Math.max(0.55, 1 - Math.max(0, b.t - 1) * 0.8));
+      c.globalAlpha = 1 - outT;
       if (b.big) {
         const s = 0.5 + ease * 0.5 + Math.sin(inT * Math.PI) * 0.15;
         c.translate(L.w / 2, L.h * 0.42);
@@ -1618,12 +1617,20 @@ export class GameView {
         c.restore();
         continue;
       }
+      // 客の顔と吹き出しを隠さない場所（L.banner）に、幅 L.bannerW まで。収まらない文字は縮める
+      const cx = L.banner.x;
       const y = L.banner.y + (1 - ease) * -30;
+      const pad = b.face ? 130 : 70;
+      const room = L.bannerW - pad;
       c.font = font(30);
-      const tw = Math.max(c.measureText(b.text).width, b.sub ? measure(c, b.sub, 18) : 0);
-      const w = Math.min(L.w - 40, tw + (b.face ? 130 : 70));
+      const size = Math.min(30, (30 * room) / c.measureText(b.text).width);
+      const subSize = b.sub ? Math.min(18, (18 * room) / measure(c, b.sub, 18)) : 0;
+      c.font = font(size);
+      const mw = c.measureText(b.text).width;
+      const tw = Math.max(mw, b.sub ? measure(c, b.sub, subSize) : 0);
+      const w = Math.min(L.bannerW, tw + pad);
       const h = b.sub ? 92 : 64;
-      const x = L.w / 2 - w / 2;
+      const x = cx - w / 2;
       c.fillStyle = 'rgba(90, 58, 34, 0.25)';
       roundRect(c, x + 4, y - h / 2 + 6, w, h, 24);
       c.fill();
@@ -1637,7 +1644,7 @@ export class GameView {
       c.lineWidth = 3.5;
       roundRect(c, x + 6, y - h / 2 + 6, w - 12, h - 12, 18);
       c.stroke();
-      const tx = b.face ? x + 100 + (w - 100) / 2 - 20 : L.w / 2;
+      const tx = b.face ? x + 100 + (w - 100) / 2 - 20 : cx;
       if (b.face) {
         const key = bannerFaceKey(b);
         c.save();
@@ -1650,18 +1657,17 @@ export class GameView {
         c.restore();
       }
       const ty = y - (b.sub ? 14 : 0);
-      const mw = Math.min(measure(c, b.text, 30), w - 40);
       c.fillStyle = 'rgba(255, 236, 110, 0.75)';
-      c.fillRect(tx - mw / 2 - 6, ty + 1, mw + 12, 13);
+      c.fillRect(tx - mw / 2 - 6, ty + size * 0.03, mw + 12, size * 0.43);
       c.fillStyle = HUD_INK;
-      c.font = font(30);
+      c.font = font(size);
       c.textAlign = 'center';
       c.textBaseline = 'middle';
-      c.fillText(b.text, tx, ty, w - 40);
+      c.fillText(b.text, tx, ty);
       if (b.sub) {
         c.fillStyle = C.inkSoft;
-        c.font = font(18, 700);
-        c.fillText(b.sub, tx, y + 22, w - (b.face ? 120 : 40));
+        c.font = font(subSize, 700);
+        c.fillText(b.sub, tx, y + 22);
       }
       c.restore();
     }
