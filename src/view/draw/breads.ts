@@ -1,12 +1,20 @@
 import type { BreadId } from '../../config/breads';
+import { crayon, LINE, setGrain } from './chibi';
 
 // パンはすべてコードで描く。描画は重めなのでサイズごとにオフスクリーンへキャッシュする。
+// 輪郭はキャラと同じクレヨンの線で引き、小さく描くほど太らせる（吹き出しの小さなパンでも線が細く薄くならない）
 const cache = new Map<string, HTMLCanvasElement>();
+
+/** 線の太さがそのままでよい大きさ（論理 px）と、いま描いているパンの線の倍率・線の色 */
+const LINE_SIZE = 70;
+let lk = 1;
+let ink: string | CanvasPattern = LINE;
 
 /** (x, y) を中心に、幅 size 程度で描く。pr は論理 1px あたりの実ピクセル */
 export function drawBread(ctx: CanvasRenderingContext2D, id: BreadId, x: number, y: number, size: number, pr: number): void {
   const px = Math.max(8, Math.round(size * pr));
-  const key = `${id}:${px}`;
+  const k = Math.min(2, Math.max(1, Math.pow(LINE_SIZE / size, 0.6)));
+  const key = `${id}:${px}:${k.toFixed(2)}`;
   let sprite = cache.get(key);
   if (!sprite) {
     sprite = document.createElement('canvas');
@@ -14,6 +22,9 @@ export function drawBread(ctx: CanvasRenderingContext2D, id: BreadId, x: number,
     const c = sprite.getContext('2d')!;
     c.translate(sprite.width / 2, sprite.height / 2);
     c.scale(px / 100, px / 100);
+    lk = k;
+    ink = crayon(c, LINE);
+    setGrain(c, [ink]);
     BREAD_PAINTERS[id](c);
     cache.set(key, sprite);
   }
@@ -63,8 +74,8 @@ const BREAD_PAINTERS: Record<BreadId, (c: CanvasRenderingContext2D) => void> = {
       c.beginPath();
       c.ellipse(s.x, s.y + 6, s.r * 0.95, s.r * 1.25, s.a, 0, Math.PI * 2);
       c.fill();
-      c.strokeStyle = '#8f4d1f';
-      c.lineWidth = 3;
+      c.strokeStyle = ink;
+      c.lineWidth = 2.6 * lk;
       c.stroke();
     }
     gloss(c, -4, -18, 10, 5);
@@ -175,10 +186,12 @@ const BREAD_PAINTERS: Record<BreadId, (c: CanvasRenderingContext2D) => void> = {
     c.quadraticCurveTo(44, 0, 28, 26);
     c.closePath();
     c.fill();
-    c.strokeStyle = '#8f4d1f';
-    c.lineWidth = 3;
+    c.strokeStyle = ink;
+    c.lineWidth = 3 * lk;
     c.stroke();
-    c.lineWidth = 3;
+    // 巻きの筋は輪郭より細く、パンの色で
+    c.strokeStyle = '#8f4d1f';
+    c.lineWidth = 2.4;
     for (let i = 0; i < 4; i++) {
       const x = -30 + i * 16;
       const hh = 6 + i * 6;
@@ -236,8 +249,8 @@ function shadow(c: CanvasRenderingContext2D, x: number, y: number, rx: number): 
 }
 
 function outline(c: CanvasRenderingContext2D): void {
-  c.strokeStyle = '#8f4d1f';
-  c.lineWidth = 3;
+  c.strokeStyle = ink;
+  c.lineWidth = 3 * lk;
   c.stroke();
 }
 
