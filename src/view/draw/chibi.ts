@@ -641,17 +641,31 @@ function bangsPath(s: ChibiSpec): Path2D {
 /** 顔の横に垂れる髪と、三つ編み・垂れ耳。顔の輪郭より奥に描き、ほっぺの外側から毛先がのぞく */
 function sideHair(ctx: CanvasRenderingContext2D, s: ChibiSpec, body: boolean, sway: number): void {
   const len = s.style === 'short' ? 22 : s.style === 'bob' ? 42 : s.style === 'straight' ? 96 : s.style === 'long' || s.style === 'wavy' ? 60 : 46;
+  // エルフィンは原作どおり左右で違う: 三つ編みの側（左）は耳にかけて短く、反対側（右）は肩から裾まで長く垂らす
+  const elfin = s.extra === 'elfin' && body;
   bent(ctx, sway * SWAY.side, -22, () => {
     for (const side of [-1, 1]) {
       ctx.beginPath();
+      if (elfin && side > 0) {
+        ctx.moveTo(54, -24);
+        ctx.bezierCurveTo(70, 6, 74, 40, 66, 70);
+        ctx.bezierCurveTo(61, 86, 70, 96, 64, 108);
+        ctx.quadraticCurveTo(59, 101, 54, 105);
+        ctx.bezierCurveTo(58, 92, 50, 80, 54, 64);
+        ctx.bezierCurveTo(57, 40, 50, 10, 42, -10);
+        ctx.closePath();
+        fillStroke(ctx, vgrad(ctx, -20, 108, [s.hair, s.hair, s.hairTip]), 2.4);
+        continue;
+      }
+      const l = elfin ? 30 : len;
       ctx.moveTo(side * 54, -24);
-      ctx.bezierCurveTo(side * 68, 4, side * 68, len * 0.6, side * 60, len);
-      ctx.quadraticCurveTo(side * 55, len - 7, side * 50, len - 2);
-      ctx.bezierCurveTo(side * 50, len * 0.6, side * 48, 10, side * 42, -10);
+      ctx.bezierCurveTo(side * 68, 4, side * 68, l * 0.6, side * 60, l);
+      ctx.quadraticCurveTo(side * 55, l - 7, side * 50, l - 2);
+      ctx.bezierCurveTo(side * 50, l * 0.6, side * 48, 10, side * 42, -10);
       ctx.closePath();
-      fillStroke(ctx, vgrad(ctx, -20, len, [s.hair, s.hair, s.hairTip]), 2.4);
+      fillStroke(ctx, vgrad(ctx, -20, l, [s.hair, s.hair, s.hairTip]), 2.4);
     }
-    if (s.extra === 'elfin' && body) braid(ctx, s);
+    if (elfin) braid(ctx, s);
   });
   // 垂れ耳は横の髪より手前・顔より奥（付け根は前髪に隠れる）
   if (s.ears === 'dog') bent(ctx, sway * SWAY.dogEars, -50, () => dogEars(ctx, s));
