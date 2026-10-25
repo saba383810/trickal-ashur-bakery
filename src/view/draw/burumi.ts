@@ -4,7 +4,7 @@
 import { BALANCE } from '../../config/balance';
 import type { Burumi } from '../../sim/world';
 import type { Point, Rect } from '../layout';
-import { crayon, EYE, LINE } from './chibi';
+import { crayon, EYE, LINE, lineScale, setGrain } from './chibi';
 
 const SKIN = '#fff3ea';
 const HAIR = '#ffd65a';
@@ -160,9 +160,12 @@ export function drawBurumiIcon(ctx: CanvasRenderingContext2D, x: number, y: numb
 function body(ctx: CanvasRenderingContext2D, face: Face, time: number): void {
   const ink = crayon(ctx, LINE);
   const eyeInk = crayon(ctx, EYE);
+  setGrain(ctx, [ink, eyeInk]);
+  // 線の太さはキャラと同じく、画面での大きさで決める（窓に小さく張り付いても線が細くならない）
+  const lk = lineScale(ctx, 50);
   const stroke = (lw = 3) => {
     ctx.strokeStyle = ink;
-    ctx.lineWidth = lw;
+    ctx.lineWidth = lw * lk;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     ctx.stroke();
@@ -204,7 +207,7 @@ function body(ctx: CanvasRenderingContext2D, face: Face, time: number): void {
     ctx.moveTo(side * 12, 47);
     ctx.quadraticCurveTo(side * 30, 44, side * 38, 28);
     ctx.strokeStyle = ink;
-    ctx.lineWidth = 11;
+    ctx.lineWidth = 6.6 + 4.4 * lk;
     ctx.lineCap = 'round';
     ctx.stroke();
     ctx.strokeStyle = SKIN;
@@ -347,7 +350,7 @@ function body(ctx: CanvasRenderingContext2D, face: Face, time: number): void {
 
   // うずまきのほっぺ
   ctx.strokeStyle = CHEEK;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2 * lk;
   ctx.lineCap = 'round';
   for (const side of [-1, 1]) {
     ctx.beginPath();
@@ -370,13 +373,13 @@ function body(ctx: CanvasRenderingContext2D, face: Face, time: number): void {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     if (face === 'happy') {
-      ctx.lineWidth = 3.4;
+      ctx.lineWidth = 3.4 * lk;
       ctx.beginPath();
       ctx.moveTo(x - 7, 7);
       ctx.quadraticCurveTo(x, -3, x + 7, 7);
       ctx.stroke();
     } else if (face === 'strain') {
-      ctx.lineWidth = 3.4;
+      ctx.lineWidth = 3.4 * lk;
       ctx.beginPath();
       ctx.moveTo(x - side * 6, -1);
       ctx.lineTo(x + side * 5, 5);
@@ -387,7 +390,7 @@ function body(ctx: CanvasRenderingContext2D, face: Face, time: number): void {
       ctx.ellipse(x, 4, 7.6, pressed ? 8.6 : 9.6, 0, 0, Math.PI * 2);
       ctx.fillStyle = '#ffffff';
       ctx.fill();
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 3 * lk;
       ctx.stroke();
     }
   }

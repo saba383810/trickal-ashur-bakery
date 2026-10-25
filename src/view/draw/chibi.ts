@@ -82,6 +82,10 @@ export interface ChibiPose {
   turn?: -1 | 1;
   /** 髪の横揺れ（頭の単位。頭のてっぺんから 100 下の毛先が横へずれる量） */
   sway?: number;
+  /** 線の太さの倍率。省略すると画面に出る大きさから決める（lineScale）。引っぱった顔を別のキャンバスに拡大して描く時は、ふだんと同じ値を渡す */
+  lineK?: number;
+  /** 顔の輪郭の線を引かない（引っぱった顔は、伸びた形のまわりにあとから線を引く） */
+  bare?: boolean;
 }
 
 /**
@@ -107,6 +111,8 @@ export function feetR(s: ChibiSpec): number {
 }
 
 export const LINE = '#5a2d32';
+/** 顔の輪郭の線の、外に見えている幅（頭の単位） */
+export const FACE_LINE = 2.6;
 const BLUSH = 'rgba(255, 166, 164, 0.95)';
 /** 原作の SD の目の色（焦げ茶） */
 export const EYE = '#55242a';
@@ -128,9 +134,37 @@ const VEIL_TOP = '#5b5272';
  * 模様は頭の単位で 0.5 ごとの粒（キャラと一緒に拡大縮小する）。描く前に drawChibi が ink / eyeInk を用意する
  */
 const GRAIN = 0.5;
+/** 粒は画面の画素で少なくともこの大きさ（小さく描いた時に粒が潰れて、線が薄く見えないように） */
+const GRAIN_MIN_PX = 1.2;
 const grains = new Map<string, CanvasPattern>();
 let ink: string | CanvasPattern = LINE;
 let eyeInk: string | CanvasPattern = EYE;
+
+/**
+ * 線の太さの倍率。線は頭の単位で決めてあるので、そのままだと小さく描いたキャラほど線が細く薄くなり、
+ * 同じ画面に大きさの違うキャラが並ぶと線の濃さがばらつく。画面での頭の半径が LINE_R より小さいほど線を太らせる
+ * （輪郭・目・口などの線だけ。髪の筋や縁取りのような形の一部は太らせない）
+ */
+let lineK = 1;
+const LINE_R = 46;
+const LINE_K_MAX = 2;
+
+/** 頭の半径 r（ctx の単位）のキャラを描く時の線の太さの倍率。画面での大きさ（CSS の px）で決める */
+export function lineScale(ctx: CanvasRenderingContext2D, r: number): number {
+  const m = ctx.getTransform();
+  const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+  const css = (r * Math.hypot(m.a, m.b)) / dpr;
+  if (!(css > 0)) return 1;
+  return Math.min(LINE_K_MAX, Math.max(1, Math.pow(LINE_R / css, 0.6)));
+}
+
+/** クレヨンの粒の大きさを、いまの ctx（頭の単位）で画面の画素 GRAIN_MIN_PX より小さくならないようにそろえる */
+export function setGrain(ctx: CanvasRenderingContext2D, pats: (string | CanvasPattern)[]): void {
+  const m = ctx.getTransform();
+  const px = Math.hypot(m.a, m.b);
+  const g = Math.max(GRAIN, px > 0 ? GRAIN_MIN_PX / px : GRAIN);
+  for (const p of pats) if (typeof p !== 'string') p.setTransform(new DOMMatrix().scale(g));
+}
 
 export function crayon(ctx: CanvasRenderingContext2D, color: string): string | CanvasPattern {
   const hit = grains.get(color);
@@ -182,12 +216,14 @@ export function drawChibi(
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(pose.tilt ?? 0);
+  lineK = pose.lineK ?? lineScale(ctx, r);
   ctx.scale(k * (2 - squash), k * squash);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   const g = faceGeom(spec, pose);
   ink = crayon(ctx, LINE);
   eyeInk = crayon(ctx, EYE);
+  setGrain(ctx, [ink, eyeInk]);
 
   if (layers & LAYER.back) {
     if (body && spec.wings) wings(ctx, spec.wings);
@@ -215,8 +251,8 @@ export function drawChibi(
   // スピキの涙のたまった大きな目は下がほっぺにかかり、引っぱると一緒に伸びてしまうので、その間は変形しない手前の層に描く
   const frontEyes = pose.expr === 'pinched' && spec.extra === 'speaki';
   if (layers & LAYER.face) {
-    face(ctx, spec, g, sway);
-    cheekBulge(ctx, spec, g);
+    face(ctx, spec, g, sway, pose.bare === true);
+    cheekBulge(ctx, spec, g, pose.bare === true);
     // 顔を向けた側へ目と口を少しずらす（3/4 向き）
     ctx.save();
     ctx.translate(g.turn * 3, 0);
@@ -332,7 +368,7 @@ function fillStroke(ctx: CanvasRenderingContext2D, fill: string | CanvasGradient
   ctx.fillStyle = fill;
   ctx.fill();
   ctx.strokeStyle = stroke;
-  ctx.lineWidth = lw;
+  ctx.lineWidth = lw * lineK;
   ctx.stroke();
 }
 
@@ -346,7 +382,7 @@ function tube(ctx: CanvasRenderingContext2D, pts: number[], w: number, color: st
   };
   path();
   ctx.strokeStyle = ink;
-  ctx.lineWidth = w + 4.6;
+  ctx.lineWidth = w + 4.6 * lineK;
   ctx.stroke();
   path();
   ctx.strokeStyle = color;
@@ -416,9 +452,9 @@ function wings(ctx: CanvasRenderingContext2D, kind: Exclude<WingKind, null>): vo
     ctx.fill();
     ctx.restore();
     ctx.strokeStyle = ink;
-    ctx.lineWidth = 2.2;
+    ctx.lineWidth = 2.2 * lineK;
     ctx.stroke(p);
-    ctx.lineWidth = 1.4;
+    ctx.lineWidth = 1.4 * lineK;
     ctx.beginPath();
     ctx.moveTo(20, -7);
     ctx.quadraticCurveTo(30, -10, 39, -8);
@@ -426,7 +462,7 @@ function wings(ctx: CanvasRenderingContext2D, kind: Exclude<WingKind, null>): vo
     ctx.quadraticCurveTo(23, 3, 31, 2);
     ctx.stroke();
     if (kind === 'swirl') {
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 1.6 * lineK;
       spiral(ctx, 40, -19, 5);
     }
     ctx.restore();
@@ -489,7 +525,7 @@ function speakiVeilBack(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
   drape.bezierCurveTo(40, -92, -40, -92, -62, -52);
   drape.closePath();
   ctx.strokeStyle = ink;
-  ctx.lineWidth = 2.6;
+  ctx.lineWidth = 2.6 * lineK;
   ctx.stroke(drape);
   ctx.fillStyle = vgrad(ctx, -90, 90, [VEIL_TOP, s.hatColor]);
   ctx.fill(drape);
@@ -705,7 +741,7 @@ function bangs(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
   ctx.stroke();
   ctx.restore();
   ctx.strokeStyle = ink;
-  ctx.lineWidth = 2.6;
+  ctx.lineWidth = 2.6 * lineK;
   ctx.stroke(path);
 
   // つや
@@ -741,7 +777,7 @@ function bangs(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
 /** エルフィンの片側の三つ編み */
 function braid(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
   ctx.strokeStyle = ink;
-  ctx.lineWidth = 15;
+  ctx.lineWidth = 10.5 + 4.5 * lineK;
   ctx.beginPath();
   ctx.moveTo(-53, 8);
   ctx.quadraticCurveTo(-60, 50, -55, 90);
@@ -902,7 +938,7 @@ function hat(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
       };
       band();
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 10;
+      ctx.lineWidth = 6 + 4 * lineK;
       ctx.stroke();
       band();
       ctx.strokeStyle = s.hatColor;
@@ -937,7 +973,7 @@ function hat(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
       ctx.beginPath();
       ctx.ellipse(0, -30, 57, 42, 0, Math.PI * 1.08, Math.PI * 1.92);
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 10;
+      ctx.lineWidth = 5.6 + 4.4 * lineK;
       ctx.stroke();
       ctx.strokeStyle = s.hatColor;
       ctx.lineWidth = 5.6;
@@ -1059,7 +1095,7 @@ function critter(ctx: CanvasRenderingContext2D, x: number, y: number, sc: number
     ctx.fill();
   }
   ctx.strokeStyle = ink;
-  ctx.lineWidth = 1.3;
+  ctx.lineWidth = 1.3 * lineK;
   ctx.beginPath();
   ctx.moveTo(-2.6, 3.2);
   ctx.quadraticCurveTo(-1.3, 4.8, 0, 3.4);
@@ -1095,7 +1131,7 @@ function veilFront(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
   };
   band();
   ctx.strokeStyle = ink;
-  ctx.lineWidth = 10;
+  ctx.lineWidth = 6 + 4 * lineK;
   ctx.stroke();
   band();
   ctx.strokeStyle = '#ffffff';
@@ -1265,7 +1301,7 @@ function shorts(ctx: CanvasRenderingContext2D, color: string, shade: string): vo
   ctx.roundRect(-24, 80, 48, 17, [2, 2, 6, 6]);
   fillStroke(ctx, sideShade(ctx, -24, 24, color, shade));
   ctx.strokeStyle = ink;
-  ctx.lineWidth = 1.6;
+  ctx.lineWidth = 1.6 * lineK;
   ctx.beginPath();
   ctx.moveTo(0, 87);
   ctx.lineTo(0, 97);
@@ -1423,7 +1459,7 @@ function elfinBody(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose)
   ctx.moveTo(-25, 72);
   ctx.quadraticCurveTo(0, 76, 25, 72);
   ctx.strokeStyle = ink;
-  ctx.lineWidth = 5.5;
+  ctx.lineWidth = 3.2 + 2.3 * lineK;
   ctx.stroke();
   ctx.strokeStyle = '#6b3436';
   ctx.lineWidth = 3.2;
@@ -1522,7 +1558,7 @@ function speakiBody(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
   for (const [x, y] of [[-62, 80], [-50, 94], [56, 82], [66, 96]]) star(ctx, x, y, 2.6, GOLD);
   ctx.restore();
   ctx.strokeStyle = ink;
-  ctx.lineWidth = 2.4;
+  ctx.lineWidth = 2.4 * lineK;
   ctx.stroke(skirt);
   // 内側のラベンダーのフリル
   ctx.beginPath();
@@ -1651,7 +1687,7 @@ function eshurBody(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose)
   }
   // 斜めがけのポーチの紐
   ctx.strokeStyle = ink;
-  ctx.lineWidth = 6;
+  ctx.lineWidth = 3.4 + 2.6 * lineK;
   ctx.beginPath();
   ctx.moveTo(17, 46);
   ctx.lineTo(-20, 82);
@@ -1695,7 +1731,7 @@ function prop(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
       ctx.fillStyle = WHITE;
       ctx.fill();
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 9;
+      ctx.lineWidth = 5 + 4 * lineK;
       ctx.stroke();
       ctx.strokeStyle = GOLD;
       ctx.lineWidth = 5;
@@ -1716,7 +1752,7 @@ function prop(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
       fillStroke(ctx, '#d9dadf', 2.2);
       dot(ctx, -58, 104, 9, '#e6b15b', 2.2);
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1.5 * lineK;
       ctx.beginPath();
       for (let i = 0; i < 4; i++) {
         const a = (i * Math.PI) / 4;
@@ -1736,7 +1772,7 @@ function prop(ctx: CanvasRenderingContext2D, s: ChibiSpec): void {
       ctx.save();
       if (s.crouch) ctx.translate(20, FLOOR - 116);
       ctx.strokeStyle = ink;
-      ctx.lineWidth = 2.4;
+      ctx.lineWidth = 2.4 * lineK;
       ctx.beginPath();
       ctx.arc(40, 96, 13, Math.PI * 1.08, Math.PI * 1.92);
       ctx.stroke();
@@ -1826,11 +1862,13 @@ function faceGeom(s: ChibiSpec, pose: ChibiPose): FaceGeom {
   };
 }
 
-function face(ctx: CanvasRenderingContext2D, s: ChibiSpec, g: FaceGeom, sway: number): void {
+function face(ctx: CanvasRenderingContext2D, s: ChibiSpec, g: FaceGeom, sway: number, bare: boolean): void {
   // 外側だけ線が見えるよう、太く引いてから塗る
-  ctx.strokeStyle = ink;
-  ctx.lineWidth = 5.2;
-  ctx.stroke(g.path);
+  if (!bare) {
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = FACE_LINE * 2 * lineK;
+    ctx.stroke(g.path);
+  }
   ctx.fillStyle = s.skin;
   ctx.fill(g.path);
 
@@ -1849,7 +1887,7 @@ function face(ctx: CanvasRenderingContext2D, s: ChibiSpec, g: FaceGeom, sway: nu
  * 向いた側のほっぺを輪郭の外へ丸く張り出させる（原作の「もちほっぺ」）。
  * 横の髪より手前・前髪より奥に、顔の輪郭の外にはみ出した分だけを描く。
  */
-function cheekBulge(ctx: CanvasRenderingContext2D, s: ChibiSpec, g: FaceGeom): void {
+function cheekBulge(ctx: CanvasRenderingContext2D, s: ChibiSpec, g: FaceGeom, bare: boolean): void {
   const c = g.bulge;
   ctx.save();
   const outside = new Path2D();
@@ -1860,9 +1898,11 @@ function cheekBulge(ctx: CanvasRenderingContext2D, s: ChibiSpec, g: FaceGeom): v
   ctx.ellipse(c.x, c.y, c.rx, c.ry, 0, 0, Math.PI * 2);
   ctx.fillStyle = s.skin;
   ctx.fill();
-  ctx.strokeStyle = ink;
-  ctx.lineWidth = 2.6;
-  ctx.stroke();
+  if (!bare) {
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = FACE_LINE * lineK;
+    ctx.stroke();
+  }
   const b = g.blush[0];
   cheekBlush(ctx, s, b.x, b.y, b.sc);
   ctx.restore();
@@ -1906,7 +1946,7 @@ function eyes(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): voi
     const y = EYE_POS.y;
     ctx.strokeStyle = eyeInk;
     ctx.fillStyle = eyeInk;
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3 * lineK;
 
     // スピキは引っぱられても「> <」にせず、うるうるの目のまま
     if (e === 'pinched' && s.extra !== 'speaki') {
@@ -1922,7 +1962,7 @@ function eyes(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): voi
       continue;
     }
     if (e === 'dizzy') {
-      ctx.lineWidth = 2.4;
+      ctx.lineWidth = 2.4 * lineK;
       spiral(ctx, x, y, 8);
       continue;
     }
@@ -1967,7 +2007,7 @@ function eyes(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): voi
     ctx.fill();
     ctx.restore();
 
-    ctx.lineWidth = 2.4;
+    ctx.lineWidth = 2.4 * lineK;
     ctx.beginPath();
     if (lid) {
       ctx.moveTo(x - side * 6.8, lid[0]);
@@ -1986,7 +2026,7 @@ function eyes(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): voi
 
 /** ほっぺを引っぱられた目: ぎゅっとつぶった「>」「<」（くの字が顔の内側を向く） */
 function pinchedEye(ctx: CanvasRenderingContext2D, x: number, y: number, side: number): void {
-  ctx.lineWidth = 3.2;
+  ctx.lineWidth = 3.2 * lineK;
   ctx.beginPath();
   ctx.moveTo(x + side * 5, y - 6.5);
   ctx.lineTo(x - side * 4.5, y);
@@ -2013,7 +2053,7 @@ function brows(ctx: CanvasRenderingContext2D, s: ChibiSpec, e: Expr): void {
   const mood = e === 'angry' || e === 'worried' || e === 'sulk';
   if (!mood) return;
   ctx.strokeStyle = s.brows ?? mix(s.hairShade, LINE, 0.5);
-  ctx.lineWidth = 3.4;
+  ctx.lineWidth = 3.4 * lineK;
   for (const side of [-1, 1]) {
     ctx.beginPath();
     if (e === 'angry') {
@@ -2042,7 +2082,7 @@ function mouth(ctx: CanvasRenderingContext2D, s: ChibiSpec, pose: ChibiPose): vo
   if (s.extra === 'speaki' && speakiMouth(ctx, e)) return;
   const kind = e === 'normal' || e === 'smile' ? s.mouth : e === 'happy' ? (s.mouth === 'fang' ? 'fangBig' : 'big') : e;
   ctx.strokeStyle = ink;
-  ctx.lineWidth = 2.2;
+  ctx.lineWidth = 2.2 * lineK;
   const open = (w: number, top: number, bottom: number, fang: boolean) => {
     // 輪郭は Path2D で持つ（舌を描いたあとの現在パスは舌の楕円なので、そのまま stroke すると口の下に丸が出る）
     const lip = new Path2D();
@@ -2167,7 +2207,7 @@ function pinchedMouth(ctx: CanvasRenderingContext2D): void {
   ctx.fill();
   ctx.restore();
   ctx.strokeStyle = ink;
-  ctx.lineWidth = 2.2;
+  ctx.lineWidth = 2.2 * lineK;
   ctx.stroke(lip);
 }
 
@@ -2175,7 +2215,7 @@ function pinchedMouth(ctx: CanvasRenderingContext2D): void {
 function mobMouth(ctx: CanvasRenderingContext2D, s: ChibiSpec, e: Expr): void {
   const y = 32;
   ctx.strokeStyle = ink;
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2 * lineK;
   ctx.beginPath();
   switch (e) {
     case 'happy':
@@ -2241,7 +2281,7 @@ function angerMark(ctx: CanvasRenderingContext2D, t: number): void {
   ctx.translate(44, -46);
   ctx.scale(s, s);
   ctx.strokeStyle = '#e2574c';
-  ctx.lineWidth = 3.5;
+  ctx.lineWidth = 3.5 * lineK;
   for (const [ax, ay] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
     ctx.beginPath();
     ctx.moveTo(ax * 3, ay * 10);
@@ -2277,7 +2317,7 @@ function speakiEye(ctx: CanvasRenderingContext2D, x: number, y: number, side: nu
   // 下まぶたにたまった涙の粒。縁を太く引いてから塗り、粒どうしの境目の線を消す
   const pool = [[x + side * 5.4, y + 7.4, 3.6], [x + side * 0.4, y + 9.4, 3], [x - side * 4.6, y + 8.3, 2.3]];
   ctx.strokeStyle = EYE;
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 3 * lineK;
   for (const [cx, cy, r] of pool) {
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -2330,7 +2370,7 @@ function speakiMouth(ctx: CanvasRenderingContext2D, expr: Expr): boolean {
   ctx.fillStyle = vgrad(ctx, 23, 43, [MOUTH, '#ef8a92', TONGUE]);
   ctx.fill(lip);
   ctx.strokeStyle = ink;
-  ctx.lineWidth = 2.3;
+  ctx.lineWidth = 2.3 * lineK;
   ctx.stroke(lip);
   if (calm) {
     ctx.beginPath();
@@ -2346,7 +2386,7 @@ function speakiMouth(ctx: CanvasRenderingContext2D, expr: Expr): boolean {
 function speakiBrows(ctx: CanvasRenderingContext2D, s: ChibiSpec, e: Expr): void {
   const deep = e === 'worried' || e === 'surprised';
   ctx.strokeStyle = mix(s.hairShade, LINE, 0.55);
-  ctx.lineWidth = 2.4;
+  ctx.lineWidth = 2.4 * lineK;
   for (const side of [-1, 1]) {
     ctx.beginPath();
     ctx.moveTo(side * 11, deep ? -5 : -2);

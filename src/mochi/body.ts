@@ -2,7 +2,7 @@
 // 顔（輪郭・ほっぺ・目・口）をスプライトに描いてから WebGL で変形して貼り、髪や体は変形せずに上下へ重ねる
 // （WebGL2 が無ければ変形なしで描く）。髪はほっぺが急に動いた反動で遅れて揺れる。
 import { Spring } from '../view/spring';
-import { drawChibi, LAYER, type ChibiPose, type ChibiSpec } from '../view/draw/chibi';
+import { crayon, drawChibi, FACE_LINE, LAYER, lineScale, LINE, type ChibiPose, type ChibiSpec } from '../view/draw/chibi';
 import { MochiRenderer } from './gl';
 import { Pinch, type Grab, type Vec } from './pinch';
 
@@ -22,6 +22,41 @@ const FACE_BOX = { x: 80, top: 66, bottom: 62 };
 /** 変形する顔を描く細かさ（画面の画素の何倍か）と、スプライトの幅の上限 px */
 const SUPERSAMPLE = 2;
 const SPRITE_MAX = 1400;
+
+/** 伸びた顔に輪郭の線を足して重ねるキャンバス（全員で使い回す） */
+let lined: HTMLCanvasElement | null = null;
+/** 輪郭の線を引くために、伸びた顔をずらして重ねる向きの数 */
+const OUTLINE_DIRS = 16;
+
+/**
+ * 伸びた顔のまわりに輪郭の線を引く。顔の層は線なしで描いて変形するので、伸びたほっぺの先まで
+ * ふだんと同じ太さ w px の線が回る（線ごと変形すると、伸びたほっぺが線の上へ折り重なって線が消える）。
+ * 顔を線の幅だけずらして何度も重ねた形を線の色で塗り、その上に顔を重ねる。(ox, oy) は頭の中心、k は頭の単位 1 あたりの px
+ */
+function outline(face: HTMLCanvasElement, w: number, ox: number, oy: number, k: number): HTMLCanvasElement {
+  const cv = (lined ??= document.createElement('canvas'));
+  if (cv.width !== face.width || cv.height !== face.height) {
+    cv.width = face.width;
+    cv.height = face.height;
+  }
+  const c = cv.getContext('2d')!;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalCompositeOperation = 'source-over';
+  c.clearRect(0, 0, cv.width, cv.height);
+  for (let i = 0; i < OUTLINE_DIRS; i++) {
+    const a = (i / OUTLINE_DIRS) * Math.PI * 2;
+    c.drawImage(face, Math.cos(a) * w, Math.sin(a) * w);
+  }
+  // 線の色は、ほかの線と同じクレヨンの粒（頭の単位にそろえる）
+  c.globalCompositeOperation = 'source-in';
+  c.setTransform(k, 0, 0, k, ox, oy);
+  c.fillStyle = crayon(c, LINE);
+  c.fillRect(-ox / k, -oy / k, cv.width / k, cv.height / k);
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalCompositeOperation = 'source-over';
+  c.drawImage(face, 0, 0);
+  return cv;
+}
 
 /** 動きを減らす設定なら、髪は揺らさない */
 const still = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -110,7 +145,8 @@ export class MochiBody {
   }
 
   draw(ctx: CanvasRenderingContext2D, spec: ChibiSpec, x: number, y: number, r: number, pose: ChibiPose): void {
-    const p: ChibiPose = this.hair.x ? { ...pose, sway: (pose.sway ?? 0) + this.sway } : pose;
+    // 線の太さは画面での大きさで決める。拡大して描く顔のスプライトも同じ太さにそろえる
+    const p: ChibiPose = { ...pose, sway: (pose.sway ?? 0) + this.sway, lineK: pose.lineK ?? lineScale(ctx, r) };
     const gl = this.pinch.active ? renderer() : null;
     if (!gl) {
       drawChibi(ctx, spec, x, y, r, p);
@@ -133,16 +169,17 @@ export class MochiBody {
     const sc = sprite.getContext('2d')!;
     sc.setTransform(1, 0, 0, 1, 0, 0);
     sc.clearRect(0, 0, w, h);
-    drawChibi(sc, spec, w / 2, top, rp, p, LAYER.face);
-    const margin = Math.ceil(this.pinch.lmax * 1.2 * k);
+    drawChibi(sc, spec, w / 2, top, rp, { ...p, bare: true }, LAYER.face);
+    const margin = Math.ceil((this.pinch.lmax * 1.2 + FACE_LINE * 2) * k);
     const out = gl.render(sprite, { x: w / 2, y: top }, k, margin, this.pinch);
     if (!out) {
       drawChibi(ctx, spec, x, y, r, p);
       return;
     }
+    const face = outline(out.canvas, FACE_LINE * p.lineK! * k, out.ox, out.oy, k);
     // 体と後ろ・横の髪 → 伸びた顔 → 前髪や帽子の順に重ねる（ほっぺだけが伸び、横の髪の手前へ出る）
     drawChibi(ctx, spec, x, y, r, p, LAYER.back);
-    ctx.drawImage(out.canvas, x - out.ox / scale, y - out.oy / scale, out.canvas.width / scale, out.canvas.height / scale);
+    ctx.drawImage(face, x - out.ox / scale, y - out.oy / scale, face.width / scale, face.height / scale);
     drawChibi(ctx, spec, x, y, r, p, LAYER.front);
   }
 }
