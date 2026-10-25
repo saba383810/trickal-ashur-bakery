@@ -5,7 +5,7 @@ import { detectLang, isLang, setLang, T, type Lang } from './i18n';
 import { World, starsFor } from './sim/world';
 import { loadSave, writeSave, type SaveData } from './storage';
 import { h } from './ui/dom';
-import { howToPanel, modeSelect, pausePanel, resultPanel, settingsPanel, stageIntro, titleScreen, tutorialDonePanel, type MenuHost } from './ui/menus';
+import { howToPanel, langButton, modeSelect, pausePanel, resultPanel, settingsPanel, stageIntro, titleScreen, tutorialDonePanel, type MenuHost } from './ui/menus';
 import { Tutorial } from './ui/tutorial';
 import { drawSlot } from './view/draw/props';
 import { SceneCache } from './view/draw/scene';
@@ -101,8 +101,9 @@ export class App implements MenuHost {
 
   // ================================================================= 画面遷移
 
-  private show(el: HTMLElement): void {
-    const layer = h('div', { class: 'layer' }, el);
+  /** corner は画面の右上に固定するボタン。拡大しながら出てくる el の外に置くので、出てくる途中に動かない */
+  private show(el: HTMLElement, corner?: HTMLElement): void {
+    const layer = h('div', { class: 'layer' }, corner ?? null, el);
     this.ui.replaceChildren(layer);
     el.querySelector<HTMLButtonElement>('.btn.primary')?.focus({ preventScroll: true });
   }
@@ -128,8 +129,8 @@ export class App implements MenuHost {
         start: () => this.goSelect(),
         howTo: () => this.showHowTo(() => this.goTitle()),
         settings: () => this.showSettings(() => this.goTitle()),
-        lang: (l) => this.changeLang(l),
       }),
+      langButton(this, (l) => this.changeLang(l)),
     );
   }
 

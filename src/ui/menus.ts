@@ -41,9 +41,10 @@ function chara(host: MenuHost, spec: ChibiSpec, expr: Expr, size: number, opts: 
 
 /**
  * タイトル右上の言語ボタン。押すたびに 日本語 → 한국어 → English → 日本語 … と切り替わる。
- * ボタンには次の言語の名前をその言語で書く（日本語の画面には「한국어」。今の言語が読めない人にも、言語のボタンだとわかる）
+ * ボタンには次の言語の名前をその言語で書く（日本語の画面には「한국어」。今の言語が読めない人にも、言語のボタンだとわかる）。
+ * 画面の右上に置くので、タイトル（出てくる時に拡大のアニメーションがかかる）の中ではなく、その外側に足す
  */
-function langButton(host: MenuHost, onPick: (l: Lang) => void): HTMLElement {
+export function langButton(host: MenuHost, onPick: (l: Lang) => void): HTMLElement {
   const next = LANGS[(LANGS.indexOf(lang) + 1) % LANGS.length];
   return h(
     'button',
@@ -64,7 +65,7 @@ function langButton(host: MenuHost, onPick: (l: Lang) => void): HTMLElement {
 
 export function titleScreen(
   host: MenuHost,
-  on: { start: () => void; howTo: () => void; settings: () => void; lang: (l: Lang) => void },
+  on: { start: () => void; howTo: () => void; settings: () => void },
 ): HTMLElement {
   const stars = PLAY_STAGES.reduce((n, s) => n + (host.save.stars[s.id] ?? 0), 0);
   const cast = h(
@@ -86,7 +87,6 @@ export function titleScreen(
   return h(
     'div',
     { class: 'screen title' },
-    langButton(host, on.lang),
     h('p', { class: 'logo-sub' }, T.title.sub),
     h('h1', { class: 'logo' }, h('span', { 'data-t': T.title.logo1 }, T.title.logo1), h('span', { class: 'big', 'data-t': T.title.logo2 }, T.title.logo2)),
     cast,
