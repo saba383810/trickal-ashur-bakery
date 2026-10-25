@@ -39,45 +39,27 @@ function chara(host: MenuHost, spec: ChibiSpec, expr: Expr, size: number, opts: 
 
 // =================================================================== タイトル
 
-/** タイトル右上の言語ボタン。押すと 日本語 / 한국어 / English を選べる */
-function langPicker(host: MenuHost, onPick: (l: Lang) => void): HTMLElement {
-  const menu = h('div', { class: 'lang-menu hidden', role: 'menu' });
-  const toggle = h(
+/**
+ * タイトル右上の言語ボタン。押すたびに 日本語 → 한국어 → English → 日本語 … と切り替わる。
+ * ボタンには次の言語の名前をその言語で書く（日本語の画面には「한국어」。今の言語が読めない人にも、言語のボタンだとわかる）
+ */
+function langButton(host: MenuHost, onPick: (l: Lang) => void): HTMLElement {
+  const next = LANGS[(LANGS.indexOf(lang) + 1) % LANGS.length];
+  return h(
     'button',
     {
       class: 'lang-btn',
       type: 'button',
-      'aria-haspopup': 'true',
-      'aria-label': T.common.language,
+      lang: next,
+      'aria-label': `${T.common.language}: ${langName(next)}`,
       onclick: () => {
         host.sound.click();
-        menu.classList.toggle('hidden');
+        onPick(next);
       },
     },
     h('span', { class: 'lang-icon', 'aria-hidden': 'true' }),
-    langName(lang),
+    langName(next),
   );
-  for (const l of LANGS) {
-    menu.append(
-      h(
-        'button',
-        {
-          class: l === lang ? 'lang-item on' : 'lang-item',
-          type: 'button',
-          role: 'menuitemradio',
-          'aria-checked': String(l === lang),
-          lang: l,
-          onclick: () => {
-            host.sound.click();
-            menu.classList.add('hidden');
-            if (l !== lang) onPick(l);
-          },
-        },
-        langName(l),
-      ),
-    );
-  }
-  return h('div', { class: 'lang' }, toggle, menu);
 }
 
 export function titleScreen(
@@ -104,7 +86,7 @@ export function titleScreen(
   return h(
     'div',
     { class: 'screen title' },
-    langPicker(host, on.lang),
+    langButton(host, on.lang),
     h('p', { class: 'logo-sub' }, T.title.sub),
     h('h1', { class: 'logo' }, h('span', { 'data-t': T.title.logo1 }, T.title.logo1), h('span', { class: 'big', 'data-t': T.title.logo2 }, T.title.logo2)),
     cast,

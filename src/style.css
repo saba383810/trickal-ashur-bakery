@@ -288,20 +288,12 @@ canvas.bread {
   text-align: center;
 }
 
-/* タイトル右上の言語ボタン */
-.lang {
+/* タイトル右上の言語ボタン（押すたびに次の言語） */
+.lang-btn {
   position: absolute;
   top: max(12px, env(safe-area-inset-top));
   right: max(12px, env(safe-area-inset-right));
   z-index: 3;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-}
-
-.lang-btn,
-.lang-item {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -315,11 +307,14 @@ canvas.bread {
   background: var(--paper);
   border: 3px solid var(--line-ink);
   border-radius: 999px;
+  box-shadow: 0 3px 0 var(--line-ink);
+  transition:
+    transform 0.1s ease-out,
+    box-shadow 0.1s ease-out;
 }
 
-.lang-btn {
-  box-shadow: 0 3px 0 var(--line-ink);
-  transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
+.lang-btn:hover {
+  background: #fff3df;
 }
 
 .lang-btn:active {
@@ -327,13 +322,7 @@ canvas.bread {
   box-shadow: 0 1px 0 var(--line-ink);
 }
 
-.lang-btn:hover,
-.lang-item:hover {
-  background: #fff3df;
-}
-
-.lang-btn:focus-visible,
-.lang-item:focus-visible {
+.lang-btn:focus-visible {
   outline: 3px solid var(--gold);
   outline-offset: 3px;
 }
@@ -345,8 +334,7 @@ canvas.bread {
   height: 18px;
   border: 2.5px solid currentColor;
   border-radius: 50%;
-  background:
-    linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat;
+  background: linear-gradient(currentColor, currentColor) center / 100% 2px no-repeat;
 }
 
 .lang-icon::before {
@@ -355,33 +343,6 @@ canvas.bread {
   content: '';
   border: 2px solid currentColor;
   border-radius: 50%;
-}
-
-.lang-menu {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  background: var(--cream);
-  border: 3px solid var(--line-ink);
-  border-radius: 18px;
-  box-shadow: 0 4px 0 var(--line-ink);
-  animation: pop 0.14s ease-out;
-}
-
-.lang-menu.hidden {
-  display: none;
-}
-
-.lang-item {
-  justify-content: center;
-  min-width: 120px;
-}
-
-.lang-item.on {
-  color: #2f5212;
-  background: linear-gradient(#e2fb7c, var(--lime) 55%, #b4e02a);
-  border-color: var(--lime-deep);
 }
 
 .logo-sub {
