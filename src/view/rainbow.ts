@@ -40,7 +40,7 @@ export class RainbowParade {
   private nextAt = 0;
   private time = 0;
   private base = new Map<number, HTMLCanvasElement>();
-  private scratch: HTMLCanvasElement | null = null;
+  private tinted = new Map<string, HTMLCanvasElement>();
 
   get busy(): boolean {
     return this.sprites.length > 0;
@@ -162,7 +162,7 @@ export class RainbowParade {
     const turn = Math.floor((angle + Math.PI / 2) / Math.PI);
     const hue = HUES[(((s.hue + turn) % HUES.length) + HUES.length) % HUES.length];
     const base = this.sprite(s.r, pr);
-    const img = this.tint(base, hue);
+    const img = this.tint(base, hue, s.r, pr);
     const w = base.width / pr;
     const h = base.height / pr;
     const headY = -s.r * feetR(SPEAKI);
@@ -206,17 +206,20 @@ export class RainbowParade {
     return cv;
   }
 
-  /** 明るさはそのまま、色相だけを塗り替える（null は白く光らせる） */
-  private tint(base: HTMLCanvasElement, hue: number | null): HTMLCanvasElement {
-    let cv = this.scratch;
-    if (!cv) cv = this.scratch = document.createElement('canvas');
-    if (cv.width < base.width || cv.height < base.height) {
-      cv.width = Math.max(cv.width, base.width);
-      cv.height = Math.max(cv.height, base.height);
-    }
-    const c = cv.getContext('2d')!;
-    c.globalCompositeOperation = 'source-over';
-    c.clearRect(0, 0, cv.width, cv.height);
+  /**
+   * 明るさはそのまま、色相だけを塗り替える（null は白く光らせる）。
+   * 輪郭や目のような暗い線は塗り替えず、ほかの子と同じクレヨンの線のまま残す（色を付けると線が薄く見える）
+   */
+  private tint(base: HTMLCanvasElement, hue: number | null, r: number, pr: number): HTMLCanvasElement {
+    const key = `${Math.round(r * pr * 4)}:${hue}`;
+    let cv = this.tinted.get(key);
+    if (cv) return cv;
+    // 画面の大きさが何度も変わったときに古い大きさの絵をためこまない
+    if (this.tinted.size >= HUES.length * 8) this.tinted.clear();
+    cv = document.createElement('canvas');
+    cv.width = base.width;
+    cv.height = base.height;
+    const c = cv.getContext('2d', { willReadFrequently: true })!;
     c.drawImage(base, 0, 0);
     if (hue === null) {
       c.globalCompositeOperation = 'source-atop';
@@ -231,8 +234,31 @@ export class RainbowParade {
       c.drawImage(base, 0, 0);
     }
     c.globalCompositeOperation = 'source-over';
+    keepLines(c, base);
+    this.tinted.set(key, cv);
     return cv;
   }
+}
+
+/**
+ * 線の画素だけ元の色に戻す。線は赤みのある焦げ茶なので、暗くて赤みのある画素ほど元のまま残す
+ * （明るさ 0.42 以上か、紺のヴェールや服のように青みのある暗い色は塗り替えた色のまま）
+ */
+function keepLines(c: CanvasRenderingContext2D, base: HTMLCanvasElement): void {
+  const { width: w, height: h } = base;
+  if (w === 0 || h === 0) return;
+  const out = c.getImageData(0, 0, w, h);
+  const src = base.getContext('2d')!.getImageData(0, 0, w, h).data;
+  const d = out.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (src[i + 3] === 0) continue;
+    const l = (src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114) / 255;
+    const red = (src[i] - src[i + 2]) / 255;
+    const k = Math.min(1, Math.max(0, (l - 0.26) / 0.16, (0.08 - red) / 0.06));
+    if (k >= 1) continue;
+    for (let j = 0; j < 3; j++) d[i + j] = src[i + j] + (d[i + j] - src[i + j]) * k;
+  }
+  c.putImageData(out, 0, 0);
 }
 
 /** 画面の端から、いちばん端の客の頭・吹き出しまでの幅 */
