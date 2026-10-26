@@ -4,6 +4,7 @@ import { drawBread } from '../view/draw/breads';
 import { FEET_R, drawChibi, feetR, type Expr } from '../view/draw/chibi';
 import { BUTTER, ELFIN, ESHUR, KOMI, NELL, SPEAKI, villager } from '../view/draw/characters';
 import { MochiBody } from '../mochi/body';
+import { drawBurumiIcon, type BurumiFace } from '../view/draw/burumi';
 
 const canvas = document.getElementById('c') as HTMLCanvasElement;
 const W = 1400;
@@ -16,7 +17,7 @@ canvas.style.height = `${H}px`;
 const ctx = canvas.getContext('2d')!;
 ctx.scale(dpr, dpr);
 
-// ?mochi ならドラッグでほっぺを引っぱれる（もちほっぺの手触りの確認用）
+// ?burumi でブルミの顔の一覧。?mochi ならドラッグでほっぺを引っぱれる（もちほっぺの手触りの確認用）
 if (location.search.includes('mochi')) {
   const cast = [ESHUR, ELFIN, NELL, KOMI, BUTTER, SPEAKI, villager(3 * 7919 + 13)].map((spec, i) => ({ spec, body: new MochiBody(), x: 110 + i * 196, y: 420, r: 72 }));
   const at = (e: PointerEvent) => ({ x: e.offsetX, y: e.offsetY });
@@ -77,6 +78,14 @@ if (location.search.includes('mochi')) {
   );
   const mobExprs: Expr[] = ['normal', 'happy', 'worried', 'normal'];
   [3, 1, 5, 9].forEach((seed, i) => drawChibi(ctx, villager(seed * 7919 + 13), 190 + i * 340, 870, 105, { expr: mobExprs[i], t: 0, turn: i % 2 ? -1 : 1 }));
+} else if (location.search.includes('burumi')) {
+  // ブルミの 4 つの顔。上の段は大きく、下の段はメニューの大きさ（64 と 72）
+  const faces: BurumiFace[] = ['look', 'pressed', 'strain', 'happy'];
+  faces.forEach((face, i) => {
+    drawBurumiIcon(ctx, 190 + i * 340, 230, 320, face);
+    drawBurumiIcon(ctx, 160 + i * 340, 560, 64, face);
+    drawBurumiIcon(ctx, 250 + i * 340, 560, 72, face);
+  });
 } else {
   // 立ち絵（持ち物つき）・ほっぺを引っぱった顔・顔アイコン
   // 表情の一覧（6 人 × 12 表情）

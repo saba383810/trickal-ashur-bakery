@@ -1,29 +1,38 @@
-// ブルミ: ときどき窓の外からガラスに張り付く子。原作のガチャ画面で窓に張り付く姿の特徴を参考にした描き起こし。
-// 金髪のボブと外にはねる低いツインテール、頭の上の双葉、白い小花の髪飾り、白目だけの丸い目とうずまきのほっぺ、
-// 大きく開けた口、白い服の上に丈の長いオリーブ色のベスト（えりもとに黄色いボタン）、深緑の短パン。両手を上げて張り付く
+// ブルミ: ときどき窓の外からガラスに張り付く子。原作の SD の特徴を参考にした描き起こし（絵はなぞらない）。
+// 金色のボブと毛先の丸いぱっつん前髪、毛先が筆のようにはねる低いツインテール、頭の上の葉っぱのリボン、白い小花の髪飾り、
+// 眠たそうな半目の金色の目と「ω」の口、大きなピンクのほっぺ。白い丸えりの緑のワンピースに黄色い星のブローチ、白いタイツ。
+// 両手を上げてガラスに張り付く
 import { BALANCE } from '../../config/balance';
 import type { Burumi } from '../../sim/world';
 import type { Point, Rect } from '../layout';
 import { crayon, EYE, LINE, lineScale, setGrain } from './chibi';
 
-const SKIN = '#fff3ea';
-const HAIR = '#ffd65a';
-const HAIR_TIP = '#f6a93b';
-const LEAF = '#8fb35f';
-const LEAF_SHADE = '#6a8f45';
-const VEST = '#7f9a5e';
-const VEST_SHADE = '#66804a';
-const SHORTS = '#4b6141';
-const BUTTON = '#f7c948';
-const CHEEK = '#f191a3';
-const MOUTH = '#f08a95';
-const LEGS = '#5f4146';
+const SKIN = '#fff4ec';
+const HAIR = '#ffd24f';
+const HAIR_LIGHT = '#ffe58a';
+const HAIR_TIP = '#f5a532';
+const HAIR_SHADE = '#e3962f';
+const LEAF = '#7fae5a';
+const LEAF_SHADE = '#4f7d3b';
+const LEAF_VEIN = '#b5d98a';
+const DRESS = '#9dbd72';
+const DRESS_SHADE = '#7b9d55';
+const STAR = '#ffd23f';
+const IRIS_TOP = '#8a4a1c';
+const IRIS = '#e9a52c';
+const IRIS_LIGHT = '#ffe07a';
+/** ほっぺ・口はほかのキャラと同じ色 */
+const BLUSH = 'rgba(255, 166, 164, 0.95)';
+const MOUTH = '#b23a48';
+const TONGUE = '#fda3a2';
+const TIGHTS = '#fdf6f2';
+const SHOE = '#8a5a44';
 
-type Face = 'look' | 'pressed' | 'strain' | 'happy';
+export type BurumiFace = 'look' | 'pressed' | 'strain' | 'happy';
 
 /** 頭の中心から、窓の横桟で切れるところ（短パンの裾）まで。これより下は桟に隠れる */
 const CUT = 70;
-/** 双葉の先からツインテールの端まで（幅）と、双葉の先から CUT まで（高さ） */
+/** ツインテールの端から端まで（幅）と、リボンの先から CUT まで（高さ） */
 const FIG_W = 124;
 const FIG_H = 62 + CUT;
 
@@ -58,7 +67,7 @@ export function drawBurumi(ctx: CanvasRenderingContext2D, win: Rect, b: Burumi, 
   let sy = 0.97;
   let dy = 0;
   let alpha = 1;
-  let face: Face = 'pressed';
+  let face: BurumiFace = 'pressed';
   let fog = 0;
   switch (b.state) {
     case 'entering': {
@@ -145,19 +154,19 @@ export function drawBurumi(ctx: CanvasRenderingContext2D, win: Rect, b: Burumi, 
   ctx.restore();
 }
 
-/** メニュー用: 中心 (x, y) の size × size の枠に、足もとまで入れたブルミ（ふつうの顔） */
-export function drawBurumiIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
-  // 双葉の先（-62）から足（+104）まで
+/** メニュー用: 中心 (x, y) の size × size の枠に、足もとまで入れたブルミ（ふだんは眠たそうな顔） */
+export function drawBurumiIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, face: BurumiFace = 'look'): void {
+  // リボンの先（-62）から靴（+104）まで
   const k = Math.min(size / FIG_W, size / 170);
   ctx.save();
   ctx.translate(x, y - 21 * k);
   ctx.scale(k, k);
-  body(ctx, 'look', 0);
+  body(ctx, face, 0);
   ctx.restore();
 }
 
 /** 頭の単位（半径 50 くらい。頭の中心が原点）で描くブルミ */
-function body(ctx: CanvasRenderingContext2D, face: Face, time: number): void {
+function body(ctx: CanvasRenderingContext2D, face: BurumiFace, time: number): void {
   setGrain(ctx);
   const ink = () => crayon(LINE);
   const eyeInk = () => crayon(EYE);
@@ -173,253 +182,347 @@ function body(ctx: CanvasRenderingContext2D, face: Face, time: number): void {
   const pressed = face === 'pressed' || face === 'strain';
   const swing = Math.sin(time * 4) * 0.05;
 
-  // 脚（ふだんは窓の横桟に隠れる。つぶれても桟とのあいだがあかないように下まで描く）
-  ctx.beginPath();
-  ctx.roundRect(-10, 66, 20, 38, 6);
-  ctx.fillStyle = LEGS;
-  ctx.fill();
-  stroke(2.4);
+  // 白いタイツの脚と茶色の靴（ふだんは窓の横桟に隠れる。つぶれても桟とのあいだがあかないように下まで描く）
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.roundRect(side * 7 - 5, 66, 10, 34, 5);
+    ctx.fillStyle = TIGHTS;
+    ctx.fill();
+    stroke(2.2);
+    ctx.beginPath();
+    ctx.ellipse(side * 8, 100, 7, 4.5, 0, 0, Math.PI * 2);
+    ctx.fillStyle = SHOE;
+    ctx.fill();
+    stroke(2);
+  }
 
-  // 外にはねる低いツインテール（毛先はオレンジがかる）
+  // 低いツインテール: 外へふくらみ、毛先は筆のように 3 つにとがる（毛先ほど濃い金色）
   for (const side of [-1, 1]) {
     ctx.save();
-    ctx.translate(side * 36, 16);
+    ctx.translate(side * 30, 20);
     ctx.rotate(side * swing);
-    const g = ctx.createLinearGradient(0, 0, side * 26, 44);
+    const g = ctx.createLinearGradient(0, -6, side * 14, 46);
     g.addColorStop(0, HAIR);
+    g.addColorStop(0.55, HAIR);
     g.addColorStop(1, HAIR_TIP);
     ctx.beginPath();
-    ctx.moveTo(0, -6);
-    ctx.bezierCurveTo(side * 22, -6, side * 30, 18, side * 26, 34);
-    ctx.quadraticCurveTo(side * 25, 44, side * 18, 48);
-    ctx.quadraticCurveTo(side * 20, 40, side * 13, 36);
-    ctx.quadraticCurveTo(side * 4, 30, side * 2, 12);
+    ctx.moveTo(side * 2, -8);
+    ctx.bezierCurveTo(side * 24, -12, side * 35, 12, side * 31, 32);
+    ctx.quadraticCurveTo(side * 30, 39, side * 33, 46);
+    ctx.quadraticCurveTo(side * 25, 43, side * 21, 38);
+    ctx.quadraticCurveTo(side * 19, 45, side * 20, 51);
+    ctx.quadraticCurveTo(side * 12, 46, side * 10, 38);
+    ctx.quadraticCurveTo(side * 6, 42, side * 4, 46);
+    ctx.quadraticCurveTo(side * -1, 30, side * -2, 10);
     ctx.closePath();
     ctx.fillStyle = g;
     ctx.fill();
     stroke(2.4);
+    // 毛の流れとつや
+    ctx.beginPath();
+    ctx.moveTo(side * 14, 8);
+    ctx.quadraticCurveTo(side * 22, 22, side * 20, 34);
+    ctx.strokeStyle = HAIR_SHADE;
+    ctx.lineWidth = 1.6 * lk;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.beginPath();
+    ctx.ellipse(side * 22, 10, 3, 6, side * -0.5, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 
-  // 上げた腕（肩から外へ、手はあごの横）
+  // 上げた腕（緑のそで。肩から外へ、手はあごの横）
   for (const side of [-1, 1]) {
     ctx.beginPath();
     ctx.moveTo(side * 12, 47);
     ctx.quadraticCurveTo(side * 30, 44, side * 38, 28);
     ctx.strokeStyle = ink();
-    ctx.lineWidth = 6.6 + 4.4 * lk;
+    ctx.lineWidth = 8 + 4.4 * lk;
     ctx.lineCap = 'round';
     ctx.stroke();
-    ctx.strokeStyle = SKIN;
-    ctx.lineWidth = 6.6;
+    ctx.strokeStyle = DRESS;
+    ctx.lineWidth = 8;
     ctx.stroke();
   }
 
-  // 白い服と短パン
-  ctx.beginPath();
-  ctx.moveTo(-12, 40);
-  ctx.lineTo(12, 40);
-  ctx.quadraticCurveTo(18, 56, 19, 68);
-  ctx.lineTo(-19, 68);
-  ctx.quadraticCurveTo(-18, 56, -12, 40);
-  ctx.closePath();
+  // 緑のワンピース（すそに白いフリル）
+  const dress = ctx.createLinearGradient(-23, 0, 23, 0);
+  dress.addColorStop(0, DRESS_SHADE);
+  dress.addColorStop(0.3, DRESS);
+  dress.addColorStop(0.7, DRESS);
+  dress.addColorStop(1, DRESS_SHADE);
+  const hemY = (x: number) => 76 + 2 * (1 - (x / 23) ** 2);
   ctx.fillStyle = '#ffffff';
-  ctx.fill();
-  stroke(2.4);
-  ctx.beginPath();
-  ctx.moveTo(-17, 64);
-  ctx.lineTo(17, 64);
-  ctx.lineTo(18, 76);
-  ctx.lineTo(1.5, 76);
-  ctx.lineTo(0, 71);
-  ctx.lineTo(-1.5, 76);
-  ctx.lineTo(-18, 76);
-  ctx.closePath();
-  ctx.fillStyle = SHORTS;
-  ctx.fill();
-  stroke(2.2);
-  // 白い服のすそのフリル
-  ctx.fillStyle = '#ffffff';
-  for (let i = -2; i <= 2; i++) {
+  for (let i = -3; i <= 3; i++) {
+    const x = i * 6.6;
     ctx.beginPath();
-    ctx.arc(i * 6.4, 66, 3.4, 0, Math.PI);
+    ctx.arc(x, hemY(x) - 0.5, 3.4, 0, Math.PI);
     ctx.fill();
     stroke(1.6);
   }
-  // 丈の長いオリーブ色のベスト（前は開いていて、えりもとを黄色いボタンで留める）
+  ctx.beginPath();
+  ctx.moveTo(-13, 39);
+  ctx.lineTo(13, 39);
+  ctx.quadraticCurveTo(19, 56, 23, 76);
+  ctx.quadraticCurveTo(0, 80, -23, 76);
+  ctx.quadraticCurveTo(-19, 56, -13, 39);
+  ctx.closePath();
+  ctx.fillStyle = dress;
+  ctx.fill();
+  stroke(2.4);
+  // 白い丸えりと、えりもとの黄色い星のブローチ
   for (const side of [-1, 1]) {
-    const g = ctx.createLinearGradient(side * 4, 0, side * 22, 0);
-    g.addColorStop(0, VEST);
-    g.addColorStop(1, VEST_SHADE);
     ctx.beginPath();
-    ctx.moveTo(side * 2, 43);
-    ctx.lineTo(side * 13, 39);
-    ctx.quadraticCurveTo(side * 21, 58, side * 23, 80);
-    ctx.lineTo(side * 9, 82);
-    ctx.quadraticCurveTo(side * 6, 60, side * 2, 43);
+    ctx.moveTo(0, 41);
+    ctx.quadraticCurveTo(side * 8, 38, side * 14, 40);
+    ctx.quadraticCurveTo(side * 15, 49, side * 6, 50);
+    ctx.quadraticCurveTo(side * 1, 49, 0, 41);
     ctx.closePath();
-    ctx.fillStyle = g;
+    ctx.fillStyle = '#ffffff';
     ctx.fill();
-    stroke(2.4);
+    stroke(2);
   }
   ctx.beginPath();
-  ctx.arc(0, 45, 3.6, 0, Math.PI * 2);
-  ctx.fillStyle = BUTTON;
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (Math.PI / 5) * i;
+    const rr = i % 2 ? 2.6 : 6;
+    ctx.lineTo(Math.cos(a) * rr, 47 + Math.sin(a) * rr);
+  }
+  ctx.closePath();
+  ctx.fillStyle = STAR;
   ctx.fill();
-  stroke(1.8);
+  stroke(1.6);
 
   // 顔（下ぶくれのもち顔）
-  const head = () => {
-    ctx.beginPath();
-    ctx.ellipse(0, 2, 44, 40, 0, 0, Math.PI * 2);
-  };
-  head();
+  ctx.beginPath();
+  ctx.ellipse(0, 2, 44, 40, 0, 0, Math.PI * 2);
   ctx.fillStyle = SKIN;
   ctx.fill();
   stroke(3);
 
-  // 金髪のボブ: 頭の上をおおい、ぱっつんの前髪、横は耳の下まで
+  // 金色のボブ: 頭の上をおおい、毛先の丸いぱっつんの前髪、横は耳の下まで
   const hair = ctx.createLinearGradient(0, -48, 0, 24);
-  hair.addColorStop(0, HAIR);
-  hair.addColorStop(1, '#ffc84a');
+  hair.addColorStop(0, HAIR_LIGHT);
+  hair.addColorStop(0.5, HAIR);
+  hair.addColorStop(1, HAIR_TIP);
   ctx.beginPath();
-  ctx.moveTo(-40, 24);
-  ctx.bezierCurveTo(-56, -10, -40, -48, 0, -46);
-  ctx.bezierCurveTo(40, -48, 56, -10, 40, 24);
-  ctx.quadraticCurveTo(36, 14, 34, -2);
-  ctx.lineTo(28, -4);
-  ctx.lineTo(25, -10);
-  ctx.lineTo(14, -6);
-  ctx.lineTo(9, -12);
-  ctx.lineTo(-2, -7);
-  ctx.lineTo(-8, -12);
-  ctx.lineTo(-18, -6);
-  ctx.lineTo(-24, -10);
-  ctx.lineTo(-30, -4);
-  ctx.lineTo(-34, -2);
-  ctx.quadraticCurveTo(-36, 14, -40, 24);
+  ctx.moveTo(-41, 25);
+  ctx.bezierCurveTo(-57, -10, -40, -48, 0, -46);
+  ctx.bezierCurveTo(40, -48, 57, -10, 41, 25);
+  ctx.quadraticCurveTo(35, 22, 34, 12);
+  ctx.quadraticCurveTo(33, 4, 30, -4);
+  const xs = [30, 20, 10, 0, -10, -20, -30];
+  for (let i = 0; i < xs.length - 1; i++) {
+    ctx.quadraticCurveTo((xs[i] + xs[i + 1]) / 2, i % 2 ? 1 : -0.5, xs[i + 1], -6);
+  }
+  ctx.quadraticCurveTo(-33, 4, -34, 12);
+  ctx.quadraticCurveTo(-35, 22, -41, 25);
   ctx.closePath();
   ctx.fillStyle = hair;
   ctx.fill();
   stroke(2.6);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-  ctx.beginPath();
-  ctx.ellipse(-18, -32, 11, 4.5, -0.35, 0, Math.PI * 2);
-  ctx.fill();
-
-  // 頭の上の双葉
-  for (const side of [-1, 1]) {
-    ctx.save();
-    ctx.translate(side * 2, -45);
-    ctx.rotate(side * (0.95 + swing));
+  // 前髪のすじと、頭の丸みにそった天使の輪
+  ctx.strokeStyle = HAIR_SHADE;
+  ctx.lineWidth = 1.6 * lk;
+  for (const [x0, x1] of [[-6, -10], [14, 10], [-22, -24]]) {
     ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.quadraticCurveTo(-7, -10, 0, -19);
-    ctx.quadraticCurveTo(7, -10, 0, 0);
-    ctx.closePath();
-    ctx.fillStyle = side < 0 ? LEAF : LEAF_SHADE;
+    ctx.moveTo(x0, -22);
+    ctx.quadraticCurveTo(x1 + 1, -14, x1, -7);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+  ctx.lineWidth = 4.5;
+  ctx.beginPath();
+  ctx.arc(0, -4, 33, Math.PI * 1.17, Math.PI * 1.4);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, -4, 33, Math.PI * 1.48, Math.PI * 1.56);
+  ctx.stroke();
+  // ツインテールの根もとの緑の髪ゴム
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.arc(side * 39, 25, 4.2, 0, Math.PI * 2);
+    ctx.fillStyle = LEAF_SHADE;
     ctx.fill();
-    stroke(2);
-    ctx.restore();
+    stroke(1.8);
   }
 
-  // 白い小花の髪飾り（6 枚の花びら）
+  // 頭の上の葉っぱのリボン（2 枚の葉を左右に広げて、まん中で結ぶ）
   ctx.save();
-  ctx.translate(24, -26);
-  for (let i = 0; i < 6; i++) {
-    const a = (Math.PI / 3) * i;
+  ctx.translate(0, -44);
+  for (const side of [-1, 1]) {
+    ctx.save();
+    ctx.rotate(side * (1.1 + swing));
+    const g = ctx.createLinearGradient(-8, 0, 8, 0);
+    g.addColorStop(0, side < 0 ? LEAF : LEAF_SHADE);
+    g.addColorStop(1, side < 0 ? LEAF_SHADE : LEAF);
     ctx.beginPath();
-    ctx.arc(Math.cos(a) * 4.6, Math.sin(a) * 4.6, 3.4, 0, Math.PI * 2);
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(-9.5, -11, 0, -23);
+    ctx.quadraticCurveTo(9.5, -11, 0, 0);
+    ctx.closePath();
+    ctx.fillStyle = g;
+    ctx.fill();
+    stroke(2);
+    ctx.beginPath();
+    ctx.moveTo(0, -4);
+    ctx.lineTo(0, -17);
+    ctx.strokeStyle = LEAF_VEIN;
+    ctx.lineWidth = 1.4 * lk;
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.beginPath();
+  ctx.ellipse(0, -1, 4.4, 3.8, 0, 0, Math.PI * 2);
+  ctx.fillStyle = LEAF_SHADE;
+  ctx.fill();
+  stroke(1.8);
+  ctx.restore();
+
+  // 白い小花の髪飾り（5 枚の花びら、まん中は黄色）
+  ctx.save();
+  ctx.translate(24, -25);
+  ctx.rotate(0.2);
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI / 2 + ((Math.PI * 2) / 5) * i;
+    ctx.beginPath();
+    ctx.ellipse(Math.cos(a) * 5, Math.sin(a) * 5, 4.4, 3.6, a, 0, Math.PI * 2);
     ctx.fillStyle = '#ffffff';
     ctx.fill();
     stroke(1.4);
   }
   ctx.beginPath();
-  ctx.arc(0, 0, 2.6, 0, Math.PI * 2);
-  ctx.fillStyle = BUTTON;
+  ctx.arc(0, 0, 2.8, 0, Math.PI * 2);
+  ctx.fillStyle = STAR;
   ctx.fill();
+  stroke(1.2);
   ctx.restore();
 
   // ガラスに押しつけて白っぽく平たくなったところ
   if (pressed) {
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
     ctx.beginPath();
-    ctx.ellipse(0, 16, 30, 14, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 18, 30, 12, 0, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // うずまきのほっぺ
-  ctx.strokeStyle = CHEEK;
-  ctx.lineWidth = 2 * lk;
-  ctx.lineCap = 'round';
+  // 大きなピンクのほっぺ
+  ctx.fillStyle = BLUSH;
   for (const side of [-1, 1]) {
     ctx.beginPath();
-    for (let i = 0; i <= 24; i++) {
-      const t = i / 24;
-      const a = side * t * Math.PI * 3.2;
-      const rr = 1 + t * 6.5;
-      const x = side * 27 + Math.cos(a) * rr;
-      const y = 15 + Math.sin(a) * rr * 0.8;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
+    ctx.ellipse(side * 28, 17, pressed ? 12.5 : 11.5, pressed ? 8 : 8.8, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
 
-  // 目: 白目だけのまんまるの目。ふんばる時は「> <」、つかまってうれしい時は「^ ^」
+  // 目: 金色のひとみ。ふだんは眠たそうな半目、ガラスに張り付くとまんまる。
+  // ふんばる時は「> <」と涙、つかまってうれしい時は「^ ^」
   for (const side of [-1, 1]) {
-    const x = side * 16;
+    const x = side * 17;
+    const y = 6;
     ctx.strokeStyle = eyeInk();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     if (face === 'happy') {
       ctx.lineWidth = 3.4 * lk;
       ctx.beginPath();
-      ctx.moveTo(x - 7, 7);
-      ctx.quadraticCurveTo(x, -3, x + 7, 7);
+      ctx.moveTo(x - 7, 8);
+      ctx.quadraticCurveTo(x, -2, x + 7, 8);
       ctx.stroke();
-    } else if (face === 'strain') {
+      continue;
+    }
+    if (face === 'strain') {
       ctx.lineWidth = 3.4 * lk;
       ctx.beginPath();
-      ctx.moveTo(x - side * 6, -1);
-      ctx.lineTo(x + side * 5, 5);
-      ctx.lineTo(x - side * 6, 11);
+      ctx.moveTo(x - side * 6, 0);
+      ctx.lineTo(x + side * 5, 6);
+      ctx.lineTo(x - side * 6, 12);
       ctx.stroke();
-    } else {
       ctx.beginPath();
-      ctx.ellipse(x, 4, 7.6, pressed ? 8.6 : 9.6, 0, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffffff';
+      ctx.moveTo(x + side * 8, 9);
+      ctx.quadraticCurveTo(x + side * 11, 14, x + side * 9, 16);
+      ctx.quadraticCurveTo(x + side * 6, 15.5, x + side * 8, 9);
+      ctx.closePath();
+      ctx.fillStyle = '#bfe6fb';
       ctx.fill();
-      ctx.lineWidth = 3 * lk;
+      ctx.strokeStyle = '#6aa9d0';
+      ctx.lineWidth = 1.4 * lk;
       ctx.stroke();
+      continue;
     }
+    const round = face === 'pressed';
+    const ry = round ? 9.4 : 8.6;
+    // 半目はまぶたで上を切る
+    const lid = round ? y - ry - 2 : y - 0.5;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x - 11, lid, 22, 26);
+    ctx.clip();
+    const iris = ctx.createLinearGradient(0, y - ry, 0, y + ry);
+    iris.addColorStop(0, IRIS_TOP);
+    iris.addColorStop(0.5, IRIS);
+    iris.addColorStop(1, IRIS_LIGHT);
+    ctx.beginPath();
+    ctx.ellipse(x, y + 1, 7.6, ry, 0, 0, Math.PI * 2);
+    ctx.fillStyle = iris;
+    ctx.fill();
+    ctx.lineWidth = 2.4 * lk;
+    ctx.stroke();
+    ctx.fillStyle = eyeInk();
+    ctx.beginPath();
+    ctx.ellipse(x, round ? y + 1 : y + 5, 3.4, round ? 4.4 : 3.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(x - 2.8, round ? y - 2.6 : y + 3, 2.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x + 2.6, y + 6.5, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    // まぶたの線。まんまるの目は目尻を少しはね、半目は目尻へ下がってまつ毛を外へ下ろす（眠たそうに）
+    ctx.lineWidth = 3.2 * lk;
+    ctx.beginPath();
+    if (round) {
+      ctx.ellipse(x, y + 1, 7.6, ry, 0, Math.PI * 1.08, Math.PI * 1.92);
+      ctx.lineTo(x + side * 10.6, y - 7.2);
+    } else {
+      ctx.moveTo(x - side * 8, lid + 1);
+      ctx.quadraticCurveTo(x - side * 1, lid - 2, x + side * 8.4, lid + 2);
+      ctx.lineTo(x + side * 10.6, lid + 4);
+    }
+    ctx.stroke();
   }
 
-  // 大きく開けた口
-  ctx.beginPath();
-  if (face === 'strain') {
-    ctx.moveTo(-7, 24);
-    ctx.quadraticCurveTo(-3.5, 20, 0, 24);
-    ctx.quadraticCurveTo(3.5, 28, 7, 24);
-    ctx.lineTo(7, 26);
-    ctx.quadraticCurveTo(0, 31, -7, 26);
-    ctx.closePath();
-  } else {
-    const w = face === 'happy' ? 10 : pressed ? 8 : 9;
-    ctx.moveTo(-w, 18);
-    ctx.quadraticCurveTo(0, 21, w, 18);
-    ctx.quadraticCurveTo(w * 0.9, 33, 0, 33);
-    ctx.quadraticCurveTo(-w * 0.9, 33, -w, 18);
-    ctx.closePath();
-  }
-  ctx.fillStyle = MOUTH;
-  ctx.fill();
-  stroke(2.2);
-  if (face !== 'strain') {
-    ctx.fillStyle = '#e0606f';
+  // 口: ふだんは「ω」、ふんばる時はわめいて開け、うれしい時はにっこり開ける
+  ctx.strokeStyle = ink();
+  ctx.lineWidth = 2.2 * lk;
+  if (face === 'look' || face === 'pressed') {
+    const w = face === 'pressed' ? 7.5 : 6.5;
     ctx.beginPath();
-    ctx.ellipse(0, 29, 4.6, 2.6, 0, 0, Math.PI * 2);
+    ctx.moveTo(-w, 17);
+    ctx.quadraticCurveTo(-w / 2, 23, 0, 18.5);
+    ctx.quadraticCurveTo(w / 2, 23, w, 17);
+    ctx.stroke();
+  } else {
+    const [w, top, bottom] = face === 'strain' ? [6.5, 16, 28] : [8, 16, 26];
+    const lip = new Path2D();
+    lip.moveTo(-w, top);
+    lip.quadraticCurveTo(0, top + (face === 'strain' ? -2 : 2), w, top);
+    lip.quadraticCurveTo(w * 0.9, bottom, 0, bottom);
+    lip.quadraticCurveTo(-w * 0.9, bottom, -w, top);
+    lip.closePath();
+    ctx.fillStyle = MOUTH;
+    ctx.fill(lip);
+    ctx.save();
+    ctx.clip(lip);
+    ctx.fillStyle = TONGUE;
+    ctx.beginPath();
+    ctx.ellipse(0.5, bottom, w * 0.6, (bottom - top) * 0.42, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+    ctx.lineJoin = 'round';
+    ctx.stroke(lip);
   }
 
   // あごの横に上げた手（張り付いている間は、ガラスに押しつけた 4 本の指を広げる）
