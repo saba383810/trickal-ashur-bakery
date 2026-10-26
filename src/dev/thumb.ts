@@ -49,15 +49,17 @@ async function draw(): Promise<void> {
   c.fillStyle = C.woodDark;
   c.fillRect(left, 410, right - left, 6);
 
-  // エルフィンのほっぺは、ゲームと同じもちほっぺの変形で引っぱった形にする
+  // タイトルと同じ並び（バターとコミーはとなり）。バターのほっぺは、ゲームと同じもちほっぺの変形で引っぱった形にする
   const mochi = new MochiBody();
   mochi.grab(1, { x: -40, y: 30 });
   mochi.pinch.move(1, { x: -120, y: 52 });
   for (let i = 0; i < 40; i++) mochi.update(1 / 60);
-  mochi.draw(c, ELFIN, 112, 300, 54, { expr: 'pinched', t: 0, turn: -1 });
+  mochi.draw(c, BUTTER, 112, 322, 44, { expr: 'pinched', t: 0, turn: -1 });
   drawChibi(c, KOMI, 252, 322, 44, { expr: 'sleep', t: 0, turn: 1 });
-  drawChibi(c, BUTTER, 548, 322, 44, { expr: 'happy', t: 0, turn: -1 });
-  drawChibi(c, NELL, 690, 300, 54, { expr: 'smile', t: 0, turn: -1 });
+  // エルフィンはツケで取ったパンを抱えて帰るところ
+  drawChibi(c, ELFIN, 690, 300, 54, { expr: 'happy', t: 0, turn: -1 });
+  drawBread(c, 'melon', 690 - 54 * 0.32, 300 + 54 * 1.3, 54 * 0.95, dpr * 2 * S);
+  drawChibi(c, NELL, 548, 300, 54, { expr: 'smile', t: 0, turn: -1 });
   drawChibi(c, ESHUR, 400, 268, 74, { expr: 'happy', t: 0 });
   // スピキはタイトルと同じく、エシュールの右の足もとにしゃがむ
   drawChibi(c, SPEAKI, 466, 414 - feetR(SPEAKI) * 27, 27, { expr: 'happy', t: 0, turn: -1 });
