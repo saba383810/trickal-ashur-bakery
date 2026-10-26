@@ -158,13 +158,13 @@ export function drawBurumiIcon(ctx: CanvasRenderingContext2D, x: number, y: numb
 
 /** 頭の単位（半径 50 くらい。頭の中心が原点）で描くブルミ */
 function body(ctx: CanvasRenderingContext2D, face: Face, time: number): void {
-  const ink = crayon(ctx, LINE);
-  const eyeInk = crayon(ctx, EYE);
-  setGrain(ctx, [ink, eyeInk]);
+  setGrain(ctx);
+  const ink = () => crayon(LINE);
+  const eyeInk = () => crayon(EYE);
   // 線の太さはキャラと同じく、画面での大きさで決める（窓に小さく張り付いても線が細くならない）
   const lk = lineScale(ctx, 50);
   const stroke = (lw = 3) => {
-    ctx.strokeStyle = ink;
+    ctx.strokeStyle = ink();
     ctx.lineWidth = lw * lk;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
@@ -206,7 +206,7 @@ function body(ctx: CanvasRenderingContext2D, face: Face, time: number): void {
     ctx.beginPath();
     ctx.moveTo(side * 12, 47);
     ctx.quadraticCurveTo(side * 30, 44, side * 38, 28);
-    ctx.strokeStyle = ink;
+    ctx.strokeStyle = ink();
     ctx.lineWidth = 6.6 + 4.4 * lk;
     ctx.lineCap = 'round';
     ctx.stroke();
@@ -369,7 +369,7 @@ function body(ctx: CanvasRenderingContext2D, face: Face, time: number): void {
   // 目: 白目だけのまんまるの目。ふんばる時は「> <」、つかまってうれしい時は「^ ^」
   for (const side of [-1, 1]) {
     const x = side * 16;
-    ctx.strokeStyle = eyeInk;
+    ctx.strokeStyle = eyeInk();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     if (face === 'happy') {

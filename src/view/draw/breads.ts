@@ -10,7 +10,7 @@ const CACHE_MAX = 240;
 /** 線の太さがそのままでよい大きさ（画面での CSS px）と、いま描いているパンの線の倍率・線の色 */
 const LINE_SIZE = 70;
 let lk = 1;
-let ink: string | CanvasPattern = LINE;
+const ink = () => crayon(LINE);
 
 /** (x, y) を中心に、幅 size 程度で描く。pr は論理 1px あたりの実ピクセル */
 export function drawBread(ctx: CanvasRenderingContext2D, id: BreadId, x: number, y: number, size: number, pr: number): void {
@@ -28,8 +28,7 @@ export function drawBread(ctx: CanvasRenderingContext2D, id: BreadId, x: number,
     c.translate(sprite.width / 2, sprite.height / 2);
     c.scale(px / 100, px / 100);
     lk = k;
-    ink = crayon(c, LINE);
-    setGrain(c, [ink]);
+    setGrain(c);
     BREAD_PAINTERS[id](c);
     cache.set(key, sprite);
   }
@@ -79,7 +78,7 @@ const BREAD_PAINTERS: Record<BreadId, (c: CanvasRenderingContext2D) => void> = {
       c.beginPath();
       c.ellipse(s.x, s.y + 6, s.r * 0.95, s.r * 1.25, s.a, 0, Math.PI * 2);
       c.fill();
-      c.strokeStyle = ink;
+      c.strokeStyle = ink();
       c.lineWidth = 2.6 * lk;
       c.stroke();
     }
@@ -191,7 +190,7 @@ const BREAD_PAINTERS: Record<BreadId, (c: CanvasRenderingContext2D) => void> = {
     c.quadraticCurveTo(44, 0, 28, 26);
     c.closePath();
     c.fill();
-    c.strokeStyle = ink;
+    c.strokeStyle = ink();
     c.lineWidth = 3 * lk;
     c.stroke();
     // 巻きの筋は輪郭より細く、パンの色で
@@ -254,7 +253,7 @@ function shadow(c: CanvasRenderingContext2D, x: number, y: number, rx: number): 
 }
 
 function outline(c: CanvasRenderingContext2D): void {
-  c.strokeStyle = ink;
+  c.strokeStyle = ink();
   c.lineWidth = 3 * lk;
   c.stroke();
 }

@@ -50,7 +50,7 @@ function outline(face: HTMLCanvasElement, w: number, ox: number, oy: number, k: 
   // 線の色は、ほかの線と同じクレヨンの粒（頭の単位にそろえる）
   c.globalCompositeOperation = 'source-in';
   c.setTransform(k, 0, 0, k, ox, oy);
-  c.fillStyle = crayon(c, LINE);
+  c.fillStyle = crayon(LINE);
   c.fillRect(-ox / k, -oy / k, cv.width / k, cv.height / k);
   c.setTransform(1, 0, 0, 1, 0, 0);
   c.globalCompositeOperation = 'source-over';
