@@ -84,7 +84,7 @@ export const ja = {
     burumi: 'ブルミ',
     burumiTip: (reward: number) => `ときどき窓に張り付きます。窓をタップすると +${reward} G。`,
     fever: 'フィーバータイム',
-    feverTip: (serves: number, sec: number) => `会計${serves}回でゲージ満タン。${sec}秒間パンが減らず、1個だけほしいお客さんが次々来ます。`,
+    feverTip: (serves: number, sec: number) => `会計${serves}回でゲージ満タン。${sec}秒間トレーにパンが全部そろって、お客さんをタップするだけで渡せます。`,
     endlessInfo: (sec: number, ovens: number, seats: number) => `はじめの残り時間 ${sec}秒 ・ オーブン${ovens}台 ・ 客席${seats}つ`,
     timedInfo: (sec: number, ovens: number, seats: number) => `制限時間 ${sec}秒 ・ オーブン${ovens}台 ・ 客席${seats}つ`,
     ruleExtend: (base: number, perCombo: number, max: number, nell: number) =>
@@ -173,9 +173,9 @@ export const ja = {
       title: 'フィーバータイム',
       text: [
         '会計するたびに、右上のスピキのゲージがたまります。満タンでフィーバータイム！',
-        `${sec}秒間、ショーケースのパンが減らなくなり、パンを1個だけほしいお客さんが次々来ます。`,
-        'フィーバー中は誰も待ちくたびれず、焼けたパンも焦げません。女王様たちは終わるまで来ません。',
-        'フィーバー中に時間切れになっても、閉店はフィーバーが終わってから。最後まで渡しきろう。',
+        `${sec}秒間、トレーにパンが全部そろいます。お客さんをタップするだけで、注文をまるごと渡せます（寝ているコミーにも、ネルにも）。`,
+        'パンを1個だけほしいお客さんが次々来ます。誰も待ちくたびれず、焼けたパンも焦げません。女王様たちは終わるまで来ません。',
+        'トレーに乗せていたパンは、終わるとそのまま戻ります。時間切れになっても、閉店はフィーバーが終わってから。最後まで渡しきろう。',
       ],
     }),
     guests: {
@@ -264,6 +264,8 @@ export const ja = {
     comboBroken: 'コンボがとぎれた…',
     happy: 'ごきげん！',
     trayFull: 'トレーがいっぱい',
+    feverTray: 'トレーに全部あるよ！',
+    feverTap: 'タップ！',
     komiArrive: 'ふわぁ……ちょっとだけ寝るにゃ。',
     komiSleep: 'むにゃ……',
     komiSleepAgain: 'すやぁ……',
@@ -301,7 +303,7 @@ export const ja = {
     burumiHint: (reward: number) => `タップで +${reward} G`,
     burumiCaught: 'えへへ、みつかっちゃった',
     feverStart: 'フィーバータイム！',
-    feverStartSub: 'パンが減らない！ 1個ずつ、どんどん渡して',
+    feverStartSub: 'お客さんをタップするだけ！',
     feverEnd: 'フィーバーおしまい',
     timeLeft: (sec: number) => `のこり${sec}秒！`,
     timeExtend: (sec: string) => `+${sec}秒`,
@@ -346,7 +348,7 @@ export const ja = {
     nell: 'さいごはネル。注文は最初の3秒しか見えないから、よーく覚えてね！ ぴったり渡せば、女王様のツケを全部払ってくれるわ。',
     nellHow: '覚えたパンをトレーにそろえて、1回で渡すのよ。忘れたら、ほっぺを引っぱるともう一度見せてくれるわ。',
     fever: 'さいごに、ごほうびの時間！ 接客を続けるとスピキのゲージがたまって、満タンになるとフィーバータイムよ！',
-    feverHow: 'フィーバー中はパンが減らないし、パンを1個だけほしいお客さんが次々来るわ。どんどん渡して！',
+    feverHow: 'フィーバー中はトレーにパンが全部そろうわ。お客さんをタップするだけで渡せるから、どんどんタップして！',
     done: 'これで全員の相手はばっちりね！ まずは微辛から。慣れたら少しずつ辛くして、エンドレスにも挑戦してみて！',
   },
 

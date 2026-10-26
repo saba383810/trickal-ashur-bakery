@@ -237,16 +237,20 @@ export class World {
     return this.nellPendingAt !== null || this.customers.some((c) => c.kind === 'nell' && c.state !== 'leaving');
   }
 
-  /** ショーケースから取れるか（フィーバー中はいくらでも取れる） */
+  /** ショーケースから取れるか（フィーバー中はトレーに全部そろっているので取らない） */
   hasBread(bread: BreadId): boolean {
-    return this.fever > 0 || this.stock[bread] > 0;
+    return this.fever <= 0 && this.stock[bread] > 0;
   }
 
   // ---------------------------------------------------------------- commands
 
   pickBread(bread: BreadId): boolean {
     if (this.phase !== 'playing') return false;
-    if (!this.hasBread(bread)) {
+    if (this.fever > 0) {
+      this.emit({ type: 'pickFail', bread, reason: 'fever' });
+      return false;
+    }
+    if (this.stock[bread] <= 0) {
       this.emit({ type: 'pickFail', bread, reason: 'empty' });
       return false;
     }
@@ -254,18 +258,19 @@ export class World {
       this.emit({ type: 'pickFail', bread, reason: 'full' });
       return false;
     }
-    if (this.fever <= 0) this.stock[bread]--;
+    this.stock[bread]--;
     this.tray.push(bread);
     this.emit({ type: 'pick', bread });
     return true;
   }
 
+  /** フィーバー中のトレーは虹のトレーで、乗せていたパンは終わるまでしまってあるので戻せない */
   returnTray(index: number): boolean {
-    if (this.phase !== 'playing') return false;
+    if (this.phase !== 'playing' || this.fever > 0) return false;
     const bread = this.tray[index];
     if (!bread) return false;
     this.tray.splice(index, 1);
-    if (this.fever <= 0) this.stock[bread]++;
+    this.stock[bread]++;
     this.emit({ type: 'return', bread });
     return true;
   }
@@ -274,6 +279,7 @@ export class World {
     if (this.phase !== 'playing') return 'none';
     const c = this.customers.find((x) => x.id === customerId);
     if (!c || c.state !== 'waiting') return 'none';
+    if (this.fever > 0) return this.serveFever(c);
     if (c.asleep) {
       this.emit({ type: 'komiSleep', customerId: c.id, again: false });
       return 'asleep';
@@ -451,17 +457,7 @@ export class World {
       return 'wrong';
     }
     if (c.received.every(Boolean)) {
-      const payment = this.paymentFor(c);
-      this.book(payment);
-      this.stats.served++;
-      this.combo++;
-      this.stats.bestCombo = Math.max(this.stats.bestCombo, this.combo);
-      this.leave(c, 'happy');
-      this.emit({ type: 'serveComplete', customerId: c.id, payment, combo: this.combo });
-      const e = this.stage.endless;
-      // エンドレスのフィーバー中は時計が止まっているので延ばさない
-      if (e && this.fever <= 0) this.extendTime(e.timeBase + e.timePerCombo * Math.min(this.combo, e.timeComboCap));
-      this.countFever();
+      this.checkout(c);
       return 'complete';
     }
     c.patience = Math.min(c.patienceMax, c.patience + BALANCE.customer.partialBonus);
@@ -483,6 +479,43 @@ export class World {
     }
 
     this.tray = [];
+    this.payNell(c);
+    return 'complete';
+  }
+
+  /**
+   * フィーバー中は虹のトレーに全部のパンがそろっている。タップした客には、寝ているコミーにもネルにも、
+   * 残りの注文をまるごと渡す（トレーに乗せていたパンは使わない）
+   */
+  private serveFever(c: Customer): 'complete' {
+    c.asleep = false;
+    if (c.kind === 'nell') {
+      this.payNell(c);
+      return 'complete';
+    }
+    c.received = c.order.map(() => true);
+    this.checkout(c);
+    return 'complete';
+  }
+
+  /** 注文を全部受け取った客の会計 */
+  private checkout(c: Customer): void {
+    const payment = this.paymentFor(c);
+    this.book(payment);
+    this.stats.served++;
+    this.combo++;
+    this.stats.bestCombo = Math.max(this.stats.bestCombo, this.combo);
+    this.leave(c, 'happy');
+    this.emit({ type: 'serveComplete', customerId: c.id, payment, combo: this.combo });
+    const e = this.stage.endless;
+    // エンドレスのフィーバー中は時計が止まっているので延ばさない
+    if (e && this.fever <= 0) this.extendTime(e.timeBase + e.timePerCombo * Math.min(this.combo, e.timeComboCap));
+    this.countFever();
+  }
+
+  /** ネルの記憶接客の成功（ツケを全額回収して、しばらく売上が上がる） */
+  private payNell(c: Customer): void {
+    const cfg = BALANCE.nell;
     c.received = c.order.map(() => true);
     const base = c.order.reduce((sum, b) => sum + BREADS[b].price, 0);
     const payment: Payment = { total: base, base, tip: 0, combo: 0, nell: 0, tipRate: 0 };
@@ -496,7 +529,6 @@ export class World {
     this.emit({ type: 'nellSuccess', customerId: c.id, tabPaid, payment });
     if (this.stage.endless && this.fever <= 0) this.extendTime(this.stage.endless.nellTime);
     this.countFever();
-    return 'complete';
   }
 
   /** 会計 1 回ぶんゲージを進め、満タンならフィーバー */

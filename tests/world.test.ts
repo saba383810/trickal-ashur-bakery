@@ -574,16 +574,50 @@ describe('フィーバータイム', () => {
     expect(w.feverGauge).toBe(0);
   });
 
-  it('フィーバー中はパンが減らず、在庫 0 でも取れて、戻しても増えない', () => {
-    const w = quiet({ initialStock: 0 });
-    expect(w.pickBread('roll')).toBe(false);
+  it('フィーバー中はショーケースから取れず、トレーに乗せていたパンもしまったまま戻せない。終わるとそのまま残っている', () => {
+    const w = quiet({ initialStock: 2 });
+    w.pickBread('roll');
     w.startFever();
-    expect(w.pickBread('roll')).toBe(true);
-    expect(w.pickBread('roll')).toBe(true);
-    expect(w.stock.roll).toBe(0);
-    w.returnTray(0);
-    expect(w.stock.roll).toBe(0);
+    w.drainEvents();
+    expect(w.hasBread('melon')).toBe(false);
+    expect(w.pickBread('melon')).toBe(false);
+    expect(w.drainEvents()).toContainEqual({ type: 'pickFail', bread: 'melon', reason: 'fever' });
+    expect(w.returnTray(0)).toBe(false);
     expect(w.tray).toEqual(['roll']);
+    expect(w.stock).toMatchObject({ roll: 1, melon: 2 });
+    run(w, F.duration + 0.1);
+    expect(w.fever).toBe(0);
+    expect(w.tray).toEqual(['roll']);
+    expect(w.returnTray(0)).toBe(true);
+    expect(w.stock.roll).toBe(2);
+  });
+
+  it('フィーバー中はタップするだけで、トレーを使わずに残りの注文をまるごと渡せる（寝ているコミーにも、ネルにも）', () => {
+    const w = quiet({ initialStock: 0, seats: 4 });
+    const multi = seated(w, ['roll', 'melon', 'roll']);
+    const komi = w.spawnGuest('komi', ['croissant'], 1)!;
+    const nell = w.spawnGuest('nell', ['melon', 'curry'], 2)!;
+    run(w, BALANCE.customer.enterTime + 0.05);
+    expect(komi.asleep).toBe(true);
+    w.tab = 300;
+    w.startFever();
+    w.drainEvents();
+
+    expect(w.serve(multi.id)).toBe('complete');
+    expect(multi.received).toEqual([true, true, true]);
+    expect(w.serve(komi.id)).toBe('complete');
+    expect(komi.asleep).toBe(false);
+    expect(w.serve(nell.id)).toBe('complete');
+    expect(w.tab).toBe(0);
+    expect(w.ledger.tabCollected).toBe(300);
+    expect(w.buff).toBe(BALANCE.nell.buffDuration);
+    const types = w.drainEvents().map((e) => e.type);
+    expect(types.filter((t) => t === 'serveComplete')).toHaveLength(2);
+    expect(types).toContain('nellSuccess');
+    expect(w.stats.feverServed).toBe(3);
+    expect(w.combo).toBe(2);
+    expect(w.tray).toEqual([]);
+    expect(w.stock).toMatchObject({ roll: 0, melon: 0 });
   });
 
   it('フィーバー中は注文 1 個の客が空いた席に次々来て、待ち時間は減らず、会計してもゲージは進まない', () => {
@@ -599,7 +633,6 @@ describe('フィーバータイム', () => {
     expect(before.patience).toBe(patience);
 
     const c = fevers.find((x) => x.state === 'waiting')!;
-    w.pickBread(c.order[0]);
     expect(w.serve(c.id)).toBe('complete');
     expect(w.stats.feverServed).toBe(1);
     expect(w.feverGauge).toBe(5);

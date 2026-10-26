@@ -12,7 +12,8 @@ export interface Payment {
 // sim → view/audio への通知。step / コマンドの中で積まれ、view が毎フレーム回収する。
 export type GameEvent =
   | { type: 'pick'; bread: BreadId }
-  | { type: 'pickFail'; bread: BreadId; reason: 'empty' | 'full' }
+  /** fever = フィーバー中はトレーに全部そろっているので、ショーケースからは取らない */
+  | { type: 'pickFail'; bread: BreadId; reason: 'empty' | 'full' | 'fever' }
   | { type: 'return'; bread: BreadId }
   | { type: 'customerArrive'; customerId: number }
   | { type: 'servePartial'; customerId: number; breads: BreadId[] }

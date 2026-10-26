@@ -138,7 +138,7 @@ export const STAGES: StageDef[] = [
     burumi: true,
     guestItems: { komi: 1, butter: 2 },
     // 来店ペースで売上が頭打ちになり、腕前の差が出にくい。★はボット中央値（初心者 約 5,150 / ふつう 約 7,000 / 上手い 約 8,250）の約 58% / 62% / 73%
-    stars: [3000, 4300, 6000],
+    stars: [3700, 5200, 7400],
     feverServes: 8,
   },
   {
@@ -162,7 +162,7 @@ export const STAGES: StageDef[] = [
     burumi: true,
     guestItems: { komi: 2, butter: 2 },
     // 微辛と同じく来店ペースで頭打ちぎみ。★はボット中央値（約 6,450 / 9,800 / 11,850）の約 61% / 69% / 84%
-    stars: [3900, 6800, 10000],
+    stars: [4700, 9100, 13100],
     feverServes: 9,
   },
   {
@@ -184,7 +184,7 @@ export const STAGES: StageDef[] = [
     komi: [18, 58],
     butter: [46],
     burumi: true,
-    stars: [4400, 8100, 12400],
+    stars: [5500, 10900, 16200],
     feverServes: 10,
   },
   {
@@ -205,7 +205,7 @@ export const STAGES: StageDef[] = [
     komi: [18, 60, 100],
     butter: [48, 92],
     burumi: true,
-    stars: [6700, 12000, 19600],
+    stars: [8200, 15600, 24600],
     feverServes: 10,
   },
   {
@@ -227,7 +227,7 @@ export const STAGES: StageDef[] = [
     komi: [15],
     butter: [28],
     burumi: true,
-    stars: [4700, 13500, 41000],
+    stars: [6200, 19100, 61500],
     feverServes: 9,
     endless: {
       levelTime: 20,

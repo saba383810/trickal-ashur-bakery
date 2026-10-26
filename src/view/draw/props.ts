@@ -75,6 +75,81 @@ export function drawSlot(c: CanvasRenderingContext2D, r: Rect, bread: BreadId, s
 
 /** カウンターの上のトレー */
 export function drawTray(c: CanvasRenderingContext2D, tray: Rect, slots: Rect[], items: BreadId[], pr: number, pulse: number): void {
+  trayBase(c, tray);
+  slots.forEach((s, i) => {
+    const cx = s.x + s.w / 2;
+    const cy = s.y + s.h / 2;
+    const bread = items[i];
+    if (!bread) {
+      c.fillStyle = 'rgba(139, 146, 158, 0.18)';
+      c.beginPath();
+      c.ellipse(cx, cy + 4, s.w * 0.32, s.h * 0.26, 0, 0, Math.PI * 2);
+      c.fill();
+      return;
+    }
+    const bounce = i === items.length - 1 ? pulse : 0;
+    drawBread(c, bread, cx, cy - bounce * 8, Math.min(s.w, s.h) * 0.92, pr);
+  });
+}
+
+/**
+ * フィーバー中のトレー: そのモードのパンが全部、山盛りで虹色に光る（取りに行かなくても、お客さんをタップすれば渡せる）。
+ * 乗せていたパンはしまってあるので描かない。hue は虹の色相、t は時刻（パンが小さく弾む）
+ */
+export function drawFeverTray(c: CanvasRenderingContext2D, tray: Rect, slots: Rect[], breads: readonly BreadId[], pr: number, hue: number, t: number, pulse: number): void {
+  c.save();
+  c.shadowColor = `hsl(${hue}, 95%, 65%)`;
+  c.shadowBlur = 18;
+  trayBase(c, tray);
+  c.restore();
+  const g = c.createLinearGradient(tray.x, 0, tray.x + tray.w, 0);
+  for (let i = 0; i <= 6; i++) g.addColorStop(i / 6, `hsl(${(hue + i * 60) % 360}, 95%, 62%)`);
+  c.strokeStyle = g;
+  c.lineWidth = 5;
+  roundRect(c, tray.x, tray.y, tray.w, tray.h, 18);
+  c.stroke();
+
+  // 奥と手前の 2 列に重ねて山盛りにする（奥の列から描く）。種類が少ないモードもくり返して 6 個以上に見せる
+  const cell = Math.min(slots[0].w, slots[0].h) * 0.92;
+  const heap = Array.from({ length: Math.max(6, breads.length) }, (_, i) => breads[i % breads.length]);
+  const nFront = Math.ceil(heap.length / 2);
+  const rows = [
+    { items: heap.slice(nFront), y: -0.2, size: 0.92, span: 0.62 },
+    { items: heap.slice(0, nFront), y: 0.1, size: 1.04, span: 0.84 },
+  ];
+  rows.forEach((row, r) => {
+    const size = cell * row.size * (1 + pulse * 0.08);
+    const span = tray.w * row.span;
+    row.items.forEach((bread, i) => {
+      const x = tray.x + (tray.w - span) / 2 + (span * (i + 0.5)) / row.items.length;
+      const bob = Math.sin(t * 7 + (r * 4 + i) * 1.3) * 2.5;
+      drawBread(c, bread, x, tray.y + tray.h * (0.5 + row.y) + bob, size, pr);
+    });
+  });
+
+  // きらきら
+  c.save();
+  for (let i = 0; i < 5; i++) {
+    const p = (t * 1.6 + i * 0.37) % 1;
+    const a = Math.sin(p * Math.PI);
+    const x = tray.x + tray.w * ((i * 0.23 + 0.12) % 1);
+    const y = tray.y + tray.h * (0.15 + ((i * 0.41) % 0.6));
+    const r = 5 + 5 * a;
+    c.globalAlpha = a;
+    c.fillStyle = `hsl(${(hue + i * 70) % 360}, 100%, 85%)`;
+    c.beginPath();
+    c.moveTo(x, y - r);
+    c.quadraticCurveTo(x, y, x + r, y);
+    c.quadraticCurveTo(x, y, x, y + r);
+    c.quadraticCurveTo(x, y, x - r, y);
+    c.quadraticCurveTo(x, y, x, y - r);
+    c.fill();
+  }
+  c.restore();
+}
+
+/** トレーの板 */
+function trayBase(c: CanvasRenderingContext2D, tray: Rect): void {
   c.fillStyle = 'rgba(90, 58, 34, 0.25)';
   roundRect(c, tray.x + 4, tray.y + 8, tray.w, tray.h, 18);
   c.fill();
@@ -91,21 +166,6 @@ export function drawTray(c: CanvasRenderingContext2D, tray: Rect, slots: Rect[],
   c.lineWidth = 2;
   roundRect(c, tray.x + 6, tray.y + 5, tray.w - 12, tray.h - 10, 13);
   c.stroke();
-
-  slots.forEach((s, i) => {
-    const cx = s.x + s.w / 2;
-    const cy = s.y + s.h / 2;
-    const bread = items[i];
-    if (!bread) {
-      c.fillStyle = 'rgba(139, 146, 158, 0.18)';
-      c.beginPath();
-      c.ellipse(cx, cy + 4, s.w * 0.32, s.h * 0.26, 0, 0, Math.PI * 2);
-      c.fill();
-      return;
-    }
-    const bounce = i === items.length - 1 ? pulse : 0;
-    drawBread(c, bread, cx, cy - bounce * 8, Math.min(s.w, s.h) * 0.92, pr);
-  });
 }
 
 export interface OvenLook {

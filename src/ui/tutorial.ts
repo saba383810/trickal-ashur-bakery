@@ -225,7 +225,7 @@ export class Tutorial {
         enter: () => w.startFever(),
         allow: (a) => shop(a) || a.type === 'serve' || a.type === 'pinch',
         done: () => w.fever <= 0,
-        target: () => [union(view.L.floor, view.L.showcase, view.L.tray)],
+        target: () => [union(view.L.floor, view.L.tray)],
       },
       {
         kind: 'tap',

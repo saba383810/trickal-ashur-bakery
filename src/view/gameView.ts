@@ -10,7 +10,7 @@ import { MochiBody } from '../mochi/body';
 import { BUTTER, ELFIN, KOMI, NELL, SPEAKI, villager } from './draw/characters';
 import { FEET_R, type ChibiPose, type ChibiSpec, type Expr } from './draw/chibi';
 import { burumiCenter, drawBurumi } from './draw/burumi';
-import { bubbleSize, drawBubble, drawOven, drawSlot, drawTray } from './draw/props';
+import { bubbleSize, drawBubble, drawFeverTray, drawOven, drawSlot, drawTray } from './draw/props';
 import { SceneCache } from './draw/scene';
 import { clock, coin, keycap, outlined, roundRect, star } from './draw/ui';
 import { Effects } from './effects';
@@ -90,6 +90,8 @@ const KEY_POINTER = -1;
 const DRAG_START = 14;
 /** バターの石がエルフィンに届くまでの秒数 */
 const SHOT_TIME = 0.28;
+/** フィーバー中に虹のトレーからお客さんへパンが飛んでいく秒数 */
+const FLIGHT_TIME = 0.26;
 
 export class GameView {
   L: Layout;
@@ -128,6 +130,10 @@ export class GameView {
   private bannerSeq = 0;
   /** バターのパチンコの石（t = 経過秒） */
   private shots: { from: Point; t: number }[] = [];
+  /** フィーバー中に虹のトレーからお客さんへ飛んでいくパン（t = 経過秒。0 より前は出番待ち。to は客が消えた時の行き先） */
+  private flights: { bread: BreadId; from: Point; customerId: number; to: Point; t: number }[] = [];
+  /** フィーバー中にショーケースを押した時の知らせを、次に出せる時刻 */
+  private trayHintAt = 0;
   private seen = new Set<string>();
   /** エンドレスのレベルが上がった直後のはずみ */
   private levelBump = 0;
@@ -196,6 +202,7 @@ export class GameView {
         break;
       case 'return':
         ok = w.returnTray(a.index);
+        if (!ok && w.fever > 0) this.feverTrayHint();
         break;
       case 'serve':
         ok = w.serve(a.customerId) !== 'none';
@@ -564,6 +571,8 @@ export class GameView {
     }
     for (const sh of this.shots) sh.t += dt;
     this.shots = this.shots.filter((sh) => sh.t < SHOT_TIME);
+    for (const f of this.flights) f.t += dt;
+    this.flights = this.flights.filter((f) => f.t < FLIGHT_TIME);
     for (const id of this.custViews.keys()) {
       if (!this.world.customers.some((c) => c.id === id)) this.custViews.delete(id);
     }
@@ -708,6 +717,10 @@ export class GameView {
         break;
       }
       case 'pickFail': {
+        if (ev.reason === 'fever') {
+          this.feverTrayHint();
+          break;
+        }
         s.fail();
         if (ev.reason === 'empty') this.slotFlash[w.stage.breads.indexOf(ev.bread)] = 1;
         else this.flashTrayFull();
@@ -738,6 +751,7 @@ export class GameView {
         const c = cust(ev.customerId);
         const h = c ? this.custHead(c) : center(L.tray);
         if (c) this.jiggle(c, 120);
+        if (c) this.flyFromTray(c);
         this.fx.burst(h.x, h.y, 'heart', 5, '#f7808c', 140);
         this.fx.coinFly(h, this.hudSalesPos(), 1 + Math.floor(ev.payment.total / 150), () => {
           this.salesBump = 1;
@@ -895,6 +909,7 @@ export class GameView {
         s.nellSuccess();
         const c = cust(ev.customerId);
         const h = c ? this.custHead(c) : center(L.tray);
+        if (c) this.flyFromTray(c);
         this.fx.burst(h.x, h.y, 'star', 20, '#bfe3ff', 320);
         this.fx.coinFly(h, this.hudSalesPos(), 6, () => (this.salesBump = 1));
         this.fx.float(`+${ev.payment.total}`, h.x, h.y - 60, C.gold, 34);
@@ -938,6 +953,9 @@ export class GameView {
       case 'feverStart':
         s.feverStart();
         this.rainbow.start(L);
+        // トレーがパンの山盛りに変わる
+        this.trayPulse = 1;
+        this.fx.burst(center(L.tray).x, center(L.tray).y, 'star', 14, '#ffe08a', 260);
         this.banner(T.game.feverStart, T.game.feverStartSub, '#e0569b', 2.2, 'speaki');
         this.refreshBgm();
         break;
@@ -945,6 +963,7 @@ export class GameView {
         // 時間切れのあとのフィーバーが終わったら、そのまま閉店の知らせだけ出す
         if (this.world.phase === 'playing') {
           s.feverEnd();
+          this.fx.burst(center(L.tray).x, center(L.tray).y, 'star', 8, '#ffffff', 180);
           this.fx.float(T.game.feverEnd, L.banner.x, L.banner.y - 40, '#ffffff', 26, '#e0569b');
         }
         this.refreshBgm();
@@ -990,6 +1009,26 @@ export class GameView {
     if (this.seen.has(face)) return;
     this.seen.add(face);
     this.banner(text, sub, color, 2.2, face);
+  }
+
+  /** フィーバー中にショーケースやトレーを押した: トレーに全部そろっていると知らせる（続けて押しても 1 秒に 1 回） */
+  private feverTrayHint(): void {
+    this.trayPulse = 1;
+    if (this.time < this.trayHintAt) return;
+    this.trayHintAt = this.time + 1;
+    this.sound.pick();
+    this.fx.float(T.game.feverTray, this.L.tray.x + this.L.tray.w / 2, this.L.tray.y - 6, '#ffffff', 22, '#e0569b');
+  }
+
+  /** フィーバー中の会計: 注文のパンを虹のトレーから客へ飛ばす */
+  private flyFromTray(c: Customer): void {
+    if (this.world.fever <= 0) return;
+    const t = this.L.tray;
+    const to = this.custHead(c);
+    c.order.forEach((bread, i) => {
+      const from = { x: t.x + t.w * (0.3 + 0.4 * Math.random()), y: t.y + t.h * 0.45 };
+      this.flights.push({ bread, from, customerId: c.id, to, t: -i * 0.06 });
+    });
   }
 
   private flashTrayFull(): void {
@@ -1082,12 +1121,13 @@ export class GameView {
     c.drawImage(this.scene.front!, 0, 0, L.w, L.h);
     this.rainbow.drawCounter(c, L, pr);
 
-    drawTray(c, L.tray, L.traySlots, w.tray, pr, this.trayPulse);
+    if (w.fever > 0) drawFeverTray(c, L.tray, L.traySlots, w.stage.breads, pr, (this.time * 160) % 360, this.time, this.trayPulse);
+    else drawTray(c, L.tray, L.traySlots, w.tray, pr, this.trayPulse);
 
     w.stage.breads.forEach((bread, i) => {
       const r = L.slots[i];
       drawSlot(c, r, bread, w.stock[bread], pr, {
-        hover: !!this.hover && inside(r, this.hover) && !this.picker,
+        hover: !!this.hover && inside(r, this.hover) && !this.picker && w.fever <= 0,
         flash: this.slotFlash[i] ?? 0,
         pop: this.slotPop[i] ?? 0,
         infinite: w.fever > 0 ? (this.time * 200 + i * 50) % 360 : undefined,
@@ -1104,6 +1144,7 @@ export class GameView {
     this.drawShots(c);
 
     for (const cu of sorted) this.drawCustomerBubble(c, cu, pr);
+    this.drawFlights(c, pr);
 
     this.fx.draw(c);
     this.drawSays(c);
@@ -1190,9 +1231,68 @@ export class GameView {
       pr,
     );
     c.restore();
-    if (nell && cu.reveal <= 0 && this.world.tray.length === 0 && cu.stateTime > 1) {
+    if (this.world.fever > 0) {
+      // フィーバー中はタップするだけで渡せる（指でトントン押してみせる。席ごとに少しずらす）
+      const b = v.bubble;
+      const phase = (this.time * 1.5 + cu.seat * 0.27) % 1;
+      this.drawTapHand(c, b.x + b.w / 2 + 4, b.y - 2, phase);
+    } else if (nell && cu.reveal <= 0 && this.world.tray.length === 0 && cu.stateTime > 1) {
       const b = v.bubble;
       outlined(c, T.game.nellTapAgain, seat.x, b.y - 14, 15, '#ffffff', C.nell);
+    }
+  }
+
+  /** 指先が (x, y) を押す手袋の手と「タップ！」。phase は 0〜1 で 1 回押す */
+  private drawTapHand(c: CanvasRenderingContext2D, x: number, y: number, phase: number): void {
+    const press = phase < 0.5 ? phase / 0.5 : 1 - (phase - 0.5) / 0.5;
+    c.save();
+    if (phase > 0.45 && phase < 0.8) {
+      const k = (phase - 0.45) / 0.35;
+      c.globalAlpha = 1 - k;
+      c.strokeStyle = '#ffffff';
+      c.lineWidth = 3;
+      c.beginPath();
+      c.ellipse(x, y, 8 + 16 * k, 4 + 8 * k, 0, 0, Math.PI * 2);
+      c.stroke();
+      c.globalAlpha = 1;
+    }
+    c.translate(x, y - (1 - press) * 12);
+    c.rotate(0.22);
+    c.scale(0.8, 0.8);
+    c.fillStyle = '#ffffff';
+    c.strokeStyle = HUD_INK;
+    c.lineWidth = 3;
+    c.lineJoin = 'round';
+    const part = (draw: () => void) => {
+      c.beginPath();
+      draw();
+      c.fill();
+      c.stroke();
+    };
+    // 親指 → こぶし → 握った指の関節 → 前に出した人差し指（先が下）→ 袖口
+    part(() => c.ellipse(-10, -38, 6, 10, -0.35, 0, Math.PI * 2));
+    part(() => c.roundRect(-9, -54, 31, 30, 11));
+    part(() => c.arc(13, -25, 6, 0, Math.PI * 2));
+    part(() => c.arc(19, -32, 5.5, 0, Math.PI * 2));
+    part(() => c.roundRect(-6, -34, 13, 34, 6.5));
+    c.fillStyle = '#ff9ec4';
+    part(() => c.roundRect(-8, -62, 29, 10, 4));
+    c.restore();
+    c.save();
+    c.font = font(17);
+    outlined(c, T.game.feverTap, x + 26 + c.measureText(T.game.feverTap).width / 2, y - 38, 17, '#ffffff', '#e0569b');
+    c.restore();
+  }
+
+  private drawFlights(c: CanvasRenderingContext2D, pr: number): void {
+    for (const f of this.flights) {
+      if (f.t < 0) continue;
+      const k = f.t / FLIGHT_TIME;
+      const cu = this.world.customers.find((x) => x.id === f.customerId);
+      const to = cu ? this.custHead(cu) : f.to;
+      const x = f.from.x + (to.x - f.from.x) * k;
+      const y = f.from.y + (to.y + this.L.headR * 0.4 - f.from.y) * k - Math.sin(k * Math.PI) * 80;
+      drawBread(c, f.bread, x, y, 40 * (1 - 0.3 * k), pr);
     }
   }
 

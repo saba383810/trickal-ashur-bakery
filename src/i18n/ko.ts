@@ -80,7 +80,7 @@ export const ko: Strings = {
     burumiTip: (reward: number) => `가끔 창문에 달라붙어요. 창문을 탭하면 +${reward} G.`,
     fever: '피버 타임',
     feverTip: (serves: number, sec: number) =>
-      `${serves}번 계산하면 게이지가 가득 차요. ${sec}초간 빵이 줄지 않고, 빵을 1개만 원하는 손님이 줄줄이 와요.`,
+      `${serves}번 계산하면 게이지가 가득 차요. ${sec}초간 트레이에 빵이 다 갖춰져서, 손님을 탭하기만 하면 건넬 수 있어요.`,
     endlessInfo: (sec: number, ovens: number, seats: number) => `기본 시간 ${sec}초 · 오븐 ${ovens}대 · 좌석 ${seats}개`,
     timedInfo: (sec: number, ovens: number, seats: number) => `제한 시간 ${sec}초 · 오븐 ${ovens}대 · 좌석 ${seats}개`,
     ruleExtend: (base: number, perCombo: number, max: number, nell: number) =>
@@ -169,9 +169,9 @@ export const ko: Strings = {
       title: '피버 타임',
       text: [
         '계산할 때마다 오른쪽 위 스피키 게이지가 차요. 가득 차면 피버 타임!',
-        `${sec}초간 진열대의 빵이 줄지 않고, 빵을 1개만 원하는 손님이 줄줄이 와요.`,
-        '피버 중에는 아무도 지치지 않고, 다 구운 빵도 타지 않아요. 여왕님 일행은 끝날 때까지 오지 않아요.',
-        '피버 중에 시간이 다 돼도, 폐점은 피버가 끝난 뒤예요. 끝까지 다 건네 봐요.',
+        `${sec}초간 트레이에 모든 빵이 갖춰져요. 손님을 탭하기만 하면 주문을 통째로 건넬 수 있어요(자고 있는 코미에게도, 넬에게도).`,
+        '빵을 1개만 원하는 손님이 줄줄이 와요. 아무도 지치지 않고, 다 구운 빵도 타지 않아요. 여왕님 일행은 끝날 때까지 오지 않아요.',
+        '트레이에 올려 두었던 빵은 끝나면 그대로 돌아와요. 시간이 다 돼도 폐점은 피버가 끝난 뒤예요. 끝까지 다 건네 봐요.',
       ],
     }),
     guests: {
@@ -259,6 +259,8 @@ export const ko: Strings = {
     comboBroken: '콤보가 끊겼다…',
     happy: '기분 최고!',
     trayFull: '트레이가 가득 찼어요',
+    feverTray: '트레이에 다 있어!',
+    feverTap: '탭!',
     komiArrive: '하암…… 코미는 잠깐만 잘래.',
     komiSleep: '음냐……',
     komiSleepAgain: '새근새근……',
@@ -296,7 +298,7 @@ export const ko: Strings = {
     burumiHint: (reward: number) => `탭해서 +${reward} G`,
     burumiCaught: '에헤헤, 들켜 버렸네',
     feverStart: '피버 타임!',
-    feverStartSub: '빵이 줄지 않아! 1개씩 쭉쭉 건네줘',
+    feverStartSub: '손님을 탭하기만 하면 돼!',
     feverEnd: '피버 끝',
     timeLeft: (sec: number) => `남은 시간 ${sec}초!`,
     timeExtend: (sec: string) => `+${sec}초`,
@@ -342,7 +344,7 @@ export const ko: Strings = {
     nell: '마지막은 네르. 주문은 처음 3초밖에 안 보이니까 잘 기억해 둬! 딱 맞게 건네면 여왕님 외상을 전부 갚아 줄 거야.',
     nellHow: '기억한 빵을 트레이에 모아서 한 번에 건네는 거야. 잊어버렸으면 볼을 잡아당겨 봐. 한 번 더 보여 줄 거야.',
     fever: '마지막으로 보상 타임! 계속 응대하면 스피키 게이지가 차고, 가득 차면 피버 타임이야!',
-    feverHow: '피버 중에는 빵이 줄지 않고, 빵을 1개만 원하는 손님이 줄줄이 와. 쭉쭉 건네줘!',
+    feverHow: '피버 중에는 트레이에 빵이 전부 갖춰져. 손님을 탭하기만 하면 건넬 수 있으니까, 쭉쭉 탭해!',
     done: '이제 모두 상대하는 법은 다 익혔네! 우선 순한맛부터. 익숙해지면 조금씩 맵게 해서 엔드리스에도 도전해 봐!',
   },
 

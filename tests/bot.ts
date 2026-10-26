@@ -43,6 +43,12 @@ export class Bot {
     const s = this.skill;
     const t = s.actionTime;
 
+    // フィーバー中はトレーに全部そろっているので、来た順にタップしていくだけ（寝ているコミーもネルも）
+    if (w.fever > 0) {
+      const next = w.customers.find((c) => c.state === 'waiting');
+      if (next) return w.serve(next.id), t;
+    }
+
     const ready = w.ovens.findIndex((o) => o.state === 'ready' && o.t >= s.noticeOven);
     if (ready >= 0) return w.tapOven(ready), t;
     const burnt = w.ovens.findIndex((o) => o.state === 'burnt');
@@ -97,7 +103,7 @@ export class Bot {
       return t + 1;
     }
     // 足りないパンがあるうちは焼くだけにして、トレーは他の客に使う
-    const lacking = w.fever > 0 ? undefined : nell.order.find((b) => w.stock[b] + w.tray.filter((x) => x === b).length < count(nell.order, b));
+    const lacking = nell.order.find((b) => w.stock[b] + w.tray.filter((x) => x === b).length < count(nell.order, b));
     if (lacking) {
       const idle = w.ovens.findIndex((o) => o.state === 'idle');
       if (idle >= 0 && !w.ovens.some((o) => o.bread === lacking)) return w.bake(idle, lacking), t;

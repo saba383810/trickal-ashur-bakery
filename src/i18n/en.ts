@@ -84,7 +84,7 @@ export const en: Strings = {
     burumiTip: (reward: number) => `Sometimes sticks to the window. Tap the window for +${reward} G.`,
     fever: 'Fever Time',
     feverTip: (serves: number, sec: number) =>
-      `Fill the gauge with ${plural(serves, 'sale')}. For ${sec}s, bread never runs out and customers who want just one keep coming.`,
+      `Fill the gauge with ${plural(serves, 'sale')}. For ${sec}s, the tray holds every bread, so just tap customers to serve them.`,
     endlessInfo: (sec: number, ovens: number, seats: number) =>
       `Starting time ${sec}s · ${plural(ovens, 'oven')} · ${plural(seats, 'seat')}`,
     timedInfo: (sec: number, ovens: number, seats: number) => `Time limit ${sec}s · ${plural(ovens, 'oven')} · ${plural(seats, 'seat')}`,
@@ -177,9 +177,9 @@ export const en: Strings = {
       title: 'Fever Time',
       text: [
         "Every sale fills Speaki's gauge at the top right. When it's full, it's Fever Time!",
-        `For ${sec}s, bread in the display case never runs out, and customers who want just one bread keep coming.`,
-        "During Fever, nobody gets tired of waiting and bread never burns. Erpin and friends won't show up until it ends.",
-        'If time runs out during Fever, the shop closes once Fever ends. Serve until the very end!',
+        `For ${sec}s, the tray holds every kind of bread. Just tap a customer to hand over their whole order (even a sleeping Kommy, or Nell).`,
+        "Customers who want just one bread keep coming. Nobody gets tired of waiting and bread never burns. Erpin and friends won't show up until it ends.",
+        'Bread you had on the tray comes back when Fever ends. If time runs out during Fever, the shop closes once it ends. Serve until the very end!',
       ],
     }),
     guests: {
@@ -267,6 +267,8 @@ export const en: Strings = {
     comboBroken: 'Combo broken…',
     happy: 'Happy!',
     trayFull: 'Tray full',
+    feverTray: "It's all on the tray!",
+    feverTap: 'Tap!',
     komiArrive: "Yawn… Kommy's taking a little nap.",
     komiSleep: 'Mmm… zzz…',
     komiSleepAgain: 'Zzz…',
@@ -304,7 +306,7 @@ export const en: Strings = {
     burumiHint: (reward: number) => `Tap for +${reward} G`,
     burumiCaught: 'Hehe, you found me!',
     feverStart: 'Fever Time!',
-    feverStartSub: "Bread won't run out! Serve one each, fast!",
+    feverStartSub: 'Just tap your customers!',
     feverEnd: 'Fever over',
     timeLeft: (sec: number) => `${sec}s left!`,
     timeExtend: (sec: string) => `+${sec}s`,
@@ -351,7 +353,7 @@ export const en: Strings = {
     nell: "Last up is Ner. Her order only shows for the first 3 seconds, so memorize it well! Get it exactly right and she'll pay off Her Majesty's whole tab.",
     nellHow: "Gather the bread you memorized on your tray and hand it over in one go. If you forget, pull her cheeks and she'll show you again.",
     fever: "Finally, reward time! Keep serving to fill Speaki's gauge. When it's full, it's Fever Time!",
-    feverHow: 'During Fever, bread never runs out, and customers who want just one bread keep coming. Hand it out fast!',
+    feverHow: 'During Fever, the tray has every bread. Just tap your customers to serve them. Tap, tap, tap!',
     done: "Now you can handle everyone! Start with Mild. Once you're used to it, turn up the spice bit by bit and try Endless, too!",
   },
 
