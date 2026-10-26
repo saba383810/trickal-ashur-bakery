@@ -71,8 +71,9 @@ export function titleScreen(
   const cast = h(
     'div',
     { class: 'title-cast' },
+    // バターとコミーは並べる（バタコミ）
+    h('div', { class: 'cast side far' }, chara(host, BUTTER, 'happy', 30)),
     h('div', { class: 'cast side far' }, chara(host, KOMI, 'normal', 30)),
-    h('div', { class: 'cast side' }, chara(host, ELFIN, 'happy', 34)),
     h(
       'div',
       { class: 'cast main' },
@@ -82,7 +83,7 @@ export function titleScreen(
       h('div', { class: 'cast pet' }, chara(host, SPEAKI, 'happy', 26, { flip: true })),
     ),
     h('div', { class: 'cast side' }, chara(host, NELL, 'smile', 34, { flip: true })),
-    h('div', { class: 'cast side far' }, chara(host, BUTTER, 'happy', 30, { flip: true })),
+    h('div', { class: 'cast side' }, chara(host, ELFIN, 'happy', 34, { flip: true })),
   );
   return h(
     'div',
