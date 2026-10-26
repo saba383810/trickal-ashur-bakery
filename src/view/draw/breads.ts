@@ -4,8 +4,10 @@ import { crayon, LINE, setGrain } from './chibi';
 // パンはすべてコードで描く。描画は重めなのでサイズごとにオフスクリーンへキャッシュする。
 // 輪郭はキャラと同じクレヨンの線で引き、小さく描くほど太らせる（吹き出しの小さなパンでも線が細く薄くならない）
 const cache = new Map<string, HTMLCanvasElement>();
+/** 飛んでいくパンなどで大きさが毎フレーム変わるので、溜まりすぎたら作り直す */
+const CACHE_MAX = 240;
 
-/** 線の太さがそのままでよい大きさ（論理 px）と、いま描いているパンの線の倍率・線の色 */
+/** 線の太さがそのままでよい大きさ（画面での CSS px）と、いま描いているパンの線の倍率・線の色 */
 const LINE_SIZE = 70;
 let lk = 1;
 let ink: string | CanvasPattern = LINE;
@@ -13,10 +15,13 @@ let ink: string | CanvasPattern = LINE;
 /** (x, y) を中心に、幅 size 程度で描く。pr は論理 1px あたりの実ピクセル */
 export function drawBread(ctx: CanvasRenderingContext2D, id: BreadId, x: number, y: number, size: number, pr: number): void {
   const px = Math.max(8, Math.round(size * pr));
-  const k = Math.min(2, Math.max(1, Math.pow(LINE_SIZE / size, 0.6)));
+  // キャラ（lineScale）と同じく、画面に出る大きさで線の倍率を決める（スマホで縮んだ店でも線が細くならない）
+  const css = (size * pr) / ((typeof window !== 'undefined' && window.devicePixelRatio) || 1);
+  const k = Math.min(2, Math.max(1, Math.pow(LINE_SIZE / css, 0.6)));
   const key = `${id}:${px}:${k.toFixed(2)}`;
   let sprite = cache.get(key);
   if (!sprite) {
+    if (cache.size >= CACHE_MAX) cache.clear();
     sprite = document.createElement('canvas');
     sprite.width = sprite.height = Math.ceil(px * 1.3);
     const c = sprite.getContext('2d')!;

@@ -40,24 +40,50 @@ function chibiBox(spec: ChibiSpec, size: number, body: boolean): { w: number; to
   return { w: size * 3.7, top, ht: top + (body ? size * (feetR(spec) + 0.1) : size * 1.25) };
 }
 
+/** canvas を置いた大きさ ÷ 作った大きさ（CSS で縮めて置く所がある） */
+const fitScale = new WeakMap<HTMLCanvasElement, number>();
+
+/**
+ * 幅 w × 高さ ht（CSS px）の絵の canvas を、ページに置かれた大きさで描く（置き直されたら描き直す）。
+ * タイトルや遊び方は CSS で絵を縮めて並べるので、作った大きさで描いて縮めると線が細く薄くなり、
+ * 置かれた大きさで描くつまんだ時の絵とも線の太さがずれる。paint は CSS px の座標で描き、s は縮めた倍率
+ */
+function fitCanvas(cv: HTMLCanvasElement, w: number, ht: number, paint: (c: CanvasRenderingContext2D, s: number) => void): void {
+  cv.style.width = `${w}px`;
+  cv.style.height = `${ht}px`;
+  let drawn = '';
+  const draw = (shownHt: number) => {
+    const s = shownHt > 0 ? shownHt / ht : 1;
+    const k = dpr() * s;
+    const pw = Math.ceil(w * k);
+    const ph = Math.ceil(ht * k);
+    const key = `${pw}x${ph}`;
+    if (key === drawn) return;
+    drawn = key;
+    fitScale.set(cv, s);
+    cv.width = pw;
+    cv.height = ph;
+    const c = cv.getContext('2d')!;
+    c.setTransform(k, 0, 0, k, 0, 0);
+    paint(c, s);
+  };
+  draw(0);
+  new ResizeObserver((es) => draw(es[es.length - 1].contentRect.height)).observe(cv);
+}
+
 /** キャラの絵を canvas 要素として作る（size = 頭の半径 px） */
 export function chibiCanvas(spec: ChibiSpec, expr: Expr, size: number, opts: { body?: boolean; flip?: boolean } = {}): HTMLCanvasElement {
   const body = opts.body !== false;
   const { w, top, ht } = chibiBox(spec, size, body);
   const cv = document.createElement('canvas');
-  const k = dpr();
-  cv.width = Math.ceil(w * k);
-  cv.height = Math.ceil(ht * k);
-  cv.style.width = `${w}px`;
-  cv.style.height = `${ht}px`;
   cv.className = 'chibi';
-  const c = cv.getContext('2d')!;
-  c.scale(k, k);
-  if (opts.flip) {
-    c.translate(w, 0);
-    c.scale(-1, 1);
-  }
-  drawChibi(c, spec, w / 2, top, size, { expr, t: 0.4, body });
+  fitCanvas(cv, w, ht, (c) => {
+    if (opts.flip) {
+      c.translate(w, 0);
+      c.scale(-1, 1);
+    }
+    drawChibi(c, spec, w / 2, top, size, { expr, t: 0.4, body });
+  });
   return cv;
 }
 
@@ -94,7 +120,8 @@ export function mochiChibi(
     return MochiBody.toLocal({ x: (e.clientX - r.left) / s, y: (e.clientY - r.top) / s }, w / 2, top, size, flip);
   };
   const draw = () => {
-    const k = dpr() * shown();
+    // 下の絵と同じ大きさ・同じ線の太さで描く
+    const k = dpr() * (fitScale.get(base) ?? shown());
     const pw = Math.ceil((w + 2 * m) * k);
     const ph = Math.ceil((ht + 2 * m) * k);
     if (over.width !== pw || over.height !== ph) {
@@ -203,30 +230,16 @@ function passDown(wrap: HTMLElement, base: HTMLCanvasElement, e: PointerEvent): 
 
 export function breadCanvas(id: BreadId, size: number): HTMLCanvasElement {
   const cv = document.createElement('canvas');
-  const k = dpr();
-  cv.width = Math.ceil(size * k);
-  cv.height = Math.ceil(size * k);
-  cv.style.width = `${size}px`;
-  cv.style.height = `${size}px`;
   cv.className = 'bread';
-  const c = cv.getContext('2d')!;
-  c.scale(k, k);
-  drawBread(c, id, size / 2, size / 2, size * 0.9, k);
+  fitCanvas(cv, size, size, (c, s) => drawBread(c, id, size / 2, size / 2, size * 0.9, dpr() * s));
   return cv;
 }
 
 /** メニューに出すブルミ（ガラスに張り付いていない顔） */
 export function burumiCanvas(size: number): HTMLCanvasElement {
   const cv = document.createElement('canvas');
-  const k = dpr();
-  cv.width = Math.ceil(size * k);
-  cv.height = Math.ceil(size * k);
-  cv.style.width = `${size}px`;
-  cv.style.height = `${size}px`;
   cv.className = 'chibi';
-  const c = cv.getContext('2d')!;
-  c.scale(k, k);
-  drawBurumiIcon(c, size / 2, size / 2, size);
+  fitCanvas(cv, size, size, (c) => drawBurumiIcon(c, size / 2, size / 2, size));
   return cv;
 }
 
