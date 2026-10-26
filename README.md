@@ -68,17 +68,17 @@ npm run build    # 型チェック + 本番ビルド（dist/）
 
 [sabanogames](https://github.com/saba383810/sabanogames) の「あそび場」に、もちほっぺメーカーと同じ submodule 方式で載せています。
 
-- submodule: `entertainments/trickal-ashur-bakery`（このリポジトリ）
-- 公開 URL: `https://sabanogames.com/entertainments/trickal-ashur-bakery/`（CI が作るフレームページ。本体は `app/` 配下）
-- CI は `npm ci && npm run build -- --base=/entertainments/trickal-ashur-bakery/app/` でビルドする
+- submodule: `entertainments/trickcal-ashur-bakery`（このリポジトリ）
+- 公開 URL: `https://sabanogames.com/entertainments/trickcal-ashur-bakery/`（CI が作るフレームページ。本体は `app/` 配下）
+- CI は `npm ci && npm run build -- --base=/entertainments/trickcal-ashur-bakery/app/` でビルドする
 - 一覧のエントリは sabanogames の `site/src/data/entertainments.ts`、サムネイルは `docs/thumbnail.png` のコピー
-  （`site/public/images/entertainments/trickal-ashur-bakery.png`）。X などのリンクの絵は `docs/og.png` のコピー
-  （`trickal-ashur-bakery-og.png`。エントリの `ogImage`）
+  （`site/public/images/entertainments/trickcal-ashur-bakery.png`）。X などのリンクの絵は `docs/og.png` のコピー
+  （`trickcal-ashur-bakery-og.png`。エントリの `ogImage`）
 
 このリポジトリを更新したら、sabanogames 側でポインタを進めてコミットする:
 
 ```sh
-git submodule update --remote entertainments/trickal-ashur-bakery
+git submodule update --remote entertainments/trickcal-ashur-bakery
 ```
 
 サムネイルを差し替えたときは、sabanogames 側の画像もコピーし直して `image` の URL に `?v=N` を付ける（画像は 1 週間キャッシュされるため）。
